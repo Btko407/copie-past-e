@@ -1,0 +1,229 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: "Orbitron", sans-serif;
+    --font-body: "Space Grotesk", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+    --radius: 0.25rem;
+
+    --background: 0.1 0 0;
+    --foreground: 0.95 0 0;
+    --card: 0.16 0 0;
+    --card-foreground: 0.95 0 0;
+    --popover: 0.2 0 0;
+    --popover-foreground: 0.95 0 0;
+
+    --primary: 0.65 0.22 262;
+    --primary-foreground: 0.08 0 0;
+
+    --secondary: 0.32 0 0;
+    --secondary-foreground: 0.85 0 0;
+    --muted: 0.25 0 0;
+    --muted-foreground: 0.5 0 0;
+
+    --accent: 0.88 0.19 84;
+    --accent-foreground: 0.08 0 0;
+
+    --destructive: 0.65 0.25 16;
+    --destructive-foreground: 0.95 0 0;
+
+    --border: 0.24 0 0;
+    --input: 0.22 0 0;
+    --ring: 0.65 0.22 262;
+
+    --chart-1: 0.65 0.22 262;
+    --chart-2: 0.88 0.19 84;
+    --chart-3: 0.55 0.18 200;
+    --chart-4: 0.45 0.15 300;
+    --chart-5: 0.52 0.2 50;
+
+    --sidebar: 0.16 0 0;
+    --sidebar-foreground: 0.95 0 0;
+    --sidebar-primary: 0.65 0.22 262;
+    --sidebar-primary-foreground: 0.08 0 0;
+    --sidebar-accent: 0.88 0.19 84;
+    --sidebar-accent-foreground: 0.08 0 0;
+    --sidebar-border: 0.24 0 0;
+    --sidebar-ring: 0.65 0.22 262;
+  }
+
+  .dark {
+    --background: 0.1 0 0;
+    --foreground: 0.95 0 0;
+    --card: 0.16 0 0;
+    --card-foreground: 0.95 0 0;
+    --popover: 0.2 0 0;
+    --popover-foreground: 0.95 0 0;
+
+    --primary: 0.65 0.22 262;
+    --primary-foreground: 0.08 0 0;
+
+    --secondary: 0.32 0 0;
+    --secondary-foreground: 0.85 0 0;
+    --muted: 0.25 0 0;
+    --muted-foreground: 0.5 0 0;
+
+    --accent: 0.88 0.19 84;
+    --accent-foreground: 0.08 0 0;
+
+    --destructive: 0.65 0.25 16;
+    --destructive-foreground: 0.95 0 0;
+
+    --border: 0.24 0 0;
+    --input: 0.22 0 0;
+    --ring: 0.65 0.22 262;
+
+    --chart-1: 0.65 0.22 262;
+    --chart-2: 0.88 0.19 84;
+    --chart-3: 0.55 0.18 200;
+    --chart-4: 0.45 0.15 300;
+    --chart-5: 0.52 0.2 50;
+
+    --sidebar: 0.16 0 0;
+    --sidebar-foreground: 0.95 0 0;
+    --sidebar-primary: 0.65 0.22 262;
+    --sidebar-primary-foreground: 0.08 0 0;
+    --sidebar-accent: 0.88 0.19 84;
+    --sidebar-accent-foreground: 0.08 0 0;
+    --sidebar-border: 0.24 0 0;
+    --sidebar-ring: 0.65 0.22 262;
+  }
+
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    background-image: radial-gradient(
+        ellipse at 20% 50%,
+        oklch(0.65 0.22 262 / 0.04) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse at 80% 20%,
+        oklch(0.88 0.19 84 / 0.03) 0%,
+        transparent 40%
+      );
+    min-height: 100dvh;
+  }
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Neon glow utilities */
+  .glow-blue {
+    box-shadow: 0 0 8px oklch(var(--primary) / 0.5), 0 0 20px
+      oklch(var(--primary) / 0.3), 0 0 40px oklch(var(--primary) / 0.15);
+  }
+  .glow-blue-sm {
+    box-shadow: 0 0 4px oklch(var(--primary) / 0.4), 0 0 12px
+      oklch(var(--primary) / 0.2);
+  }
+  .glow-yellow {
+    box-shadow: 0 0 8px oklch(var(--accent) / 0.5), 0 0 20px
+      oklch(var(--accent) / 0.3), 0 0 40px oklch(var(--accent) / 0.15);
+  }
+  .glow-yellow-sm {
+    box-shadow: 0 0 4px oklch(var(--accent) / 0.4), 0 0 12px
+      oklch(var(--accent) / 0.2);
+  }
+  .glow-red {
+    box-shadow: 0 0 8px oklch(var(--destructive) / 0.5), 0 0 20px
+      oklch(var(--destructive) / 0.3), 0 0 40px oklch(var(--destructive) / 0.15);
+  }
+  .glow-green {
+    box-shadow: 0 0 8px oklch(0.75 0.18 140 / 0.5), 0 0 20px
+      oklch(0.75 0.18 140 / 0.3), 0 0 40px oklch(0.75 0.18 140 / 0.15);
+  }
+
+  /* Neon border utilities */
+  .neon-border-blue {
+    border: 1px solid oklch(var(--primary) / 0.6);
+    box-shadow: inset 0 0 8px oklch(var(--primary) / 0.05);
+  }
+  .neon-border-yellow {
+    border: 1px solid oklch(var(--accent) / 0.7);
+    box-shadow: inset 0 0 8px oklch(var(--accent) / 0.05);
+  }
+  .neon-border-red {
+    border: 1px solid oklch(var(--destructive) / 0.6);
+    box-shadow: inset 0 0 8px oklch(var(--destructive) / 0.05);
+  }
+  .neon-border-green {
+    border: 1px solid oklch(0.75 0.18 140 / 0.6);
+    box-shadow: inset 0 0 8px oklch(0.75 0.18 140 / 0.05);
+  }
+
+  /* Retro grid background */
+  .retro-grid {
+    background-image: linear-gradient(
+        oklch(var(--primary) / 0.07) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, oklch(var(--primary) / 0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Text neon glow */
+  .text-glow-blue {
+    text-shadow: 0 0 8px oklch(var(--primary) / 0.8), 0 0 20px
+      oklch(var(--primary) / 0.4);
+  }
+  .text-glow-yellow {
+    text-shadow: 0 0 8px oklch(var(--accent) / 0.8), 0 0 20px
+      oklch(var(--accent) / 0.4);
+  }
+  .text-glow-red {
+    text-shadow: 0 0 8px oklch(var(--destructive) / 0.8), 0 0 20px
+      oklch(var(--destructive) / 0.4);
+  }
+  .text-glow-green {
+    text-shadow: 0 0 8px oklch(0.75 0.18 140 / 0.8), 0 0 20px
+      oklch(0.75 0.18 140 / 0.4);
+  }
+
+  /* Time circuit segment glows */
+  .circuit-glow-red {
+    border-color: oklch(var(--destructive) / 0.7);
+    box-shadow: 0 0 12px oklch(var(--destructive) / 0.6), inset 0 0 8px
+      oklch(var(--destructive) / 0.1);
+  }
+  .circuit-glow-yellow {
+    border-color: oklch(var(--accent) / 0.7);
+    box-shadow: 0 0 12px oklch(var(--accent) / 0.6), inset 0 0 8px
+      oklch(var(--accent) / 0.1);
+  }
+  .circuit-glow-green {
+    border-color: oklch(0.75 0.18 140 / 0.7);
+    box-shadow: 0 0 12px oklch(0.75 0.18 140 / 0.6), inset 0 0 8px
+      oklch(0.75 0.18 140 / 0.1);
+  }
+}

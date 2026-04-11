@@ -1,0 +1,1057 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type ZipRestoreResult = 
+ record {
+   errorMessage: opt text;
+   listingsRestored: nat;
+   success: bool;
+ };
+type WebhookEvent = 
+ record {
+   amount: opt nat;
+   error: opt text;
+   eventType: text;
+   id: text;
+   processedAt: int;
+   status: text;
+   stripeCustomerId: opt text;
+   userId: opt text;
+ };
+type VersionBackupSummary = 
+ record {
+   backupType: text;
+   configCount: nat;
+   createdAt: Timestamp;
+   createdBy: text;
+   id: text;
+   isStable: bool;
+   listingCount: nat;
+   notes: opt text;
+   sizeKb: nat;
+   userCount: nat;
+   versionLabel: text;
+ };
+type VersionBackup = 
+ record {
+   backupData: text;
+   backupType: text;
+   createdAt: Timestamp;
+   createdBy: text;
+   id: text;
+   isStable: bool;
+   notes: opt text;
+   versionLabel: text;
+ };
+type VerifyEmailResult = 
+ variant {
+   err: text;
+   ok;
+ };
+type VerificationStatus = 
+ variant {
+   expired;
+   pending;
+   verified;
+ };
+type VerificationRecord = 
+ record {
+   createdAt: Timestamp;
+   email: text;
+   expiresAt: Timestamp;
+   lastResendAt: opt Timestamp;
+   resendCount: nat;
+   status: VerificationStatus;
+   token: text;
+   userId: UserId;
+ };
+type UserTierSubscription = 
+ record {
+   autoRenewal: bool;
+   expirationDate: int;
+   stripeSubscriptionId: opt text;
+   tier: nat;
+   updatedAt: int;
+   userId: principal;
+ };
+type UserSummary = 
+ record {
+   imageCount: nat;
+   lastLoginDate: opt Timestamp;
+   listingCount: nat;
+   registrationDate: Timestamp;
+   role: text;
+   userId: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   createdAt: Timestamp;
+   displayName: opt text;
+   email: text;
+   emailVerified: bool;
+   fbAccessToken: opt text;
+   fbAppId: opt text;
+   fbWebhookToken: opt text;
+   phoneNumber: opt text;
+   role: text;
+   stripeCustomerId: opt text;
+   updatedAt: Timestamp;
+   userId: UserId;
+   username: text;
+ };
+type UserId = principal;
+type UserCleanupSummary = 
+ record {
+   activeListingCount: nat;
+   archivedListingCount: nat;
+   email: text;
+   hasExpiredListings: bool;
+   oldestActiveExpirationDate: opt Timestamp;
+   userId: principal;
+ };
+type UpdateSettingsArgs = 
+ record {
+   accentColor: text;
+   allowedOrigins: text;
+   appName: text;
+   contentModerationEnabled: bool;
+   copyButtonsEnabled: bool;
+   maxConcurrentSessions: nat;
+   maxRequestsPerMinute: nat;
+   maxSessionDurationMinutes: nat;
+   maxUploadsPerHour: nat;
+   primaryColor: text;
+   uploadEnabled: bool;
+ };
+type UpdateProfileResult = 
+ variant {
+   err: text;
+   ok: UserProfile;
+ };
+type UpdateProfileArgs = 
+ record {
+   displayName: opt text;
+   email: opt text;
+   phoneNumber: opt text;
+ };
+type UpdateListingArgs = 
+ record {
+   category: opt text;
+   description: text;
+   id: ListingId;
+   price: opt text;
+   tierLevel: opt nat;
+   title: text;
+ };
+type Timestamp = int;
+type TierName = text;
+type TierConfig = 
+ record {
+   durationDays: nat;
+   name: text;
+   priceUSD: float64;
+   stripeProductId: opt text;
+   tierId: nat;
+ };
+type SupportTicket = 
+ record {
+   adminReply: opt text;
+   createdAt: Timestamp;
+   id: nat;
+   message: text;
+   repliedAt: opt Timestamp;
+   status: text;
+   subject: text;
+   userId: UserId;
+   username: text;
+ };
+type SiteSettings = 
+ record {
+   accentColor: text;
+   allowedOrigins: text;
+   appName: text;
+   contentModerationEnabled: bool;
+   copyButtonsEnabled: bool;
+   createdAt: Timestamp;
+   maxConcurrentSessions: nat;
+   maxRequestsPerMinute: nat;
+   maxSessionDurationMinutes: nat;
+   maxUploadsPerHour: nat;
+   primaryColor: text;
+   updatedAt: Timestamp;
+   uploadEnabled: bool;
+ };
+type SiteAnalytics = 
+ record {
+   avgImagesPerListing: float64;
+   avgListingsPerUser: float64;
+   paymentRevenue: float64;
+   totalActiveListings: nat;
+   totalArchivedListings: nat;
+   totalImages: nat;
+   totalListings: nat;
+   totalUsers: nat;
+ };
+type SetUsernameResult = 
+ variant {
+   err: text;
+   ok: UserProfile;
+ };
+type ScrapedListing = 
+ record {
+   category: opt text;
+   description: opt text;
+   imageUrls: vec text;
+   price: opt text;
+   source: MarketplaceSource;
+   sourceUrl: text;
+   title: opt text;
+ };
+type ScrapeResult = 
+ variant {
+   err: text;
+   ok: ScrapedListing;
+ };
+type RestoreResult = 
+ record {
+   errorMessage: opt text;
+   listingsRestored: nat;
+   preSaveBackupId: text;
+   success: bool;
+   usersRestored: nat;
+ };
+type ResendResult = 
+ variant {
+   err: text;
+   ok: record {
+         cooldownSecondsRemaining: nat;
+         resendCount: nat;
+       };
+ };
+type RefuelEntry = 
+ record {
+   date: int;
+   tierAtRefuel: TierName;
+ };
+type PaymentStatus = 
+ variant {
+   completed;
+   failed;
+   pending;
+ };
+type PaymentRecord = 
+ record {
+   amountUSD: float64;
+   createdAt: int;
+   externalOrderId: opt text;
+   id: nat;
+   paymentMethod: PaymentMethod;
+   status: PaymentStatus;
+   stripePaymentIntentId: opt text;
+   tierId: nat;
+   userId: principal;
+ };
+type PaymentMethod = 
+ variant {
+   crypto;
+   paypal;
+   stripe;
+ };
+type PaymentConfig = 
+ record {
+   paypalClientId: opt text;
+   paypalClientSecret: opt text;
+   paypalMode: text;
+   stripeBackupPriceId: opt text;
+   stripeMaxPriceId: opt text;
+   stripeMode: text;
+   stripeProPriceId: opt text;
+   stripePublishableKey: opt text;
+   stripeSecretKey: opt text;
+   stripeWalkerPriceId: opt text;
+   stripeWebhookSecret: opt text;
+   stripeWebhookSecretLive: opt text;
+   stripeWebhookSecretTest: opt text;
+ };
+type PaymentBannerState = 
+ record {
+   bannerType: text;
+   createdAt: int;
+   expiresAt: opt int;
+   message: text;
+   userId: principal;
+ };
+type ParsedListingResult = 
+ record {
+   category: opt text;
+   description: opt text;
+   price: opt text;
+   title: opt text;
+ };
+type OcrResult = 
+ record {
+   brand: text;
+   category: text;
+   condition: text;
+   description: text;
+   price: text;
+   title: text;
+ };
+type NotificationType = 
+ variant {
+   adminAnnouncement;
+   listingArchived;
+   listingDeletionWarning;
+   lowFuelWarning;
+   paymentFailed;
+   refuelSuccess;
+   subscriptionCancelled;
+   subscriptionExpiry;
+   subscriptionRenewed;
+ };
+type MarketplaceSource = 
+ variant {
+   facebookMarketplace;
+   offerUp;
+   unknown;
+ };
+type MarkReadResult = 
+ variant {
+   err: text;
+   ok;
+ };
+type LoyaltyStatus = 
+ record {
+   currentTier: TierName;
+   refuelCount: nat;
+   rewardClaimedForTiers: vec TierName;
+ };
+type ListingStatus = 
+ variant {
+   active;
+   archived;
+ };
+type ListingSnapshot = 
+ record {
+   category: opt text;
+   description: text;
+   favorited: bool;
+   pinned: bool;
+   price: opt text;
+   title: text;
+ };
+type ListingId = nat;
+type Listing = 
+ record {
+   archivedAt: opt Timestamp;
+   archivedManually: bool;
+   category: opt text;
+   createdAt: Timestamp;
+   description: text;
+   expirationDate: Timestamp;
+   favorited: bool;
+   id: ListingId;
+   pinned: bool;
+   pinnedAt: opt Timestamp;
+   price: opt text;
+   restoredAt: opt Timestamp;
+   sourceUrl: opt text;
+   status: ListingStatus;
+   tierLevel: nat;
+   title: text;
+   userId: UserId;
+ };
+type InAppNotification = 
+ record {
+   createdAt: Timestamp;
+   id: nat;
+   isRead: bool;
+   message: text;
+   notificationType: NotificationType;
+   title: text;
+   userId: UserId;
+ };
+type ImageId = nat;
+type Image = 
+ record {
+   altText: text;
+   "blob": ExternalBlob;
+   id: ImageId;
+   listingId: ListingId;
+   order: nat;
+ };
+type HealthStatus = 
+ record {
+   backupCount: nat;
+   criticalKeysPresent: bool;
+   keysConfigured: bool;
+   lastBackupAt: Timestamp;
+   status: text;
+ };
+type GetProfileResult = 
+ variant {
+   err: text;
+   ok: UserProfile;
+ };
+type GasWallet = 
+ record {
+   autoRenewal: bool;
+   autoRenewalTierId: nat;
+   gasBalance: nat;
+   updatedAt: Timestamp;
+   userId: UserId;
+ };
+type GasPurchaseStatus = 
+ variant {
+   completed;
+   failed;
+   pending;
+ };
+type GasPurchase = 
+ record {
+   createdAt: Timestamp;
+   gasAmount: nat;
+   id: nat;
+   priceUSD: float64;
+   status: GasPurchaseStatus;
+   stripePaymentIntentId: text;
+   userId: UserId;
+ };
+type GasPackage = 
+ record {
+   gasAmount: nat;
+   name: text;
+   packageId: nat;
+   priceUSD: float64;
+   stripeProductId: text;
+ };
+type FbListing = 
+ record {
+   category: opt text;
+   description: opt text;
+   id: text;
+   imageUrls: vec text;
+   price: opt text;
+   title: text;
+ };
+type FbCredentials = 
+ record {
+   accessToken: text;
+   appId: text;
+ };
+type FailedWebhookEvent = 
+ record {
+   createdAt: int;
+   errorMessage: text;
+   eventType: text;
+   id: text;
+   payload: text;
+   retryCount: nat;
+   stripeEventId: text;
+ };
+type ExternalBlob = blob;
+type ExtensionListingData = 
+ record {
+   category: opt text;
+   description: opt text;
+   imageUrls: vec text;
+   price: opt text;
+   sourceUrl: opt text;
+   title: text;
+ };
+type DraftListingId = nat;
+type DiscountType = 
+ variant {
+   fixedUSD;
+   percentage;
+ };
+type DiscountCode = 
+ record {
+   active: bool;
+   code: text;
+   discountType: DiscountType;
+   discountValue: float64;
+   expirationDate: int;
+   id: nat;
+   maxUses: nat;
+   tierRestriction: opt nat;
+   usageCount: nat;
+ };
+type CreateVersionArgs = 
+ record {
+   description: text;
+   versionLabel: text;
+ };
+type CreateListingArgs = 
+ record {
+   category: opt text;
+   description: text;
+   price: opt text;
+   sourceUrl: opt text;
+   tierLevel: opt nat;
+   title: text;
+ };
+type ConfigEntry = 
+ record {
+   category: text;
+   encrypted: bool;
+   key: text;
+   updatedAt: Timestamp;
+   updatedBy: text;
+   value: text;
+ };
+type BulkGasDiscount = 
+ record {
+   description: text;
+   discountPercent: nat;
+   minGasAmount: nat;
+ };
+type BackupStatus = 
+ variant {
+   complete;
+   failed;
+   pending;
+ };
+type BackupRecord = 
+ record {
+   createdAt: Timestamp;
+   downloadUrl: text;
+   fileSize: nat;
+   id: nat;
+   status: BackupStatus;
+   userId: UserId;
+ };
+type BackupListingEntry = 
+ record {
+   archivedAt: opt Timestamp;
+   brand: opt text;
+   category: opt text;
+   condition: opt text;
+   createdAt: Timestamp;
+   description: text;
+   favorited: bool;
+   id: nat;
+   images: vec BackupImageEntry;
+   pinned: bool;
+   price: opt text;
+   sourceUrl: opt text;
+   subcategory: opt text;
+   title: text;
+   typeModel: opt text;
+ };
+type BackupImageEntry = 
+ record {
+   filename: text;
+   originalUrl: text;
+ };
+type BackupHistoryRecord = 
+ record {
+   downloadExpiresAt: Timestamp;
+   downloadToken: text;
+   exportedAt: Timestamp;
+   id: text;
+   imageCount: nat;
+   listingCount: nat;
+   paymentIntentId: text;
+   userId: UserId;
+ };
+type AuditLogEntry = 
+ record {
+   action: text;
+   adminId: UserId;
+   details: text;
+   id: nat;
+   targetUserId: opt UserId;
+   timestamp: Timestamp;
+ };
+type AppVersion = 
+ record {
+   createdAt: Timestamp;
+   createdBy: UserId;
+   description: text;
+   id: nat;
+   isRollback: bool;
+   settingsSnapshot: SiteSettings;
+   versionLabel: text;
+ };
+type AdminTierAction = 
+ record {
+   adminId: principal;
+   createdAt: int;
+   daysAdded: nat;
+   newExpirationDate: int;
+   tierId: nat;
+   userId: principal;
+ };
+type AdminNotification = 
+ record {
+   createdAt: Timestamp;
+   id: nat;
+   isRead: bool;
+   message: text;
+   notifType: text;
+   priority: text;
+   relatedId: opt text;
+   relatedUser: text;
+   targetAdminId: opt text;
+ };
+type AddImageArgs = 
+ record {
+   altText: text;
+   "blob": ExternalBlob;
+   listingId: ListingId;
+   order: nat;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControl: () -> ();
+  addImage: (args: AddImageArgs) -> (Image);
+  adminCreateBackupNow: () ->
+   (variant {
+      err: text;
+      ok: record {
+            backupId: text;
+            createdAt: int;
+          };
+    });
+  adminCreateDiscountCode: (code: text, discountType: DiscountType,
+   discountValue: float64, expirationDate: int, maxUses: nat,
+   tierRestriction: opt nat) -> (DiscountCode);
+  adminDeactivateDiscountCode: (discountId: nat) -> ();
+  adminDeleteUser: (userId: text) -> (variant {
+                                        err: text;
+                                        ok: text;
+                                      });
+  adminExtendUserTier: (userId: UserId, tierId: nat, daysAdded: nat) ->
+   (UserTierSubscription);
+  adminExtendUserTierByUsername: (username: text, tierId: nat, daysAdded:
+   nat) -> (variant {
+              err: text;
+              ok: UserTierSubscription;
+            });
+  adminGetGeminiConfig: () -> (record {
+                                 configured: bool;
+                                 model: text;
+                               }) query;
+  adminGetPaymentConfig: () -> (PaymentConfig) query;
+  adminGetUserIdByUsername: (username: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  adminGetUserSubscription: (userId: UserId) ->
+   (opt UserTierSubscription) query;
+  adminListDiscountCodes: () -> (vec DiscountCode) query;
+  adminListPayments: () -> (vec PaymentRecord) query;
+  adminListProfiles: () -> (vec UserProfile) query;
+  adminListSubscriptions: () -> (vec UserTierSubscription) query;
+  adminListTierActions: () -> (vec AdminTierAction) query;
+  adminResetAllUserSubscriptions: () -> (variant {
+                                           err: text;
+                                           ok: text;
+                                         });
+  adminResetUserSubscription: (username: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  adminRetryFailedWebhookEvent: (eventId: text) -> (variant {
+                                                      err: text;
+                                                      ok;
+                                                    });
+  adminSaveGeminiConfig: (apiKey: text) -> (variant {
+                                              err: text;
+                                              ok;
+                                            });
+  adminSavePaymentConfig: (config: PaymentConfig) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  adminSendAnnouncement: (title: text, message: text) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  adminTestGeminiConnection: () -> (variant {
+                                      err: text;
+                                      ok: text;
+                                    });
+  adminTestPaypalConnection: (clientId: text, clientSecret: text, mode:
+   text) -> (variant {
+               err: text;
+               ok: text;
+             });
+  adminTestStripeConnection: (secretKey: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  adminUpsertTier: (config: TierConfig) -> ();
+  archiveListing: (listingId: ListingId) -> (Listing);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  assignUserRole: (userId: text, role: text) -> ();
+  checkAndCreateLowFuelNotification: (fuelPercent: float64,
+   subscriptionExpirationTimestamp: Timestamp) -> (opt InAppNotification);
+  claimLoyaltyReward: (tier: TierName) -> (variant {
+                                             err: text;
+                                             ok;
+                                           });
+  closeSupportTicket: (id: nat) -> (variant {
+                                      err: text;
+                                      ok;
+                                    });
+  confirmCryptoPayment: (_paymentId: nat, _txHash: text) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  confirmGasPurchase: (purchaseRecordId: nat) ->
+   (variant {
+      err: text;
+      ok: GasWallet;
+    });
+  confirmPayPalPayment: (_paymentId: nat, _paypalOrderId: text) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  confirmSmartBackupPayment: (paymentRecordId: nat, stripePaymentIntentId:
+   text, listingCount: nat, imageCount: nat) ->
+   (variant {
+      err: text;
+      ok: BackupHistoryRecord;
+    });
+  confirmStripePayment: (paymentRecordId: nat, stripePaymentIntentId:
+   text) -> ();
+  createBackupRecord: (fileSize: nat) -> (BackupRecord);
+  createBroadcastNotification: (title: text, message: text, priority: 
+   text, targetType: text, targetUserId: opt text) ->
+   (variant {
+      err: text;
+      ok: nat;
+    });
+  createListing: (args: CreateListingArgs) -> (Listing);
+  createStripeCheckoutSession: (priceId: text, userId: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  createStripePortalSession: () -> (variant {
+                                      err: text;
+                                      ok: text;
+                                    });
+  createVersion: (args: CreateVersionArgs) -> (AppVersion);
+  createVersionBackup: (isManual: bool, notes: opt text) ->
+   (variant {
+      err: text;
+      ok: VersionBackup;
+    });
+  deleteBackup: (backupId: text) -> (bool);
+  deleteBackupRecord: (backupId: nat) -> (variant {
+                                            err: text;
+                                            ok;
+                                          });
+  deleteConfig: (key: text) -> ();
+  deleteListing: (id: ListingId) -> ();
+  detectMarketplaceSource: (url: text) -> (MarketplaceSource) query;
+  dismissPaymentBanner: () -> ();
+  exportAllUsersData: () ->
+   (record {
+      imageUrls: vec text;
+      jsonData: text;
+    }) query;
+  exportUserData: (userId: text) ->
+   (opt record {
+          imageUrls: vec text;
+          jsonData: text;
+        }) query;
+  failGasPurchase: (purchaseRecordId: nat) -> ();
+  failStripePayment: (paymentRecordId: nat) -> ();
+  generateBackupData: () -> (vec ListingSnapshot) query;
+  generateFullBackupEntries: (imageUrlPairs: vec record {
+                                                   nat;
+                                                   vec text;
+                                                 }) ->
+   (vec BackupListingEntry);
+  generateWebhookToken: () -> (variant {
+                                 err: text;
+                                 ok: text;
+                               });
+  getAdaptiveBackupSchedule: () ->
+   (record {
+      intervalHours: nat;
+      nextBackupAt: int;
+      userCount: nat;
+    }) query;
+  getAdminSettings: () -> (SiteSettings) query;
+  getAllConfig: () -> (vec ConfigEntry) query;
+  getAuditLog: () -> (vec AuditLogEntry) query;
+  getBackupDownloadInfo: (token: text) -> (opt BackupHistoryRecord) query;
+  getBackupHistory: () -> (vec BackupHistoryRecord) query;
+  getBulkGasDiscounts: () -> (vec BulkGasDiscount) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCleanupSummaries: () -> (vec UserCleanupSummary) query;
+  getConfig: (key: text) -> (opt text) query;
+  getFailedWebhookEvents: () -> (vec FailedWebhookEvent) query;
+  getFbListings: () -> (variant {
+                          err: text;
+                          ok: vec FbListing;
+                        });
+  getGasPackages: () -> (vec GasPackage) query;
+  getHealthStatus: () -> (HealthStatus) query;
+  getListing: (id: ListingId) -> (opt Listing) query;
+  getLoyaltyStatus: () -> (LoyaltyStatus) query;
+  getMaintenanceMode: () ->
+   (record {
+      eta: text;
+      isActive: bool;
+      message: text;
+    }) query;
+  getMyBackups: () -> (vec BackupRecord) query;
+  getMyFbCredentials: () -> (opt FbCredentials) query;
+  getMyGasPurchases: () -> (vec GasPurchase) query;
+  getMyGasWallet: () -> (variant {
+                           err: text;
+                           ok: GasWallet;
+                         });
+  getMyPayments: () -> (vec PaymentRecord) query;
+  getMyProfile: () -> (GetProfileResult) query;
+  getMySubscription: () -> (opt UserTierSubscription) query;
+  getMyWebhookToken: () -> (variant {
+                              err: text;
+                              ok: text;
+                            }) query;
+  getPaymentBanner: () -> (opt PaymentBannerState);
+  getProfileByUsername: (username: text) -> (opt UserProfile) query;
+  getRefuelHistory: () -> (vec RefuelEntry) query;
+  getRevenueStats: () ->
+   (record {
+      activeSubscribers: nat;
+      month: nat;
+      today: nat;
+      week: nat;
+    }) query;
+  getSiteAnalytics: () -> (SiteAnalytics) query;
+  getStripeHealthStatus: () ->
+   (record {
+      keysConfigured: bool;
+      lastWebhookReceived: opt int;
+      status: text;
+      webhookConfigured: bool;
+    }) query;
+  getStripePublicKey: () -> (record {publishableKey: text;}) query;
+  getSupportTicket: (id: nat) -> (opt SupportTicket) query;
+  getSystemHealthStatus: () ->
+   (record {
+      backup:
+       record {
+         backupCount: nat;
+         freshnessHours: opt nat;
+         lastBackupAt: opt int;
+         status: text;
+       };
+      database: record {
+                  canReadConfig: bool;
+                  canReadUsers: bool;
+                  status: text;
+                };
+      gemini: record {
+                hasApiKey: bool;
+                status: text;
+              };
+      maintenance: record {isActive: bool;};
+      paypal: record {
+                isConfigured: bool;
+                status: text;
+              };
+      signups: record {
+                 lastSignupAt: opt int;
+                 total: nat;
+               };
+      stripe:
+       record {
+         hasPriceIds: bool;
+         hasPublishableKey: bool;
+         hasSecretKey: bool;
+         lastWebhookAt: opt int;
+         status: text;
+       };
+    }) query;
+  getTier: (tierId: nat) -> (opt TierConfig) query;
+  getTiers: () -> (vec TierConfig) query;
+  getUnreadAdminNotificationCount: () -> (nat) query;
+  getUserNotifications: () -> (vec InAppNotification) query;
+  getVerificationStatus: () -> (opt VerificationRecord) query;
+  getWebhookLog: () -> (vec WebhookEvent) query;
+  initConfigFromPaymentConfig: () -> ();
+  initiateCryptoPayment: (tierId: nat, discountCode: opt text) ->
+   (variant {
+      err: text;
+      ok: PaymentRecord;
+    });
+  initiateEmailVerification: (email: text) -> (variant {
+                                                 err: text;
+                                                 ok: text;
+                                               });
+  initiateGasPurchase: (packageId: nat, discountCode: opt text) ->
+   (variant {
+      err: text;
+      ok:
+       record {
+         finalAmountUSD: float64;
+         gasAmount: nat;
+         purchaseRecordId: nat;
+         stripeClientSecret: text;
+       };
+    });
+  initiatePayPalPayment: (tierId: nat, discountCode: opt text) ->
+   (variant {
+      err: text;
+      ok: PaymentRecord;
+    });
+  initiateSmartBackup: () ->
+   (record {
+      amountUSD: float64;
+      backupPriceId: opt text;
+      paymentRecordId: nat;
+      stripeClientSecret: opt text;
+    });
+  initiateTierUpgrade: (tierId: nat, discountCode: opt text) ->
+   (record {
+      discountApplied: bool;
+      finalAmountUSD: float64;
+      paymentRecordId: nat;
+      stripeClientSecret: opt text;
+      tierDurationDays: nat;
+    });
+  isCallerAdmin: () -> (bool) query;
+  listAdminNotifications: () -> (vec AdminNotification) query;
+  listAllUsers: () -> (vec UserSummary) query;
+  listFavoritedListings: () -> (vec Listing) query;
+  listImages: (listingId: ListingId) -> (vec Image) query;
+  listListings: () -> (vec Listing) query;
+  listSupportTickets: () -> (vec SupportTicket) query;
+  listVersionBackups: () -> (vec VersionBackupSummary) query;
+  listVersionHistory: () -> (vec AppVersion) query;
+  markAdminNotificationRead: (id: nat) -> ();
+  markAllAdminNotificationsRead: () -> ();
+  markAllNotificationsRead: () -> ();
+  markBackupAsStable: (backupId: text) -> (bool);
+  markNotificationRead: (notificationId: nat) -> (MarkReadResult);
+  ocrScanImage: (imageBase64: text) -> (variant {
+                                          err: text;
+                                          ok: OcrResult;
+                                        });
+  parsePastedText: ("text": text) -> (ParsedListingResult);
+  permanentDeleteListing: (listingId: ListingId) -> (variant {
+                                                       err: text;
+                                                       ok;
+                                                     });
+  processStripeWebhookEvent: (eventId: text, eventType: text, payload: 
+   text, stripeCustomerId: opt text, userId: opt text, priceId: opt text,
+   amountTotal: opt nat, subscriptionStatus: opt text, currentPeriodEnd:
+   opt int) -> (variant {
+                  alreadyProcessed;
+                  err: text;
+                  ok: text;
+                });
+  receiveExtensionData: (data: ExtensionListingData, webhookToken: text) ->
+   (variant {
+      err: text;
+      ok: DraftListingId;
+    });
+  registerUserProfile: (username: text, email: text) -> (SetUsernameResult);
+  removeImage: (imageId: ImageId) -> ();
+  replySupportTicket: (id: nat, reply: text) -> (variant {
+                                                   err: text;
+                                                   ok;
+                                                 });
+  resendVerificationEmail: (email: text) -> (ResendResult);
+  restoreFromBackup: (snapshots: vec ListingSnapshot) ->
+   (variant {
+      err: text;
+      ok: nat;
+    });
+  restoreFromVersionBackup: (backupId: text) -> (RestoreResult);
+  restoreFromZipBackup: (entries: vec BackupListingEntry) ->
+   (ZipRestoreResult);
+  restoreListing: (listingId: ListingId) ->
+   (variant {
+      err: text;
+      ok: Listing;
+    });
+  restoreUserAccountFromBackup: (userId: text, backupId: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  rollbackToVersion: (versionId: nat) -> (SiteSettings);
+  runLifecycleCleanup: () -> (record {
+                                archived: nat;
+                                deleted: nat;
+                              });
+  saveFbCredentials: (appId: text, accessToken: text) ->
+   (variant {
+      err: text;
+      ok;
+    });
+  scrapeListing: (url: text) -> (ScrapeResult);
+  setAutoRenewal: (enabled: bool, tierId: nat) ->
+   (variant {
+      err: text;
+      ok: GasWallet;
+    });
+  setConfig: (key: text, value: text, encrypted: bool, category: text,
+   updatedBy: text) -> ();
+  setMaintenanceMode: (isActive: bool, message: text, eta: text) -> ();
+  setMyUsername: (username: text) -> (SetUsernameResult);
+  submitSupportTicket: (subject: text, message: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
+  toggleListingFavorited: (listingId: ListingId) ->
+   (variant {
+      err: text;
+      ok: bool;
+    });
+  toggleListingPinned: (listingId: ListingId) ->
+   (variant {
+      err: text;
+      ok: bool;
+    });
+  triggerAdaptiveAutoBackup: () -> (variant {
+                                      err: text;
+                                      ok;
+                                    });
+  updateAdminSettings: (args: UpdateSettingsArgs) -> (SiteSettings);
+  updateListing: (args: UpdateListingArgs) -> (Listing);
+  updateMyProfile: (args: UpdateProfileArgs) -> (UpdateProfileResult);
+  validateDiscountCode: (code: text, tierId: nat) -> (opt DiscountCode) query;
+  verifyEmail: (token: text) -> (VerifyEmailResult);
+}

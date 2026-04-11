@@ -1,0 +1,295 @@
+/* Copie Past-e Extension Popup — Dark BTTF Neon Theme */
+
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Grotesk:wght@400;500&display=swap");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0a0f;
+  --card: #141420;
+  --border: #2a2a3a;
+  --primary: #3b8eff;
+  --primary-glow: rgba(59, 142, 255, 0.35);
+  --accent: #ffe44d;
+  --accent-glow: rgba(255, 228, 77, 0.35);
+  --muted: #555570;
+  --fg: #e8e8f0;
+  --fg-dim: #9090b0;
+  --success: #4ade80;
+  --error: #f87171;
+  --radius: 8px;
+}
+
+body {
+  width: 300px;
+  min-height: 200px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.popup-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+/* ─── Header ──────────────────────────────────────────────── */
+
+.popup-header {
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.logo-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.logo-text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  text-shadow: 0 0 10px var(--primary-glow);
+  letter-spacing: 0.1em;
+}
+
+.tagline {
+  font-size: 11px;
+  color: var(--fg-dim);
+  letter-spacing: 0.05em;
+}
+
+/* ─── Panel ───────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: center;
+}
+
+.link {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* ─── Status row ──────────────────────────────────────────── */
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-neutral { background: var(--muted); }
+.dot-ready { background: var(--primary); box-shadow: 0 0 6px var(--primary-glow); }
+.dot-success { background: var(--success); box-shadow: 0 0 6px rgba(74,222,128,0.4); }
+.dot-error { background: var(--error); box-shadow: 0 0 6px rgba(248,113,113,0.4); }
+
+.status-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+/* ─── Inputs ──────────────────────────────────────────────── */
+
+.input-field {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+/* ─── Buttons ─────────────────────────────────────────────── */
+
+.btn {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #050510;
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #5aa0ff;
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.btn-capture {
+  background: linear-gradient(135deg, var(--accent), #ffa500);
+  color: #050510;
+  box-shadow: 0 0 14px var(--accent-glow);
+  font-size: 12px;
+}
+
+.btn-capture:hover:not(:disabled) {
+  box-shadow: 0 0 24px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.btn-secondary:hover {
+  background: rgba(59, 142, 255, 0.1);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+
+.btn-ghost:hover {
+  color: var(--fg-dim);
+  border-color: var(--muted);
+}
+
+/* ─── Result message ──────────────────────────────────────── */
+
+.result-msg {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  text-align: center;
+}
+
+.result-msg.success {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: var(--success);
+}
+
+.result-msg.error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: var(--error);
+}
+
+/* ─── Loading overlay ─────────────────────────────────────── */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: var(--radius);
+  z-index: 10;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-icon {
+  font-size: 14px;
+  line-height: 1;
+}

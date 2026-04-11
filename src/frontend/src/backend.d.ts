@@ -1,0 +1,1085 @@
+import type { Principal } from "@icp-sdk/core/principal";
+export interface Some<T> {
+    __kind__: "Some";
+    value: T;
+}
+export interface None {
+    __kind__: "None";
+}
+export type Option<T> = Some<T> | None;
+export class ExternalBlob {
+    getBytes(): Promise<Uint8Array<ArrayBuffer>>;
+    getDirectURL(): string;
+    static fromURL(url: string): ExternalBlob;
+    static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
+    withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
+}
+export interface ExtensionListingData {
+    title: string;
+    imageUrls: Array<string>;
+    description?: string;
+    sourceUrl?: string;
+    category?: string;
+    price?: string;
+}
+export interface PaymentRecord {
+    id: bigint;
+    status: PaymentStatus;
+    paymentMethod: PaymentMethod;
+    tierId: bigint;
+    userId: Principal;
+    createdAt: bigint;
+    stripePaymentIntentId?: string;
+    amountUSD: number;
+    externalOrderId?: string;
+}
+export interface UserCleanupSummary {
+    hasExpiredListings: boolean;
+    userId: Principal;
+    email: string;
+    archivedListingCount: bigint;
+    oldestActiveExpirationDate?: Timestamp;
+    activeListingCount: bigint;
+}
+export type TierName = string;
+export interface HealthStatus {
+    status: string;
+    backupCount: bigint;
+    keysConfigured: boolean;
+    lastBackupAt: Timestamp;
+    criticalKeysPresent: boolean;
+}
+export interface VersionBackup {
+    id: string;
+    versionLabel: string;
+    createdAt: Timestamp;
+    createdBy: string;
+    isStable: boolean;
+    backupData: string;
+    backupType: string;
+    notes?: string;
+}
+export interface BackupRecord {
+    id: bigint;
+    status: BackupStatus;
+    userId: UserId;
+    createdAt: Timestamp;
+    downloadUrl: string;
+    fileSize: bigint;
+}
+export interface UserSummary {
+    lastLoginDate?: Timestamp;
+    userId: string;
+    role: string;
+    imageCount: bigint;
+    registrationDate: Timestamp;
+    listingCount: bigint;
+}
+export interface UserTierSubscription {
+    stripeSubscriptionId?: string;
+    userId: Principal;
+    tier: bigint;
+    autoRenewal: boolean;
+    updatedAt: bigint;
+    expirationDate: bigint;
+}
+export interface LoyaltyStatus {
+    rewardClaimedForTiers: Array<TierName>;
+    currentTier: TierName;
+    refuelCount: bigint;
+}
+export interface BackupListingEntry {
+    id: bigint;
+    title: string;
+    favorited: boolean;
+    subcategory?: string;
+    createdAt: Timestamp;
+    description: string;
+    sourceUrl?: string;
+    pinned: boolean;
+    category?: string;
+    brand?: string;
+    price?: string;
+    typeModel?: string;
+    condition?: string;
+    images: Array<BackupImageEntry>;
+    archivedAt?: Timestamp;
+}
+export interface FbListing {
+    id: string;
+    title: string;
+    imageUrls: Array<string>;
+    description?: string;
+    category?: string;
+    price?: string;
+}
+export type ResendResult = {
+    __kind__: "ok";
+    ok: {
+        resendCount: bigint;
+        cooldownSecondsRemaining: bigint;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface ZipRestoreResult {
+    errorMessage?: string;
+    listingsRestored: bigint;
+    success: boolean;
+}
+export type GetProfileResult = {
+    __kind__: "ok";
+    ok: UserProfile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type MarkReadResult = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface InAppNotification {
+    id: bigint;
+    title: string;
+    userId: UserId;
+    notificationType: NotificationType;
+    createdAt: Timestamp;
+    isRead: boolean;
+    message: string;
+}
+export interface AuditLogEntry {
+    id: bigint;
+    action: string;
+    timestamp: Timestamp;
+    details: string;
+    adminId: UserId;
+    targetUserId?: UserId;
+}
+export interface BackupImageEntry {
+    originalUrl: string;
+    filename: string;
+}
+export type SetUsernameResult = {
+    __kind__: "ok";
+    ok: UserProfile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface ScrapedListing {
+    title?: string;
+    imageUrls: Array<string>;
+    source: MarketplaceSource;
+    description?: string;
+    sourceUrl: string;
+    category?: string;
+    price?: string;
+}
+export interface RestoreResult {
+    errorMessage?: string;
+    preSaveBackupId: string;
+    usersRestored: bigint;
+    listingsRestored: bigint;
+    success: boolean;
+}
+export interface GasWallet {
+    userId: UserId;
+    autoRenewal: boolean;
+    updatedAt: Timestamp;
+    autoRenewalTierId: bigint;
+    gasBalance: bigint;
+}
+export type UserId = Principal;
+export interface SiteSettings {
+    maxSessionDurationMinutes: bigint;
+    appName: string;
+    primaryColor: string;
+    contentModerationEnabled: boolean;
+    createdAt: Timestamp;
+    accentColor: string;
+    updatedAt: Timestamp;
+    copyButtonsEnabled: boolean;
+    maxRequestsPerMinute: bigint;
+    maxConcurrentSessions: bigint;
+    allowedOrigins: string;
+    uploadEnabled: boolean;
+    maxUploadsPerHour: bigint;
+}
+export interface RefuelEntry {
+    tierAtRefuel: TierName;
+    date: bigint;
+}
+export interface AppVersion {
+    id: bigint;
+    versionLabel: string;
+    createdAt: Timestamp;
+    createdBy: UserId;
+    description: string;
+    settingsSnapshot: SiteSettings;
+    isRollback: boolean;
+}
+export type UpdateProfileResult = {
+    __kind__: "ok";
+    ok: UserProfile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface ParsedListingResult {
+    title?: string;
+    description?: string;
+    category?: string;
+    price?: string;
+}
+export interface VersionBackupSummary {
+    id: string;
+    versionLabel: string;
+    createdAt: Timestamp;
+    createdBy: string;
+    isStable: boolean;
+    backupType: string;
+    notes?: string;
+    configCount: bigint;
+    sizeKb: bigint;
+    listingCount: bigint;
+    userCount: bigint;
+}
+export interface UserProfile {
+    fbWebhookToken?: string;
+    emailVerified: boolean;
+    username: string;
+    displayName?: string;
+    userId: UserId;
+    createdAt: Timestamp;
+    role: string;
+    email: string;
+    fbAppId?: string;
+    fbAccessToken?: string;
+    updatedAt: Timestamp;
+    stripeCustomerId?: string;
+    phoneNumber?: string;
+}
+export interface WebhookEvent {
+    id: string;
+    status: string;
+    userId?: string;
+    error?: string;
+    processedAt: bigint;
+    stripeCustomerId?: string;
+    amount?: bigint;
+    eventType: string;
+}
+export interface BackupHistoryRecord {
+    id: string;
+    downloadExpiresAt: Timestamp;
+    userId: UserId;
+    imageCount: bigint;
+    exportedAt: Timestamp;
+    downloadToken: string;
+    listingCount: bigint;
+    paymentIntentId: string;
+}
+export interface ConfigEntry {
+    key: string;
+    value: string;
+    encrypted: boolean;
+    updatedAt: Timestamp;
+    updatedBy: string;
+    category: string;
+}
+export type Timestamp = bigint;
+export interface AddImageArgs {
+    order: bigint;
+    blob: ExternalBlob;
+    listingId: ListingId;
+    altText: string;
+}
+export interface DiscountCode {
+    id: bigint;
+    active: boolean;
+    discountValue: number;
+    code: string;
+    discountType: DiscountType;
+    usageCount: bigint;
+    expirationDate: bigint;
+    tierRestriction?: bigint;
+    maxUses: bigint;
+}
+export interface ListingSnapshot {
+    title: string;
+    favorited: boolean;
+    description: string;
+    pinned: boolean;
+    category?: string;
+    price?: string;
+}
+export interface UpdateProfileArgs {
+    displayName?: string;
+    email?: string;
+    phoneNumber?: string;
+}
+export interface UpdateListingArgs {
+    id: ListingId;
+    tierLevel?: bigint;
+    title: string;
+    description: string;
+    category?: string;
+    price?: string;
+}
+export type ScrapeResult = {
+    __kind__: "ok";
+    ok: ScrapedListing;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type ListingId = bigint;
+export interface GasPackage {
+    gasAmount: bigint;
+    name: string;
+    stripeProductId: string;
+    priceUSD: number;
+    packageId: bigint;
+}
+export interface PaymentBannerState {
+    expiresAt?: bigint;
+    bannerType: string;
+    userId: Principal;
+    createdAt: bigint;
+    message: string;
+}
+export interface CreateListingArgs {
+    tierLevel?: bigint;
+    title: string;
+    description: string;
+    sourceUrl?: string;
+    category?: string;
+    price?: string;
+}
+export interface UpdateSettingsArgs {
+    maxSessionDurationMinutes: bigint;
+    appName: string;
+    primaryColor: string;
+    contentModerationEnabled: boolean;
+    accentColor: string;
+    copyButtonsEnabled: boolean;
+    maxRequestsPerMinute: bigint;
+    maxConcurrentSessions: bigint;
+    allowedOrigins: string;
+    uploadEnabled: boolean;
+    maxUploadsPerHour: bigint;
+}
+export interface FbCredentials {
+    appId: string;
+    accessToken: string;
+}
+export interface VerificationRecord {
+    status: VerificationStatus;
+    token: string;
+    expiresAt: Timestamp;
+    userId: UserId;
+    createdAt: Timestamp;
+    resendCount: bigint;
+    email: string;
+    lastResendAt?: Timestamp;
+}
+export interface TierConfig {
+    durationDays: bigint;
+    tierId: bigint;
+    name: string;
+    stripeProductId?: string;
+    priceUSD: number;
+}
+export type DraftListingId = bigint;
+export interface SupportTicket {
+    id: bigint;
+    status: string;
+    adminReply?: string;
+    username: string;
+    subject: string;
+    userId: UserId;
+    createdAt: Timestamp;
+    repliedAt?: Timestamp;
+    message: string;
+}
+export interface PaymentConfig {
+    stripeProPriceId?: string;
+    stripeBackupPriceId?: string;
+    paypalMode: string;
+    stripeSecretKey?: string;
+    stripeWebhookSecretLive?: string;
+    stripeWebhookSecretTest?: string;
+    stripePublishableKey?: string;
+    stripeMode: string;
+    stripeMaxPriceId?: string;
+    paypalClientId?: string;
+    paypalClientSecret?: string;
+    stripeWebhookSecret?: string;
+    stripeWalkerPriceId?: string;
+}
+export interface Listing {
+    id: ListingId;
+    status: ListingStatus;
+    tierLevel: bigint;
+    title: string;
+    favorited: boolean;
+    userId: UserId;
+    createdAt: Timestamp;
+    description: string;
+    sourceUrl?: string;
+    pinned: boolean;
+    expirationDate: Timestamp;
+    archivedManually: boolean;
+    pinnedAt?: Timestamp;
+    restoredAt?: Timestamp;
+    category?: string;
+    price?: string;
+    archivedAt?: Timestamp;
+}
+export interface FailedWebhookEvent {
+    id: string;
+    stripeEventId: string;
+    createdAt: bigint;
+    errorMessage: string;
+    retryCount: bigint;
+    payload: string;
+    eventType: string;
+}
+export interface SiteAnalytics {
+    totalListings: bigint;
+    avgImagesPerListing: number;
+    totalArchivedListings: bigint;
+    totalUsers: bigint;
+    totalImages: bigint;
+    paymentRevenue: number;
+    totalActiveListings: bigint;
+    avgListingsPerUser: number;
+}
+export type ImageId = bigint;
+export interface CreateVersionArgs {
+    versionLabel: string;
+    description: string;
+}
+export interface GasPurchase {
+    id: bigint;
+    status: GasPurchaseStatus;
+    userId: UserId;
+    gasAmount: bigint;
+    createdAt: Timestamp;
+    stripePaymentIntentId: string;
+    priceUSD: number;
+}
+export interface AdminNotification {
+    id: bigint;
+    notifType: string;
+    createdAt: Timestamp;
+    isRead: boolean;
+    message: string;
+    priority: string;
+    relatedId?: string;
+    relatedUser: string;
+    targetAdminId?: string;
+}
+export interface OcrResult {
+    title: string;
+    description: string;
+    category: string;
+    brand: string;
+    price: string;
+    condition: string;
+}
+export interface Image {
+    id: ImageId;
+    order: bigint;
+    blob: ExternalBlob;
+    listingId: ListingId;
+    altText: string;
+}
+export interface BulkGasDiscount {
+    minGasAmount: bigint;
+    description: string;
+    discountPercent: bigint;
+}
+export type VerifyEmailResult = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface AdminTierAction {
+    tierId: bigint;
+    userId: Principal;
+    createdAt: bigint;
+    newExpirationDate: bigint;
+    daysAdded: bigint;
+    adminId: Principal;
+}
+export enum BackupStatus {
+    pending = "pending",
+    complete = "complete",
+    failed = "failed"
+}
+export enum DiscountType {
+    fixedUSD = "fixedUSD",
+    percentage = "percentage"
+}
+export enum GasPurchaseStatus {
+    pending = "pending",
+    completed = "completed",
+    failed = "failed"
+}
+export enum ListingStatus {
+    active = "active",
+    archived = "archived"
+}
+export enum MarketplaceSource {
+    facebookMarketplace = "facebookMarketplace",
+    offerUp = "offerUp",
+    unknown_ = "unknown"
+}
+export enum NotificationType {
+    refuelSuccess = "refuelSuccess",
+    lowFuelWarning = "lowFuelWarning",
+    subscriptionExpiry = "subscriptionExpiry",
+    listingDeletionWarning = "listingDeletionWarning",
+    subscriptionRenewed = "subscriptionRenewed",
+    subscriptionCancelled = "subscriptionCancelled",
+    adminAnnouncement = "adminAnnouncement",
+    listingArchived = "listingArchived",
+    paymentFailed = "paymentFailed"
+}
+export enum PaymentMethod {
+    stripe = "stripe",
+    crypto = "crypto",
+    paypal = "paypal"
+}
+export enum UserRole {
+    admin = "admin",
+    user = "user",
+    guest = "guest"
+}
+export enum VerificationStatus {
+    verified = "verified",
+    expired = "expired",
+    pending = "pending"
+}
+export interface backendInterface {
+    addImage(args: AddImageArgs): Promise<Image>;
+    adminCreateBackupNow(): Promise<{
+        __kind__: "ok";
+        ok: {
+            backupId: string;
+            createdAt: bigint;
+        };
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminCreateDiscountCode(code: string, discountType: DiscountType, discountValue: number, expirationDate: bigint, maxUses: bigint, tierRestriction: bigint | null): Promise<DiscountCode>;
+    adminDeactivateDiscountCode(discountId: bigint): Promise<void>;
+    adminDeleteUser(userId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminExtendUserTier(userId: UserId, tierId: bigint, daysAdded: bigint): Promise<UserTierSubscription>;
+    adminExtendUserTierByUsername(username: string, tierId: bigint, daysAdded: bigint): Promise<{
+        __kind__: "ok";
+        ok: UserTierSubscription;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminGetGeminiConfig(): Promise<{
+        model: string;
+        configured: boolean;
+    }>;
+    adminGetPaymentConfig(): Promise<PaymentConfig>;
+    adminGetUserIdByUsername(username: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminGetUserSubscription(userId: UserId): Promise<UserTierSubscription | null>;
+    adminListDiscountCodes(): Promise<Array<DiscountCode>>;
+    adminListPayments(): Promise<Array<PaymentRecord>>;
+    adminListProfiles(): Promise<Array<UserProfile>>;
+    adminListSubscriptions(): Promise<Array<UserTierSubscription>>;
+    adminListTierActions(): Promise<Array<AdminTierAction>>;
+    adminResetAllUserSubscriptions(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminResetUserSubscription(username: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminRetryFailedWebhookEvent(eventId: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminSaveGeminiConfig(apiKey: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminSavePaymentConfig(config: PaymentConfig): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminSendAnnouncement(title: string, message: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminTestGeminiConnection(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminTestPaypalConnection(clientId: string, clientSecret: string, mode: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminTestStripeConnection(secretKey: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminUpsertTier(config: TierConfig): Promise<void>;
+    archiveListing(listingId: ListingId): Promise<Listing>;
+    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    assignUserRole(userId: string, role: string): Promise<void>;
+    checkAndCreateLowFuelNotification(fuelPercent: number, subscriptionExpirationTimestamp: Timestamp): Promise<InAppNotification | null>;
+    claimLoyaltyReward(tier: TierName): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    closeSupportTicket(id: bigint): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    confirmCryptoPayment(_paymentId: bigint, _txHash: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    confirmGasPurchase(purchaseRecordId: bigint): Promise<{
+        __kind__: "ok";
+        ok: GasWallet;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    confirmPayPalPayment(_paymentId: bigint, _paypalOrderId: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    confirmSmartBackupPayment(paymentRecordId: bigint, stripePaymentIntentId: string, listingCount: bigint, imageCount: bigint): Promise<{
+        __kind__: "ok";
+        ok: BackupHistoryRecord;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    confirmStripePayment(paymentRecordId: bigint, stripePaymentIntentId: string): Promise<void>;
+    createBackupRecord(fileSize: bigint): Promise<BackupRecord>;
+    createBroadcastNotification(title: string, message: string, priority: string, targetType: string, targetUserId: string | null): Promise<{
+        __kind__: "ok";
+        ok: bigint;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    createListing(args: CreateListingArgs): Promise<Listing>;
+    createStripeCheckoutSession(priceId: string, userId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    createStripePortalSession(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    createVersion(args: CreateVersionArgs): Promise<AppVersion>;
+    createVersionBackup(isManual: boolean, notes: string | null): Promise<{
+        __kind__: "ok";
+        ok: VersionBackup;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    deleteBackup(backupId: string): Promise<boolean>;
+    deleteBackupRecord(backupId: bigint): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    deleteConfig(key: string): Promise<void>;
+    deleteListing(id: ListingId): Promise<void>;
+    detectMarketplaceSource(url: string): Promise<MarketplaceSource>;
+    dismissPaymentBanner(): Promise<void>;
+    exportAllUsersData(): Promise<{
+        imageUrls: Array<string>;
+        jsonData: string;
+    }>;
+    exportUserData(userId: string): Promise<{
+        imageUrls: Array<string>;
+        jsonData: string;
+    } | null>;
+    failGasPurchase(purchaseRecordId: bigint): Promise<void>;
+    failStripePayment(paymentRecordId: bigint): Promise<void>;
+    generateBackupData(): Promise<Array<ListingSnapshot>>;
+    generateFullBackupEntries(imageUrlPairs: Array<[bigint, Array<string>]>): Promise<Array<BackupListingEntry>>;
+    generateWebhookToken(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    getAdaptiveBackupSchedule(): Promise<{
+        intervalHours: bigint;
+        nextBackupAt: bigint;
+        userCount: bigint;
+    }>;
+    getAdminSettings(): Promise<SiteSettings>;
+    getAllConfig(): Promise<Array<ConfigEntry>>;
+    getAuditLog(): Promise<Array<AuditLogEntry>>;
+    getBackupDownloadInfo(token: string): Promise<BackupHistoryRecord | null>;
+    getBackupHistory(): Promise<Array<BackupHistoryRecord>>;
+    getBulkGasDiscounts(): Promise<Array<BulkGasDiscount>>;
+    getCallerUserRole(): Promise<UserRole>;
+    getCleanupSummaries(): Promise<Array<UserCleanupSummary>>;
+    getConfig(key: string): Promise<string | null>;
+    getFailedWebhookEvents(): Promise<Array<FailedWebhookEvent>>;
+    getFbListings(): Promise<{
+        __kind__: "ok";
+        ok: Array<FbListing>;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    getGasPackages(): Promise<Array<GasPackage>>;
+    getHealthStatus(): Promise<HealthStatus>;
+    getListing(id: ListingId): Promise<Listing | null>;
+    getLoyaltyStatus(): Promise<LoyaltyStatus>;
+    getMaintenanceMode(): Promise<{
+        eta: string;
+        isActive: boolean;
+        message: string;
+    }>;
+    getMyBackups(): Promise<Array<BackupRecord>>;
+    getMyFbCredentials(): Promise<FbCredentials | null>;
+    getMyGasPurchases(): Promise<Array<GasPurchase>>;
+    getMyGasWallet(): Promise<{
+        __kind__: "ok";
+        ok: GasWallet;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    getMyPayments(): Promise<Array<PaymentRecord>>;
+    getMyProfile(): Promise<GetProfileResult>;
+    getMySubscription(): Promise<UserTierSubscription | null>;
+    getMyWebhookToken(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    getPaymentBanner(): Promise<PaymentBannerState | null>;
+    getProfileByUsername(username: string): Promise<UserProfile | null>;
+    getRefuelHistory(): Promise<Array<RefuelEntry>>;
+    getRevenueStats(): Promise<{
+        month: bigint;
+        today: bigint;
+        week: bigint;
+        activeSubscribers: bigint;
+    }>;
+    getSiteAnalytics(): Promise<SiteAnalytics>;
+    getStripeHealthStatus(): Promise<{
+        status: string;
+        lastWebhookReceived?: bigint;
+        keysConfigured: boolean;
+        webhookConfigured: boolean;
+    }>;
+    getStripePublicKey(): Promise<{
+        publishableKey: string;
+    }>;
+    getSupportTicket(id: bigint): Promise<SupportTicket | null>;
+    getSystemHealthStatus(): Promise<{
+        stripe: {
+            status: string;
+            hasPublishableKey: boolean;
+            lastWebhookAt?: bigint;
+            hasPriceIds: boolean;
+            hasSecretKey: boolean;
+        };
+        signups: {
+            total: bigint;
+            lastSignupAt?: bigint;
+        };
+        backup: {
+            status: string;
+            freshnessHours?: bigint;
+            backupCount: bigint;
+            lastBackupAt?: bigint;
+        };
+        database: {
+            status: string;
+            canReadConfig: boolean;
+            canReadUsers: boolean;
+        };
+        gemini: {
+            status: string;
+            hasApiKey: boolean;
+        };
+        maintenance: {
+            isActive: boolean;
+        };
+        paypal: {
+            status: string;
+            isConfigured: boolean;
+        };
+    }>;
+    getTier(tierId: bigint): Promise<TierConfig | null>;
+    getTiers(): Promise<Array<TierConfig>>;
+    getUnreadAdminNotificationCount(): Promise<bigint>;
+    getUserNotifications(): Promise<Array<InAppNotification>>;
+    getVerificationStatus(): Promise<VerificationRecord | null>;
+    getWebhookLog(): Promise<Array<WebhookEvent>>;
+    initConfigFromPaymentConfig(): Promise<void>;
+    initiateCryptoPayment(tierId: bigint, discountCode: string | null): Promise<{
+        __kind__: "ok";
+        ok: PaymentRecord;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    initiateEmailVerification(email: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    initiateGasPurchase(packageId: bigint, discountCode: string | null): Promise<{
+        __kind__: "ok";
+        ok: {
+            gasAmount: bigint;
+            purchaseRecordId: bigint;
+            finalAmountUSD: number;
+            stripeClientSecret: string;
+        };
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    initiatePayPalPayment(tierId: bigint, discountCode: string | null): Promise<{
+        __kind__: "ok";
+        ok: PaymentRecord;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    initiateSmartBackup(): Promise<{
+        paymentRecordId: bigint;
+        backupPriceId?: string;
+        amountUSD: number;
+        stripeClientSecret?: string;
+    }>;
+    initiateTierUpgrade(tierId: bigint, discountCode: string | null): Promise<{
+        tierDurationDays: bigint;
+        discountApplied: boolean;
+        paymentRecordId: bigint;
+        finalAmountUSD: number;
+        stripeClientSecret?: string;
+    }>;
+    isCallerAdmin(): Promise<boolean>;
+    listAdminNotifications(): Promise<Array<AdminNotification>>;
+    listAllUsers(): Promise<Array<UserSummary>>;
+    listFavoritedListings(): Promise<Array<Listing>>;
+    listImages(listingId: ListingId): Promise<Array<Image>>;
+    listListings(): Promise<Array<Listing>>;
+    listSupportTickets(): Promise<Array<SupportTicket>>;
+    listVersionBackups(): Promise<Array<VersionBackupSummary>>;
+    listVersionHistory(): Promise<Array<AppVersion>>;
+    markAdminNotificationRead(id: bigint): Promise<void>;
+    markAllAdminNotificationsRead(): Promise<void>;
+    markAllNotificationsRead(): Promise<void>;
+    markBackupAsStable(backupId: string): Promise<boolean>;
+    markNotificationRead(notificationId: bigint): Promise<MarkReadResult>;
+    ocrScanImage(imageBase64: string): Promise<{
+        __kind__: "ok";
+        ok: OcrResult;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    parsePastedText(text: string): Promise<ParsedListingResult>;
+    permanentDeleteListing(listingId: ListingId): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    processStripeWebhookEvent(eventId: string, eventType: string, payload: string, stripeCustomerId: string | null, userId: string | null, priceId: string | null, amountTotal: bigint | null, subscriptionStatus: string | null, currentPeriodEnd: bigint | null): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    } | {
+        __kind__: "alreadyProcessed";
+        alreadyProcessed: null;
+    }>;
+    receiveExtensionData(data: ExtensionListingData, webhookToken: string): Promise<{
+        __kind__: "ok";
+        ok: DraftListingId;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    registerUserProfile(username: string, email: string): Promise<SetUsernameResult>;
+    removeImage(imageId: ImageId): Promise<void>;
+    replySupportTicket(id: bigint, reply: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    resendVerificationEmail(email: string): Promise<ResendResult>;
+    restoreFromBackup(snapshots: Array<ListingSnapshot>): Promise<{
+        __kind__: "ok";
+        ok: bigint;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    restoreFromVersionBackup(backupId: string): Promise<RestoreResult>;
+    restoreFromZipBackup(entries: Array<BackupListingEntry>): Promise<ZipRestoreResult>;
+    restoreListing(listingId: ListingId): Promise<{
+        __kind__: "ok";
+        ok: Listing;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    restoreUserAccountFromBackup(userId: string, backupId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    rollbackToVersion(versionId: bigint): Promise<SiteSettings>;
+    runLifecycleCleanup(): Promise<{
+        deleted: bigint;
+        archived: bigint;
+    }>;
+    saveFbCredentials(appId: string, accessToken: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    scrapeListing(url: string): Promise<ScrapeResult>;
+    setAutoRenewal(enabled: boolean, tierId: bigint): Promise<{
+        __kind__: "ok";
+        ok: GasWallet;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    setConfig(key: string, value: string, encrypted: boolean, category: string, updatedBy: string): Promise<void>;
+    setMaintenanceMode(isActive: boolean, message: string, eta: string): Promise<void>;
+    setMyUsername(username: string): Promise<SetUsernameResult>;
+    submitSupportTicket(subject: string, message: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    toggleListingFavorited(listingId: ListingId): Promise<{
+        __kind__: "ok";
+        ok: boolean;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    toggleListingPinned(listingId: ListingId): Promise<{
+        __kind__: "ok";
+        ok: boolean;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    triggerAdaptiveAutoBackup(): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    updateAdminSettings(args: UpdateSettingsArgs): Promise<SiteSettings>;
+    updateListing(args: UpdateListingArgs): Promise<Listing>;
+    updateMyProfile(args: UpdateProfileArgs): Promise<UpdateProfileResult>;
+    validateDiscountCode(code: string, tierId: bigint): Promise<DiscountCode | null>;
+    verifyEmail(token: string): Promise<VerifyEmailResult>;
+}

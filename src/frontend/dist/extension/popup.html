@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copie Past-e Smart Post</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        width: 320px;
+        min-height: 200px;
+        background: #0a0a1a;
+        color: #e0e0e0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      /* ── Header ─────────────────────────────────────────────────── */
+      .header {
+        padding: 16px 18px 14px;
+        border-bottom: 1px solid #1a1a3e;
+        background: #0d0d22;
+      }
+
+      .header-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .lightning {
+        font-size: 22px;
+        line-height: 1;
+        filter: drop-shadow(0 0 6px #00d4ff);
+      }
+
+      .header-text {
+        flex: 1;
+      }
+
+      .header-title {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #00d4ff;
+        text-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+      }
+
+      .header-subtitle {
+        font-size: 10px;
+        color: #5a5a8a;
+        letter-spacing: 0.05em;
+        margin-top: 1px;
+      }
+
+      /* ── Status ─────────────────────────────────────────────────── */
+      .status-section {
+        padding: 14px 18px;
+        border-bottom: 1px solid #141430;
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        transition: background 0.3s, box-shadow 0.3s;
+      }
+
+      .dot-green {
+        background: #00ff88;
+        box-shadow: 0 0 6px rgba(0, 255, 136, 0.7);
+      }
+
+      .dot-red {
+        background: #ff4444;
+        box-shadow: 0 0 6px rgba(255, 68, 68, 0.5);
+      }
+
+      .status-text {
+        font-size: 12px;
+        color: #c0c0d8;
+        letter-spacing: 0.02em;
+      }
+
+      .status-text.connected {
+        color: #00ff88;
+      }
+
+      /* ── Body ───────────────────────────────────────────────────── */
+      .body-section {
+        padding: 14px 18px;
+        border-bottom: 1px solid #141430;
+      }
+
+      .body-text {
+        font-size: 12px;
+        color: #7070a0;
+        line-height: 1.6;
+      }
+
+      .body-text strong {
+        color: #00d4ff;
+        font-weight: 600;
+      }
+
+      /* ── Footer ─────────────────────────────────────────────────── */
+      .footer {
+        padding: 10px 18px;
+        text-align: right;
+      }
+
+      .version {
+        font-size: 10px;
+        color: #3a3a5e;
+        letter-spacing: 0.05em;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <span class="lightning">⚡</span>
+        <div class="header-text">
+          <div class="header-title">Smart Post Extension</div>
+          <div class="header-subtitle">Copie Past-e</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-section">
+      <div class="status-row">
+        <div id="status-dot" class="status-dot dot-red"></div>
+        <span id="status-text" class="status-text">Open Copie Past-e to connect</span>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="body-section">
+      <p class="body-text">
+        Open a listing in <strong>Copie Past-e</strong> and click
+        <strong>Auto-Fill Facebook</strong> or
+        <strong>Auto-Fill OfferUp</strong> to get started.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="version">v1.0.0</span>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
