@@ -16,4 +16,14 @@ module {
     condition : Text;
     brand : Text;
   };
+
+  /// A single OCR failure log entry.
+  /// Stored in the ocrFailureLog ring buffer (capped at 500 entries).
+  public type OcrFailureEntry = {
+    imageHash    : Text; // first 32 chars of imageBase64 as a fingerprint
+    errorReason  : Text; // exact error text
+    errorType    : Text; // "api_error" | "parse_error" | "auth_error" | "rate_limit" | "quota_error" | "empty_response"
+    timestamp    : Int;  // Time.now() at the time of failure
+    userPrincipal: Text; // caller.toText()
+  };
 };

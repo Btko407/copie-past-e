@@ -194,6 +194,14 @@ type NotificationType__908192046 =
     #subscriptionExpiry;
     #subscriptionRenewed
   };
+type OcrFailureEntry__941651084 =
+  {
+    errorReason : Text;
+    errorType : Text;
+    imageHash : Text;
+    timestamp : Int;
+    userPrincipal : Text
+  };
 type PaymentBannerState__567153087 =
   {
     bannerType : Text;
@@ -476,6 +484,7 @@ actor {
               status : Nat
             }
     };
+  stable OCR_FAILURE_LOG_MAX : Nat;
   stable SMART_BACKUP_PRICE_USD : Float;
   stable var STRIPE_SECRET_KEY : Text;
   stable STRIPE_SECRET_KEY_GAS : Text;
@@ -587,6 +596,12 @@ actor {
         Node__46230540<UserId__158757552,
                         List__415060402<InAppNotification__120803294>>;
       var size : Nat__490723111
+    };
+  stable ocrFailureLog :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?OcrFailureEntry__941651084]];
+      var elementIndex : Nat__490723111
     };
   stable paymentBanners :
     {

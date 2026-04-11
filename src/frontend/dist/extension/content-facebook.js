@@ -1,7 +1,7 @@
 // Copie Past-e Smart Post — Facebook Marketplace Content Script
 // Runs on: https://www.facebook.com/marketplace/create/*
 // Reads pending listing from storage and auto-fills the React-controlled form.
-// Fill order: Category → Title → Price → Condition → Description → Images
+// Fill order: Category → Title → Price → Condition → Description → Brand → Images
 // Waits 500ms between each field fill.
 
 "use strict";
@@ -101,6 +101,26 @@
         console.warn(LOG, "Timed out waiting for:", selectors);
       }
     }, POLL_INTERVAL);
+  }
+
+  // ── Poll for element (promise-based) ─────────────────────────────────────────
+
+  function pollForElementPromise(selectors, timeoutMs = POLL_TIMEOUT) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        const el = findFirst(selectors);
+        if (el) {
+          clearInterval(interval);
+          resolve(el);
+          return;
+        }
+        if (Date.now() - start > timeoutMs) {
+          clearInterval(interval);
+          resolve(null);
+        }
+      }, POLL_INTERVAL);
+    });
   }
 
   // ── Banner ────────────────────────────────────────────────────────────────────
@@ -324,7 +344,7 @@
     await sleep(500);
 
     // ── 2. Title ───────────────────────────────────────────────────────────────
-    const titleEl = findFirst([
+    const titleEl = await pollForElementPromise([
       'input[aria-label="Title"]',
       'input[aria-label*="title" i]',
       'input[placeholder*="title" i]',
@@ -339,7 +359,7 @@
     await sleep(500);
 
     // ── 3. Price ───────────────────────────────────────────────────────────────
-    const priceEl = findFirst([
+    const priceEl = await pollForElementPromise([
       'input[aria-label="Price"]',
       'input[aria-label*="price" i]',
       'input[placeholder*="price" i]',
@@ -363,7 +383,7 @@
     await sleep(500);
 
     // ── 5. Description ─────────────────────────────────────────────────────────
-    const descEl = findFirst([
+    const descEl = await pollForElementPromise([
       'textarea[aria-label="Description"]',
       'textarea[aria-label*="description" i]',
       'textarea[placeholder*="description" i]',
@@ -381,7 +401,21 @@
     }
     await sleep(500);
 
-    // ── 6. Images ──────────────────────────────────────────────────────────────
+    // ── 6. Brand (best-effort — never adds to failedFields) ───────────────────
+    if (listing.brand) {
+      const brandEl = await pollForElementPromise([
+        'input[aria-label*="brand" i]',
+        'input[placeholder*="brand" i]',
+        'input[name*="brand" i]',
+      ], 6000);
+      if (brandEl) {
+        fillReactInput(brandEl, listing.brand);
+      }
+      // best-effort: intentionally NOT pushed to failedFields
+    }
+    await sleep(500);
+
+    // ── 7. Images ──────────────────────────────────────────────────────────────
     if (listing.images && listing.images.length > 0) {
       await uploadImages(listing.images).catch((err) =>
         console.warn(LOG, "Image upload error:", err)

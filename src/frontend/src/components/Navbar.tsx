@@ -105,13 +105,27 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Admin badge */}
+            {/* Admin badge (desktop) */}
             {isAdmin && (
               <Link to="/admin" data-ocid="navbar-admin-link">
                 <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase text-accent neon-border-yellow rounded px-2 py-1 bg-accent/10 transition-smooth hover:glow-yellow-sm cursor-pointer text-glow-yellow">
                   <Shield className="w-3 h-3" />
                   Admin
                 </span>
+              </Link>
+            )}
+
+            {/* Mobile admin quick-access (sm:hidden, min 44px target) */}
+            {isAdmin && (
+              <Link to="/admin" data-ocid="navbar-admin-mobile-link">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="sm:hidden text-accent hover:text-accent hover:bg-accent/10 transition-smooth min-w-[44px] min-h-[44px]"
+                  aria-label="Admin panel"
+                >
+                  <Shield className="w-4 h-4" />
+                </Button>
               </Link>
             )}
 

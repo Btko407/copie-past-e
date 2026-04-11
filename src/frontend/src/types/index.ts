@@ -87,6 +87,8 @@ export interface SmartPostPayload {
     price: string; // numeric only, no $ symbol
     description: string;
     category: string;
+    condition?: string;
+    brand?: string;
     images: string[];
   };
 }
@@ -339,7 +341,6 @@ export interface ExtendedUserProfile {
   avatarUrl?: string;
   fbAppId?: string;
   fbAccessToken?: string;
-  fbWebhookToken?: string;
 }
 
 // ─── Support Ticket Types ─────────────────────────────────────────────────────
@@ -382,9 +383,8 @@ export interface MaintenanceStatus {
 export interface SystemHealthStripe {
   publishableKeySet: boolean;
   secretKeySet: boolean;
-  webhookSecretSet: boolean;
   priceIdsConfigured: boolean;
-  lastWebhookReceivedAt?: bigint;
+  // Payment verification is polling-based on ICP — no webhooks
   connectionStatus: "ok" | "error" | "unchecked";
   errorMessage?: string;
 }

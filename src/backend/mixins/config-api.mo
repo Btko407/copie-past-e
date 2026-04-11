@@ -144,6 +144,24 @@ mixin (
     writeConfig("maintenance_message", message,                            false, "site", caller);
   };
 
+  /// Admin: set the site base URL used for Stripe redirect URLs.
+  /// Example: "https://past-e-jev.caffeine.xyz"
+  /// Falls back to the hardcoded default if not set.
+  public shared ({ caller }) func adminSetSiteBaseUrl(url : Text) : async { #ok; #err : Text } {
+    requireAdmin(caller);
+    writeConfig("site_base_url", url, false, "site", caller);
+    #ok
+  };
+
+  /// Public query: returns the configured site base URL.
+  /// Returns "" if not explicitly set (callers should fall back to the hardcoded default).
+  public query func getSiteBaseUrl() : async Text {
+    switch (appConfig.get("site_base_url")) {
+      case (?e) { e.value };
+      case null { "" };
+    };
+  };
+
   /// Public query: returns only the non-secret config values safe for frontend use.
   /// NEVER includes stripeSecretKey or geminiApiKey.
   public query func getPublicConfig() : async {
@@ -154,6 +172,7 @@ mixin (
     gasWalkerPriceId   : Text;
     gasTravelerPriceId : Text;
     gasLordPriceId     : Text;
+    siteBaseUrl        : Text;
   } {
     let publishableKey = switch (appConfig.get("stripe_publishable_key")) {
       case (?e) { e.value }; case null { "" };
@@ -177,6 +196,9 @@ mixin (
     let gasLordPriceId = switch (appConfig.get("stripe_price_gas_lord")) {
       case (?e) { e.value }; case null { "" };
     };
+    let siteBaseUrl = switch (appConfig.get("site_base_url")) {
+      case (?e) { e.value }; case null { "" };
+    };
     {
       publishableKey;
       mode;
@@ -185,6 +207,7 @@ mixin (
       gasWalkerPriceId;
       gasTravelerPriceId;
       gasLordPriceId;
+      siteBaseUrl;
     }
   };
 

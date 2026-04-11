@@ -2,6 +2,7 @@ import { createActor } from "@/backend";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { useActor } from "@caffeineai/core-infrastructure";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +15,7 @@ type VerifyState = "loading" | "success" | "error";
 export function PaymentSuccessPage() {
   const navigate = useNavigate();
   const { actor, isFetching } = useActor(createActor);
+  const queryClient = useQueryClient();
 
   const [state, setState] = useState<VerifyState>("loading");
   const [message, setMessage] = useState<string>("");
@@ -55,6 +57,10 @@ export function PaymentSuccessPage() {
               ? result.ok
               : "Payment verified. Subscription days have been added.",
           );
+          // Invalidate subscription-related caches so the UI reflects new expiry
+          void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
+          void queryClient.invalidateQueries({ queryKey: ["gasWallet"] });
           // Mark banner for 24h
           const expiry = Date.now() + 24 * 60 * 60 * 1000;
           localStorage.setItem("refuel_banner_expiry", String(expiry));
@@ -80,7 +86,7 @@ export function PaymentSuccessPage() {
         );
       }
     })();
-  }, [actor, isFetching]);
+  }, [actor, isFetching, queryClient]);
 
   // ── Auto-redirect after success ─────────────────────────────────────────────
   useEffect(() => {

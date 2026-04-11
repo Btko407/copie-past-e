@@ -252,6 +252,13 @@ export type NotificationType = { 'refuelSuccess' : null } |
   { 'adminAnnouncement' : null } |
   { 'listingArchived' : null } |
   { 'paymentFailed' : null };
+export interface OcrFailureEntry {
+  'imageHash' : string,
+  'errorType' : string,
+  'userPrincipal' : string,
+  'timestamp' : bigint,
+  'errorReason' : string,
+}
 export interface OcrResult {
   'title' : string,
   'description' : string,
@@ -591,6 +598,11 @@ export interface _SERVICE {
   >,
   'adminSetGeminiKey' : ActorMethod<[string], undefined>,
   'adminSetMaintenanceMode' : ActorMethod<[boolean, string], undefined>,
+  'adminSetSiteBaseUrl' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
   'adminSetStripeKeys' : ActorMethod<[string, string, string], undefined>,
   'adminSetStripePrices' : ActorMethod<
     [string, string, string, string],
@@ -739,6 +751,7 @@ export interface _SERVICE {
   'getMyProfile' : ActorMethod<[], GetProfileResult>,
   'getMySubscription' : ActorMethod<[], [] | [UserTierSubscription]>,
   'getMyWebhookToken' : ActorMethod<[], { 'ok' : string } | { 'err' : string }>,
+  'getOcrFailureLog' : ActorMethod<[bigint], Array<OcrFailureEntry>>,
   'getPaymentBanner' : ActorMethod<[], [] | [PaymentBannerState]>,
   'getPendingSession' : ActorMethod<
     [],
@@ -755,6 +768,7 @@ export interface _SERVICE {
       'gasLordPriceId' : string,
       'gasTravelerPriceId' : string,
       'publishableKey' : string,
+      'siteBaseUrl' : string,
     }
   >,
   'getRefuelHistory' : ActorMethod<[], Array<RefuelEntry>>,
@@ -768,6 +782,7 @@ export interface _SERVICE {
     }
   >,
   'getSiteAnalytics' : ActorMethod<[], SiteAnalytics>,
+  'getSiteBaseUrl' : ActorMethod<[], string>,
   'getStripeHealthStatus' : ActorMethod<
     [],
     {

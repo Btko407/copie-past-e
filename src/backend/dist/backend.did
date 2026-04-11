@@ -302,6 +302,14 @@ type OcrResult =
    price: text;
    title: text;
  };
+type OcrFailureEntry = 
+ record {
+   errorReason: text;
+   errorType: text;
+   imageHash: text;
+   timestamp: int;
+   userPrincipal: text;
+ };
 type NotificationType = 
  variant {
    adminAnnouncement;
@@ -674,6 +682,10 @@ service : {
     });
   adminSetGeminiKey: (key: text) -> ();
   adminSetMaintenanceMode: (enabled: bool, message: text) -> ();
+  adminSetSiteBaseUrl: (url: text) -> (variant {
+                                         err: text;
+                                         ok;
+                                       });
   adminSetStripeKeys: (publishable: text, secret: text, mode: text) -> ();
   adminSetStripePrices: (walker: text, traveler: text, lord: text, backup:
    text) -> ();
@@ -828,6 +840,7 @@ service : {
                               err: text;
                               ok: text;
                             }) query;
+  getOcrFailureLog: (limit: nat) -> (vec OcrFailureEntry) query;
   getPaymentBanner: () -> (opt PaymentBannerState);
   getPendingSession: () ->
    (opt record {
@@ -845,6 +858,7 @@ service : {
       maintenanceMode: bool;
       mode: text;
       publishableKey: text;
+      siteBaseUrl: text;
     }) query;
   getRefuelHistory: () -> (vec RefuelEntry) query;
   getRevenueStats: () ->
@@ -855,6 +869,7 @@ service : {
       week: nat;
     }) query;
   getSiteAnalytics: () -> (SiteAnalytics) query;
+  getSiteBaseUrl: () -> (text) query;
   getStripeHealthStatus: () ->
    (record {
       keysConfigured: bool;

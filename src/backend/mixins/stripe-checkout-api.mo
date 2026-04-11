@@ -413,6 +413,7 @@ mixin (
     let tierName = resolveTierNameFromPriceId(priceId);
 
     // Build checkout session request body
+    let baseUrl = do { let u = checkoutGetConfig("site_base_url"); if (u == "") "https://past-e-jev.caffeine.xyz" else u };
     let body = "mode=payment"
       # "&customer=" # stripeCustomerId
       # "&line_items[0][price]=" # priceId
@@ -424,8 +425,8 @@ mixin (
       # "&payment_intent_data[description]=Copie%20Past-e%20subscription%20fuel"
       # "&payment_intent_data[metadata][userId]=" # userId
       # "&payment_intent_data[metadata][tier]=" # tierName
-      # "&success_url=https://past-e-jev.caffeine.xyz/payment-success?session_id={CHECKOUT_SESSION_ID}"
-      # "&cancel_url=https://past-e-jev.caffeine.xyz/payment-cancel";
+      # "&success_url=" # baseUrl # "/payment-success?session_id={CHECKOUT_SESSION_ID}"
+      # "&cancel_url=" # baseUrl # "/payment-cancel";
 
     try {
       // 49_140_000_000 cycles — minimum for a POST outcall.
@@ -547,6 +548,11 @@ mixin (
         };
         let newExpiration = base + daysNs;
 
+        // Delete the pending session BEFORE granting days.
+        // This prevents double-grant even if verifyAndGrantPayment is called concurrently:
+        // a second call will find no pending session and return #err("No pending payment found").
+        pendingSessions.remove(userId);
+
         subscriptions.add(caller, {
           userId = caller;
           tier = pending.tierId;
@@ -564,9 +570,6 @@ mixin (
           "Your DeLorean has been refueled! " # pending.tierDays.toText() # " days added to your subscription.",
           now,
         );
-
-        // Clear the pending session — payment is complete
-        pendingSessions.remove(userId);
 
         #ok("Payment verified. " # pending.tierDays.toText() # " days added to your subscription.")
       } else {
@@ -594,8 +597,9 @@ mixin (
       };
     };
 
+    let portalBaseUrl = do { let u = checkoutGetConfig("site_base_url"); if (u == "") "https://past-e-jev.caffeine.xyz" else u };
     let body = "customer=" # stripeCustomerId
-      # "&return_url=https://past-e-jev.caffeine.xyz/wallet";
+      # "&return_url=" # portalBaseUrl # "/wallet";
 
     try {
       let response = await (with cycles = 49_140_000_000) icManagementStripe().http_request({

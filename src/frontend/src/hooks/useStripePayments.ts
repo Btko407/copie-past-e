@@ -24,8 +24,7 @@ type ActorAny = any;
 export interface StripeHealthStatus {
   status: string;
   keysConfigured: boolean;
-  webhookConfigured: boolean;
-  lastWebhookReceived?: bigint | null;
+  // ICP architecture: payment verification is polling-based, no webhooks
 }
 
 export interface RevenueStats {

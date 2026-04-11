@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import List "mo:core/List";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Blob "mo:core/Blob";
@@ -12,7 +13,60 @@ mixin (
   accessControlState : AccessControl.AccessControlState,
   geminiConfig : { var current : ?OcrTypes.GeminiConfig },
   appConfig    : Map.Map<Text, AppConfigTypes.ConfigEntry>,
+  ocrFailureLog : List.List<OcrTypes.OcrFailureEntry>,
 ) {
+  let OCR_FAILURE_LOG_MAX : Nat = 500;
+
+  /// Classify an error text into one of the standard error type labels.
+  func classifyOcrError(errText : Text) : Text {
+    let lower = errText.toLower();
+    if (lower.contains(#text "401") or lower.contains(#text "403")
+        or lower.contains(#text "api key") or lower.contains(#text "apikey")) {
+      "auth_error"
+    } else if (lower.contains(#text "429") or lower.contains(#text "rate")) {
+      "rate_limit"
+    } else if (lower.contains(#text "quota")) {
+      "quota_error"
+    } else if (lower.contains(#text "parse") or lower.contains(#text "empty")
+               or lower.contains(#text "{}")) {
+      "parse_error"
+    } else if (lower.contains(#text "empty_response")) {
+      "empty_response"
+    } else {
+      "api_error"
+    }
+  };
+
+  /// Extract first 32 characters of a text as a fingerprint hash.
+  func imageFingerprint(s : Text) : Text {
+    var result = "";
+    var count = 0;
+    label scan for (c in s.toIter()) {
+      if (count >= 32) { break scan };
+      result #= Text.fromChar(c);
+      count += 1;
+    };
+    result
+  };
+
+  /// Append a failure entry to the ring buffer; drop oldest entries when over cap.
+  func logOcrFailure(imageBase64 : Text, errorReason : Text, userPrincipal : Text) {
+    let entry : OcrTypes.OcrFailureEntry = {
+      imageHash     = imageFingerprint(imageBase64);
+      errorReason;
+      errorType     = classifyOcrError(errorReason);
+      timestamp     = Time.now();
+      userPrincipal;
+    };
+    ocrFailureLog.add(entry);
+    // Cap at OCR_FAILURE_LOG_MAX by dropping the oldest (front) entries
+    if (ocrFailureLog.size() > OCR_FAILURE_LOG_MAX) {
+      let excess = ocrFailureLog.size() - OCR_FAILURE_LOG_MAX;
+      let kept = ocrFailureLog.sliceToArray(excess.toInt(), ocrFailureLog.size().toInt());
+      ocrFailureLog.clear();
+      for (e in kept.values()) { ocrFailureLog.add(e) };
+    };
+  };
   // Management canister reference factory — instantiated locally per call to avoid
   // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
   func icManagementOcr() : actor {
@@ -190,10 +244,14 @@ mixin (
       return #err("Authentication required");
     };
 
+    let principalText = caller.toText();
+
     // Read API key from appConfig at call time (never cached)
     let apiKey = switch (activeGeminiApiKey()) {
       case null {
-        return #err("OCR not configured. Add Gemini API key in admin Settings.");
+        let reason = "OCR not configured. Add Gemini API key in admin Settings.";
+        logOcrFailure(imageBase64, reason, principalText);
+        return #err(reason);
       };
       case (?k) { k };
     };
@@ -222,16 +280,22 @@ mixin (
         };
       });
     } catch (e) {
-      return #err("OCR scan failed: " # e.message());
+      let reason = "OCR scan failed: " # e.message();
+      logOcrFailure(imageBase64, reason, principalText);
+      return #err(reason);
     };
 
     // Handle HTTP status codes
     if (response.status == 429) {
-      return #err("Rate limit reached. Try again in 60 seconds.");
+      let reason = "Rate limit reached. Try again in 60 seconds.";
+      logOcrFailure(imageBase64, reason, principalText);
+      return #err(reason);
     };
 
     if (response.status == 403) {
-      return #err("API key invalid or quota exceeded.");
+      let reason = "API key invalid or quota exceeded.";
+      logOcrFailure(imageBase64, reason, principalText);
+      return #err(reason);
     };
 
     if (response.status < 200 or response.status >= 300) {
@@ -245,19 +309,29 @@ mixin (
         };
         case null { "status " # debug_show(response.status) };
       };
-      return #err("OCR scan failed: " # errBody);
+      let reason = "OCR scan failed: " # errBody;
+      logOcrFailure(imageBase64, reason, principalText);
+      return #err(reason);
     };
 
     // The transform function already extracted the stable text content.
     // Response body is now: {"text":"<listing-fields-json>"}
     let responseText = switch (response.body.decodeUtf8()) {
-      case null { return #err("Could not read listing data from this image.") };
+      case null {
+        let reason = "Could not read listing data from this image.";
+        logOcrFailure(imageBase64, reason, principalText);
+        return #err(reason);
+      };
       case (?t) { t };
     };
 
     // parseGeminiResponse expects the transform-produced {"text":"..."} format
     switch (OcrLib.parseGeminiResponse(responseText)) {
-      case null { #err("Could not read listing data from this image.") };
+      case null {
+        let reason = "Could not read listing data from this image.";
+        logOcrFailure(imageBase64, reason, principalText);
+        #err(reason)
+      };
       case (?result) { #ok(result) };
     };
   };
@@ -387,5 +461,21 @@ mixin (
     } else {
       { success = false; message = "Connection failed: HTTP " # response.status.toText() # " - Empty or unreadable response from Gemini" }
     };
+  };
+
+  // ── OCR Failure Log ───────────────────────────────────────────────────────
+
+  /// Admin: retrieve recent OCR failures (most recent last, up to `limit` entries).
+  /// Returns entries in insertion order (oldest first when limit < total).
+  public query ({ caller }) func getOcrFailureLog(limit : Nat) : async [OcrTypes.OcrFailureEntry] {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized");
+    };
+    let total = ocrFailureLog.size();
+    if (total == 0 or limit == 0) {
+      return [];
+    };
+    let start : Int = if (total > limit) { (total - limit).toInt() } else { 0 };
+    ocrFailureLog.sliceToArray(start, total.toInt())
   };
 };

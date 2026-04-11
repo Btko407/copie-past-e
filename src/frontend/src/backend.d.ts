@@ -67,6 +67,13 @@ export interface BackupRecord {
     downloadUrl: string;
     fileSize: bigint;
 }
+export interface OcrFailureEntry {
+    imageHash: string;
+    errorType: string;
+    userPrincipal: string;
+    timestamp: bigint;
+    errorReason: string;
+}
 export interface UserSummary {
     lastLoginDate?: Timestamp;
     userId: string;
@@ -633,6 +640,13 @@ export interface backendInterface {
     }>;
     adminSetGeminiKey(key: string): Promise<void>;
     adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
+    adminSetSiteBaseUrl(url: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetStripeKeys(publishable: string, secret: string, mode: string): Promise<void>;
     adminSetStripePrices(walker: string, traveler: string, lord: string, backup: string): Promise<void>;
     adminTestGeminiConnection(): Promise<{
@@ -814,6 +828,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    getOcrFailureLog(limit: bigint): Promise<Array<OcrFailureEntry>>;
     getPaymentBanner(): Promise<PaymentBannerState | null>;
     getPendingSession(): Promise<{
         tierId: bigint;
@@ -829,6 +844,7 @@ export interface backendInterface {
         gasLordPriceId: string;
         gasTravelerPriceId: string;
         publishableKey: string;
+        siteBaseUrl: string;
     }>;
     getRefuelHistory(): Promise<Array<RefuelEntry>>;
     getRevenueStats(): Promise<{
@@ -838,6 +854,7 @@ export interface backendInterface {
         activeSubscribers: bigint;
     }>;
     getSiteAnalytics(): Promise<SiteAnalytics>;
+    getSiteBaseUrl(): Promise<string>;
     getStripeHealthStatus(): Promise<{
         status: string;
         lastWebhookReceived?: bigint;

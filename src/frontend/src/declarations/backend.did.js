@@ -363,6 +363,13 @@ export const GetProfileResult = IDL.Variant({
   'ok' : UserProfile,
   'err' : IDL.Text,
 });
+export const OcrFailureEntry = IDL.Record({
+  'imageHash' : IDL.Text,
+  'errorType' : IDL.Text,
+  'userPrincipal' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'errorReason' : IDL.Text,
+});
 export const PaymentBannerState = IDL.Record({
   'expiresAt' : IDL.Opt(IDL.Int),
   'bannerType' : IDL.Text,
@@ -652,6 +659,11 @@ export const idlService = IDL.Service({
     ),
   'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
   'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+  'adminSetSiteBaseUrl' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'adminSetStripeKeys' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
   'adminSetStripePrices' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -849,6 +861,11 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       ['query'],
     ),
+  'getOcrFailureLog' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(OcrFailureEntry)],
+      ['query'],
+    ),
   'getPaymentBanner' : IDL.Func([], [IDL.Opt(PaymentBannerState)], []),
   'getPendingSession' : IDL.Func(
       [],
@@ -879,6 +896,7 @@ export const idlService = IDL.Service({
           'gasLordPriceId' : IDL.Text,
           'gasTravelerPriceId' : IDL.Text,
           'publishableKey' : IDL.Text,
+          'siteBaseUrl' : IDL.Text,
         }),
       ],
       ['query'],
@@ -897,6 +915,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getSiteAnalytics' : IDL.Func([], [SiteAnalytics], ['query']),
+  'getSiteBaseUrl' : IDL.Func([], [IDL.Text], ['query']),
   'getStripeHealthStatus' : IDL.Func(
       [],
       [
@@ -1733,6 +1752,13 @@ export const idlFactory = ({ IDL }) => {
     'ok' : UserProfile,
     'err' : IDL.Text,
   });
+  const OcrFailureEntry = IDL.Record({
+    'imageHash' : IDL.Text,
+    'errorType' : IDL.Text,
+    'userPrincipal' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'errorReason' : IDL.Text,
+  });
   const PaymentBannerState = IDL.Record({
     'expiresAt' : IDL.Opt(IDL.Int),
     'bannerType' : IDL.Text,
@@ -2024,6 +2050,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
     'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+    'adminSetSiteBaseUrl' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
     'adminSetStripeKeys' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
     'adminSetStripePrices' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
@@ -2237,6 +2268,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         ['query'],
       ),
+    'getOcrFailureLog' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(OcrFailureEntry)],
+        ['query'],
+      ),
     'getPaymentBanner' : IDL.Func([], [IDL.Opt(PaymentBannerState)], []),
     'getPendingSession' : IDL.Func(
         [],
@@ -2267,6 +2303,7 @@ export const idlFactory = ({ IDL }) => {
             'gasLordPriceId' : IDL.Text,
             'gasTravelerPriceId' : IDL.Text,
             'publishableKey' : IDL.Text,
+            'siteBaseUrl' : IDL.Text,
           }),
         ],
         ['query'],
@@ -2285,6 +2322,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getSiteAnalytics' : IDL.Func([], [SiteAnalytics], ['query']),
+    'getSiteBaseUrl' : IDL.Func([], [IDL.Text], ['query']),
     'getStripeHealthStatus' : IDL.Func(
         [],
         [

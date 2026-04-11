@@ -464,8 +464,10 @@ actor {
   // ── Gemini OCR ────────────────────────────────────────────────────────────
   // geminiConfig: stores the Gemini API key and model (set via admin panel)
   let geminiConfig : { var current : ?OcrTypes.GeminiConfig } = { var current = null };
+  // ocrFailureLog: ring buffer of OCR scan failures (capped at 500, admin-visible)
+  let ocrFailureLog = List.empty<OcrTypes.OcrFailureEntry>();
   // appConfig passed so adminSaveGeminiConfig can sync gemini_api_key there too
-  include OcrApi(accessControlState, geminiConfig, appConfig);
+  include OcrApi(accessControlState, geminiConfig, appConfig, ocrFailureLog);
 
   // ── Support Tickets ───────────────────────────────────────────────────────
   let supportTickets = List.empty<SupportTicketTypes.SupportTicket>();

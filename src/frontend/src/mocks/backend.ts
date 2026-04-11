@@ -467,9 +467,6 @@ export const mockBackend: backendInterface = {
   adminGetPaymentConfig: async () => ({
     stripePublishableKey: undefined,
     stripeSecretKey: undefined,
-    stripeWebhookSecret: undefined,
-    stripeWebhookSecretTest: undefined,
-    stripeWebhookSecretLive: undefined,
     stripeProPriceId: undefined,
     stripeMaxPriceId: undefined,
     stripeWalkerPriceId: undefined,
@@ -580,6 +577,8 @@ export const mockBackend: backendInterface = {
   getStripeHealthStatus: async () => ({
     status: "ok",
     keysConfigured: false,
+    // ICP architecture: payment verification is polling-based, no webhooks.
+    // These fields satisfy the generated backend.d.ts interface shape.
     webhookConfigured: false,
     lastWebhookReceived: undefined,
   }),
@@ -704,7 +703,7 @@ export const mockBackend: backendInterface = {
       hasPublishableKey: false,
       hasSecretKey: false,
       hasPriceIds: false,
-      lastWebhookAt: undefined,
+      // ICP architecture: no webhooks — payment verification is polling-based
     },
     gemini: { status: "unconfigured", hasApiKey: false },
     database: { status: "ok", canReadUsers: true, canReadConfig: true },
@@ -739,6 +738,8 @@ export const mockBackend: backendInterface = {
   adminSetStripePrices: async (_walker: string, _traveler: string, _lord: string, _backup: string) => undefined,
   adminSetGeminiKey: async (_key: string) => undefined,
   adminSetMaintenanceMode: async (_enabled: boolean, _message: string) => undefined,
+  adminSetSiteBaseUrl: async (_url: string) => ({ __kind__: "ok" as const, ok: null }),
+  getSiteBaseUrl: async () => "",
   // ── Public config query ───────────────────────────────────────────────────
   getPublicConfig: async () => ({
     publishableKey: "",
@@ -748,6 +749,7 @@ export const mockBackend: backendInterface = {
     gasWalkerPriceId: "",
     gasTravelerPriceId: "",
     gasLordPriceId: "",
+    siteBaseUrl: "",
   }),
   // ── Canister cycles balance ───────────────────────────────────────────────
   getCanisterCyclesBalance: async () => BigInt(5_000_000_000_000),
@@ -762,4 +764,5 @@ export const mockBackend: backendInterface = {
   // ── Transform for Stripe verify response ─────────────────────────────────
   transformStripeVerifyResponse: async (raw: { context: Uint8Array; response: { status: bigint; body: Uint8Array; headers: Array<{ value: string; name: string }> } }) => raw.response,
   debugCheckStripeKeyLength: async () => 0n,
+  getOcrFailureLog: async (_limit: bigint) => [],
 };

@@ -142,6 +142,13 @@ export interface BackupRecord {
     downloadUrl: string;
     fileSize: bigint;
 }
+export interface OcrFailureEntry {
+    imageHash: string;
+    errorType: string;
+    userPrincipal: string;
+    timestamp: bigint;
+    errorReason: string;
+}
 export interface UserSummary {
     lastLoginDate?: Timestamp;
     userId: string;
@@ -726,6 +733,13 @@ export interface backendInterface {
     }>;
     adminSetGeminiKey(key: string): Promise<void>;
     adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
+    adminSetSiteBaseUrl(url: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetStripeKeys(publishable: string, secret: string, mode: string): Promise<void>;
     adminSetStripePrices(walker: string, traveler: string, lord: string, backup: string): Promise<void>;
     adminTestGeminiConnection(): Promise<{
@@ -907,6 +921,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    getOcrFailureLog(limit: bigint): Promise<Array<OcrFailureEntry>>;
     getPaymentBanner(): Promise<PaymentBannerState | null>;
     getPendingSession(): Promise<{
         tierId: bigint;
@@ -922,6 +937,7 @@ export interface backendInterface {
         gasLordPriceId: string;
         gasTravelerPriceId: string;
         publishableKey: string;
+        siteBaseUrl: string;
     }>;
     getRefuelHistory(): Promise<Array<RefuelEntry>>;
     getRevenueStats(): Promise<{
@@ -931,6 +947,7 @@ export interface backendInterface {
         activeSubscribers: bigint;
     }>;
     getSiteAnalytics(): Promise<SiteAnalytics>;
+    getSiteBaseUrl(): Promise<string>;
     getStripeHealthStatus(): Promise<{
         status: string;
         lastWebhookReceived?: bigint;
@@ -1805,6 +1822,26 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.adminSetMaintenanceMode(arg0, arg1);
             return result;
+        }
+    }
+    async adminSetSiteBaseUrl(arg0: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminSetSiteBaseUrl(arg0);
+                return from_candid_variant_n42(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminSetSiteBaseUrl(arg0);
+            return from_candid_variant_n42(this._uploadFile, this._downloadFile, result);
         }
     }
     async adminSetStripeKeys(arg0: string, arg1: string, arg2: string): Promise<void> {
@@ -2833,6 +2870,20 @@ export class Backend implements backendInterface {
             return from_candid_variant_n22(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getOcrFailureLog(arg0: bigint): Promise<Array<OcrFailureEntry>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getOcrFailureLog(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getOcrFailureLog(arg0);
+            return result;
+        }
+    }
     async getPaymentBanner(): Promise<PaymentBannerState | null> {
         if (this.processError) {
             try {
@@ -2887,6 +2938,7 @@ export class Backend implements backendInterface {
         gasLordPriceId: string;
         gasTravelerPriceId: string;
         publishableKey: string;
+        siteBaseUrl: string;
     }> {
         if (this.processError) {
             try {
@@ -2945,6 +2997,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getSiteAnalytics();
+            return result;
+        }
+    }
+    async getSiteBaseUrl(): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSiteBaseUrl();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSiteBaseUrl();
             return result;
         }
     }
