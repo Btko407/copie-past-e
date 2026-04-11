@@ -1,34 +1,25 @@
 {
-  "overview": "Copie Past-e is a SaaS web app for archiving, reusing, and posting marketplace listings. It features Smart Paste and Smart Photo OCR for fast import, a retro-futuristic BTTF-themed UI, tiered subscriptions, Stripe payments, and a comprehensive admin panel with debugger, backup, and support tools.",
+  "overview": "Copie Past-e is a SaaS marketplace listing manager running on the Internet Computer. Users can archive, manage, and repost marketplace listings with Stripe-powered subscriptions, Smart Photo OCR via Gemini, and a full admin control panel.",
   "features": [
-    "Smart Photo OCR with Gemini 2.5 Flash-Lite",
-    "Smart Paste listing import",
-    "3-tier subscription system (Time Walker/Traveler/Lord)",
-    "Stripe payments with Apple Pay",
-    "Gas Wallet themed subscription purchase",
-    "Smart Post to Facebook Marketplace via Chrome extension",
-    "Bulletproof backup and restore system",
-    "System Debugger dashboard",
-    "Broadcast Notifications to users",
-    "Admin Activity Feed",
-    "Support Inbox with ticket replies",
-    "Maintenance Mode",
-    "User Account Restore from backup",
-    "Emergency Restore page",
-    "Adaptive Auto Backup by site size",
-    "Export All Users with named folders ZIP"
+    "Stripe subscription payments via ICP polling/verification (no webhooks)",
+    "Gemini OCR for smart photo listing extraction",
+    "Stable variable config that survives every canister upgrade",
+    "Admin control panel with payments, debugger, backup, and user management",
+    "Tiered subscriptions (Time Walker, Time Traveler, Time Lord)",
+    "Gas Wallet with fuel level display",
+    "Maintenance mode with custom message",
+    "Canister cycles balance monitoring"
   ],
   "category": "productivity",
   "tags": [
     "marketplace",
-    "listing-manager",
-    "saas",
-    "admin-panel",
+    "listings",
+    "icp",
+    "motoko",
     "stripe",
-    "gemini-ocr",
-    "backup-restore",
-    "notifications",
-    "maintenance-mode"
+    "ocr",
+    "subscriptions",
+    "admin-panel"
   ],
-  "last_updated": "2026-04-10T22:30:00.762Z"
+  "last_updated": "2026-04-11T04:03:55.682Z"
 }

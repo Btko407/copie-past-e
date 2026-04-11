@@ -483,9 +483,9 @@ export const mockBackend: backendInterface = {
     __kind__: "ok" as const,
     ok: null,
   }),
-  adminTestStripeConnection: async (_secretKey) => ({
-    __kind__: "ok" as const,
-    ok: "Connected",
+  adminTestStripeConnection: async () => ({
+    success: true,
+    message: "Connected (Test Mode) — Account: acct_mock — charges_enabled: true",
   }),
   adminTestPaypalConnection: async (_clientId, _clientSecret, _mode) => ({
     __kind__: "ok" as const,
@@ -561,10 +561,6 @@ export const mockBackend: backendInterface = {
   }),
   restoreFromBackup: async () => ({ __kind__: "ok" as const, ok: BigInt(0) }),
   // ── New Stripe payment backend methods ───────────────────────────────────
-  adminRetryFailedWebhookEvent: async (_eventId: string) => ({
-    __kind__: "ok" as const,
-    ok: null,
-  }),
   createStripeCheckoutSession: async (_priceId: string, _userId: string) => ({
     __kind__: "ok" as const,
     ok: "https://checkout.stripe.com/mock-session",
@@ -574,7 +570,6 @@ export const mockBackend: backendInterface = {
     ok: "https://billing.stripe.com/mock-portal",
   }),
   dismissPaymentBanner: async () => undefined,
-  getFailedWebhookEvents: async () => [],
   getPaymentBanner: async () => null,
   getRevenueStats: async () => ({
     today: BigInt(0),
@@ -588,18 +583,6 @@ export const mockBackend: backendInterface = {
     webhookConfigured: false,
     lastWebhookReceived: undefined,
   }),
-  getWebhookLog: async () => [],
-  processStripeWebhookEvent: async (
-    _eventId: string,
-    _eventType: string,
-    _payload: string,
-    _stripeCustomerId: string | null,
-    _userId: string | null,
-    _priceId: string | null,
-    _amountTotal: bigint | null,
-    _subscriptionStatus: string | null,
-    _currentPeriodEnd: bigint | null,
-  ) => ({ __kind__: "ok" as const, ok: "processed" }),
   // ── Version Backup methods ───────────────────────────────────────────────────
   createVersionBackup: async (_isManual: boolean, _notes: string | null) => ({
     __kind__: "ok" as const,
@@ -654,8 +637,8 @@ export const mockBackend: backendInterface = {
     ok: null,
   }),
   adminTestGeminiConnection: async () => ({
-    __kind__: "ok" as const,
-    ok: "Connected -- OCR Active",
+    success: true,
+    message: "Connected — OCR Active",
   }),
   ocrScanImage: async (_imageBase64: string) => ({
     __kind__: "ok" as const,
@@ -737,4 +720,46 @@ export const mockBackend: backendInterface = {
   getStripePublicKey: async () => ({ publishableKey: "" }),
   // ── User account restore ─────────────────────────────────────────────────
   restoreUserAccountFromBackup: async (_userId: string, _backupId: string) => ({ __kind__: "ok" as const, ok: "Restored" }),
+  // ── ICP HTTPS Outcall transform functions ─────────────────────────────────
+  // These are called by the ICP runtime to strip non-deterministic fields
+  // from external API responses before consensus. In the mock, they pass through.
+  transformGeminiResponse: async (raw) => raw.response,
+  transformPaypalTokenResponse: async (raw) => raw.response,
+  transformStripeAccountResponse: async (raw) => raw.response,
+  transformStripeCheckoutResponse: async (raw) => raw.response,
+  transformStripeCustomerResponse: async (raw) => raw.response,
+  transformStripePaymentIntentResponse: async (raw) => raw.response,
+  transformStripePortalResponse: async (raw) => raw.response,
+  transformGeminiTestResponse: async (raw) => raw.response,
+  // ── Version Snapshots ─────────────────────────────────────────────────────
+  createAdaptiveVersionSnapshot: async () => null,
+  getVersionSnapshotList: async () => [],
+  // ── Config API (admin-only setters) ──────────────────────────────────────
+  adminSetStripeKeys: async (_publishable: string, _secret: string, _mode: string) => undefined,
+  adminSetStripePrices: async (_walker: string, _traveler: string, _lord: string, _backup: string) => undefined,
+  adminSetGeminiKey: async (_key: string) => undefined,
+  adminSetMaintenanceMode: async (_enabled: boolean, _message: string) => undefined,
+  // ── Public config query ───────────────────────────────────────────────────
+  getPublicConfig: async () => ({
+    publishableKey: "",
+    mode: "test",
+    maintenanceMode: false,
+    maintenanceMessage: "Copie Past-e is temporarily offline for maintenance.",
+    gasWalkerPriceId: "",
+    gasTravelerPriceId: "",
+    gasLordPriceId: "",
+  }),
+  // ── Canister cycles balance ───────────────────────────────────────────────
+  getCanisterCyclesBalance: async () => BigInt(5_000_000_000_000),
+  // ── Verify and grant payment ──────────────────────────────────────────────
+  verifyAndGrantPayment: async (_sessionId: string) => ({
+    __kind__: "ok" as const,
+    ok: "Payment verified. 30 days added.",
+  }),
+  // ── Pending session helpers ───────────────────────────────────────────────
+  getPendingSession: async () => null,
+  clearPendingSession: async () => undefined,
+  // ── Transform for Stripe verify response ─────────────────────────────────
+  transformStripeVerifyResponse: async (raw: { context: Uint8Array; response: { status: bigint; body: Uint8Array; headers: Array<{ value: string; name: string }> } }) => raw.response,
+  debugCheckStripeKeyLength: async () => 0n,
 };

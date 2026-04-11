@@ -4,8 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActor } from "@caffeineai/core-infrastructure";
-import { useMutation } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -24,6 +23,9 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import { toast } from "sonner";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActorAny = any;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +52,7 @@ interface SystemHealth {
   paypal: { status: string; isConfigured: boolean };
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 function useSystemHealth(refreshKey: number) {
   const { actor, isFetching } = useActor(createActor);
@@ -59,6 +61,22 @@ function useSystemHealth(refreshKey: number) {
     queryFn: async () => {
       if (!actor) throw new Error("Actor not ready");
       return actor.getSystemHealthStatus() as Promise<SystemHealth>;
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 0,
+    retry: 1,
+  });
+}
+
+function useCyclesBalance(refreshKey: number) {
+  const { actor, isFetching } = useActor(createActor);
+  return useQuery<bigint | null>({
+    queryKey: ["cyclesBalance", refreshKey],
+    queryFn: async () => {
+      if (!actor) return null;
+      const result = await (actor as ActorAny).getCanisterCyclesBalance?.();
+      if (result === undefined || result === null) return null;
+      return result as bigint;
     },
     enabled: !!actor && !isFetching,
     staleTime: 0,
@@ -77,6 +95,20 @@ function formatTs(ts: bigint | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatCycles(cycles: bigint): string {
+  const trillion = 1_000_000_000_000;
+  const val = Number(cycles) / trillion;
+  return `${val.toFixed(2)} trillion`;
+}
+
+function getCyclesLevel(cycles: bigint | null): StatusLevel {
+  if (cycles === null) return "yellow";
+  const c = Number(cycles);
+  if (c < 100_000_000_000) return "red";
+  if (c < 1_000_000_000_000) return "yellow";
+  return "green";
 }
 
 function statusColor(level: StatusLevel) {
@@ -129,9 +161,7 @@ interface DebugCardProps {
   details: { label: string; ok: boolean; info?: string }[];
   fixLabel?: string;
   fixPath?: string;
-  /** If provided, clicking the fix button calls this instead of navigating */
   onFixClick?: () => void;
-  /** Shows a spinner on the fix button when true */
   fixLoading?: boolean;
 }
 
@@ -235,6 +265,8 @@ export function AdminDebuggerPage() {
   const { actor } = useActor(createActor);
 
   const { data, isLoading, isError, isFetching } = useSystemHealth(refreshKey);
+  const { data: cyclesData, isLoading: cyclesLoading } =
+    useCyclesBalance(refreshKey);
 
   // Track when data was last fetched
   React.useEffect(() => {
@@ -249,8 +281,7 @@ export function AdminDebuggerPage() {
   const createBackupMutation = useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error("Actor not ready");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const a = actor as any;
+      const a = actor as ActorAny;
       const result = await a.createVersionBackup(
         true,
         "Manual backup from System Debugger",
@@ -260,7 +291,7 @@ export function AdminDebuggerPage() {
     },
     onSuccess: () => {
       toast.success("Backup created successfully.");
-      setRefreshKey((k) => k + 1); // refresh health status
+      setRefreshKey((k) => k + 1);
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Backup failed.");
@@ -275,12 +306,50 @@ export function AdminDebuggerPage() {
         createBackupMutation.isPending,
       )
     : null;
-  const issueCount = cards
-    ? cards.filter((c) => c.level !== "green").length
-    : 0;
+
+  // Build cycles card separately (it's data from a different query)
+  const cyclesCard: DebugCardProps | null =
+    !cyclesLoading && cyclesData !== undefined
+      ? buildCyclesCard(cyclesData ?? null)
+      : null;
+
+  // All cards in display order: cycles first, then system health
+  const allCards: DebugCardProps[] = [
+    ...(cyclesCard ? [cyclesCard] : []),
+    ...(cards ?? []),
+  ];
+
+  const issueCount = allCards.filter((c) => c.level !== "green").length;
+
+  // Low cycles warning banner
+  const showLowCyclesWarning =
+    cyclesData !== null &&
+    cyclesData !== undefined &&
+    Number(cyclesData) < 1_000_000_000_000;
+
+  const stillLoading = isLoading || cyclesLoading;
 
   return (
     <AdminLayout title="System Debugger" subtitle="Health Status">
+      {/* Low cycles global warning banner */}
+      {showLowCyclesWarning && (
+        <div
+          className="mb-4 rounded-lg bg-[#eab308]/10 border border-[#eab308]/40 px-4 py-3 flex items-start gap-3"
+          data-ocid="debugger-low-cycles-banner"
+        >
+          <AlertTriangle className="w-4 h-4 text-[#eab308] shrink-0 mt-0.5" />
+          <p className="font-mono text-xs text-[#eab308]">
+            <span className="font-bold">Low cycles warning.</span> HTTPS
+            outcalls (Stripe payments, OCR) will fail if cycles run out. Top up
+            your canister using the IC dashboard or{" "}
+            <code className="bg-[#eab308]/10 px-1 rounded text-[10px]">
+              dfx canister deposit-cycles
+            </code>
+            .
+          </p>
+        </div>
+      )}
+
       {/* Page header */}
       <div
         className="mb-6 rounded-xl bg-card neon-border-blue p-5 relative overflow-hidden"
@@ -305,7 +374,7 @@ export function AdminDebuggerPage() {
 
           {/* Right: overall status + refresh */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-            {cards && !isLoading && (
+            {allCards.length > 0 && !stillLoading && (
               <div
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] font-semibold border ${
                   issueCount === 0
@@ -329,7 +398,7 @@ export function AdminDebuggerPage() {
               variant="outline"
               className="w-full sm:w-auto font-mono text-[10px] uppercase tracking-widest neon-border-blue hover:bg-primary/10 transition-smooth"
               onClick={handleRefresh}
-              disabled={isLoading || isFetching}
+              disabled={stillLoading || isFetching}
               data-ocid="debugger-refresh-btn"
             >
               <RefreshCw
@@ -354,7 +423,7 @@ export function AdminDebuggerPage() {
         className="grid grid-cols-1 sm:grid-cols-2 gap-4"
         data-ocid="debugger-cards-grid"
       >
-        {isLoading || !cards
+        {stillLoading || allCards.length === 0
           ? [
               "skel-0",
               "skel-1",
@@ -363,14 +432,66 @@ export function AdminDebuggerPage() {
               "skel-4",
               "skel-5",
               "skel-6",
+              "skel-7",
             ].map((k) => <DebugCardSkeleton key={k} />)
-          : cards.map((card) => <DebugCard key={card.title} {...card} />)}
+          : allCards.map((card) => <DebugCard key={card.title} {...card} />)}
       </div>
     </AdminLayout>
   );
 }
 
-// ─── Card builder ─────────────────────────────────────────────────────────
+// ─── Cycles card builder ──────────────────────────────────────────────────────
+
+function buildCyclesCard(cycles: bigint | null): DebugCardProps {
+  const level = getCyclesLevel(cycles);
+
+  let cyclesInfo: string;
+  let statusInfo: string;
+
+  if (cycles === null) {
+    cyclesInfo = "Unable to read balance";
+    statusInfo =
+      "Could not fetch cycles — actor may not expose this method yet";
+  } else {
+    cyclesInfo = formatCycles(cycles);
+    if (level === "green") {
+      statusInfo = "Sufficient cycles for HTTPS outcalls";
+    } else if (level === "yellow") {
+      statusInfo = "Low cycles — top up to prevent HTTPS outcall failures";
+    } else {
+      statusInfo = "Critical: Canister may stop functioning";
+    }
+  }
+
+  return {
+    icon: <Zap className="w-4 h-4 text-primary" />,
+    title: "Canister Cycles",
+    level,
+    details: [
+      {
+        label: "Cycles balance",
+        ok: level === "green",
+        info: cyclesInfo,
+      },
+      {
+        label: "Status",
+        ok: level === "green",
+        info: statusInfo,
+      },
+      ...(level !== "green"
+        ? [
+            {
+              label: "Top up",
+              ok: false,
+              info: 'Use IC dashboard or "dfx canister deposit-cycles <amount> <canister-id>"',
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+// ─── System health card builder ───────────────────────────────────────────────
 
 function buildCards(
   h: SystemHealth,
@@ -406,12 +527,9 @@ function buildCards(
         info: h.stripe.hasPriceIds ? "At least one set" : "None configured",
       },
       {
-        label: "Last webhook",
-        ok: !!h.stripe.lastWebhookAt && h.stripe.lastWebhookAt > BigInt(0),
-        info:
-          h.stripe.lastWebhookAt && h.stripe.lastWebhookAt > BigInt(0)
-            ? formatTs(h.stripe.lastWebhookAt)
-            : "Never received",
+        label: "Payment verification",
+        ok: true,
+        info: "Polling (ICP architecture — no webhooks)",
       },
     ],
     fixLabel: "Go to Payments Config",
@@ -439,20 +557,20 @@ function buildCards(
     fixPath: "/admin/settings",
   };
 
-  // ── DATABASE ─────────────────────────────────────────────────────────────
+  // ── CANISTER DATABASE ─────────────────────────────────────────────────────
   const dbOk = h.database.canReadUsers && h.database.canReadConfig;
   const databaseCard: DebugCardProps = {
     icon: <Database className="w-4 h-4 text-primary" />,
-    title: "Supabase Database",
+    title: "Canister Database",
     level: dbOk ? "green" : "red",
     details: [
       {
-        label: "Read users table",
+        label: "Read users",
         ok: h.database.canReadUsers,
         info: h.database.canReadUsers ? "OK" : "Cannot read",
       },
       {
-        label: "Read app_config table",
+        label: "Read canister storage",
         ok: h.database.canReadConfig,
         info: h.database.canReadConfig ? "OK" : "Cannot read",
       },

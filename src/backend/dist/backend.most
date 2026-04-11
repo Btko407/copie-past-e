@@ -232,6 +232,14 @@ type PaymentRecord__879948694 =
     userId : Principal
   };
 type PaymentStatus__296016569 = {#completed; #failed; #pending};
+type PendingSession__206498609 =
+  {
+    createdAt : Int;
+    priceId : Text;
+    sessionId : Text;
+    tierDays : Nat;
+    tierId : Nat
+  };
 type RefuelEntry__738623034 =
   {date : Int; tierAtRefuel : TierName__274346593};
 type SiteSettings__435530660 =
@@ -360,7 +368,7 @@ actor {
               status : Nat
             }
     };
-  stable IC_MANAGEMENT :
+  stable var IC_MANAGEMENT :
     actor {
       http_request :
         shared {
@@ -414,7 +422,7 @@ actor {
               status : Nat
             }
     };
-  stable IC_MANAGEMENT_OCR :
+  stable var IC_MANAGEMENT_OCR :
     actor {
       http_request :
         shared {
@@ -450,7 +458,7 @@ actor {
               status : Nat
             }
     };
-  stable IC_MANAGEMENT_STRIPE :
+  stable var IC_MANAGEMENT_STRIPE :
     actor {
       http_request :
         shared {
@@ -560,6 +568,7 @@ actor {
       var root : Node__46230540<ImageId__216201135, Image__340455961>;
       var size : Nat__490723111
     };
+  stable lastAutoSnapshotTime : {var value : Int};
   stable listingCounter : {var value : Nat};
   stable listings :
     {
@@ -589,6 +598,11 @@ actor {
   stable payments :
     {
       var root : Node__46230540<Nat, PaymentRecord__879948694>;
+      var size : Nat__490723111
+    };
+  stable pendingSessions :
+    {
+      var root : Node__46230540<Text, PendingSession__206498609>;
       var size : Nat__490723111
     };
   stable processedStripeEvents :

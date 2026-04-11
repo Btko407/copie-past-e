@@ -5,6 +5,7 @@ import Int "mo:core/Int";
 import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+import Cycles "mo:core/Cycles";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
 import AppConfigTypes "../types/app-config";
@@ -540,5 +541,12 @@ mixin (
         items.toArray()
       };
     }
+  };
+
+  /// Public query: returns the canister's current cycles balance.
+  /// Used by admin panel to warn when cycles are running low.
+  /// Warning threshold: below 1_000_000_000_000 (1 trillion) = risk of outages.
+  public query func getCanisterCyclesBalance() : async Nat {
+    Cycles.balance()
   };
 };

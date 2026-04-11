@@ -526,23 +526,46 @@ export function WalletPage() {
       .finally(() => setStripeKeyLoading(false));
 
     // Fetch gas wallet price IDs from backend config
+    // Try multiple possible key names for backward compatibility
+    const fetchPriceId = async (keys: string[]): Promise<string> => {
+      for (const key of keys) {
+        try {
+          const val = await a.getConfig(key);
+          if (val && typeof val === "string" && val.startsWith("price_"))
+            return val;
+        } catch {
+          /* ignore */
+        }
+      }
+      return "";
+    };
+
     Promise.all([
-      a.getConfig("stripe_gas_walker").catch(() => null),
-      a.getConfig("stripe_gas_traveler").catch(() => null),
-      a.getConfig("stripe_gas_lord").catch(() => null),
-    ]).then(
-      ([walker, traveler, lord]: [
-        string | null,
-        string | null,
-        string | null,
-      ]) => {
-        setGasPriceIds({
-          1: walker ?? "",
-          2: traveler ?? "",
-          3: lord ?? "",
-        });
-      },
-    );
+      fetchPriceId([
+        "stripe_gas_walker",
+        "stripe_price_walker",
+        "stripeGasWalkerPriceId",
+        "stripeWalkerPriceId",
+      ]),
+      fetchPriceId([
+        "stripe_gas_traveler",
+        "stripe_price_traveler",
+        "stripeGasTravelerPriceId",
+        "stripeProPriceId",
+      ]),
+      fetchPriceId([
+        "stripe_gas_lord",
+        "stripe_price_lord",
+        "stripeGasLordPriceId",
+        "stripeMaxPriceId",
+      ]),
+    ]).then(([walker, traveler, lord]) => {
+      setGasPriceIds({
+        1: walker,
+        2: traveler,
+        3: lord,
+      });
+    });
   }, [actor]);
 
   const stripePromise: Promise<Stripe | null> = stripeKey

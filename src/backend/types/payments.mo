@@ -102,4 +102,14 @@ module {
     expiresAt : ?Int;
     createdAt : Int;
   };
+
+  /// A pending Stripe checkout session awaiting verification.
+  /// Stored per user; cleared after verifyAndGrantPayment succeeds.
+  public type PendingSession = {
+    sessionId : Text;
+    priceId   : Text;
+    tierDays  : Nat;
+    tierId    : Nat;
+    createdAt : Int;
+  };
 };

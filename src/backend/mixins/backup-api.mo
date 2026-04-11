@@ -35,6 +35,7 @@ mixin (
   appVersions        : List.List<AdminTypes.AppVersion>,
   versionBackups     : List.List<BackupTypes.VersionBackup>,
   appConfig          : Map.Map<Text, AppConfigTypes.ConfigEntry>,
+  lastAutoSnapshotTime : { var value : Int },
 ) {
   /// Price for a paid Smart Backup export ($29.99).
   let SMART_BACKUP_PRICE_USD : Float = 29.99;
@@ -302,6 +303,62 @@ mixin (
 
   // ── Version Backup endpoints (admin full-data snapshots) ───────────────────
 
+  /// List only version-snapshot backups (backupType starts with "version-snapshot").
+  /// Admin-only.
+  public query ({ caller }) func getVersionSnapshotList() : async [BackupTypes.VersionBackupSummary] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: admin only");
+    };
+    let all = BackupLib.listVersionBackupSummaries(versionBackups);
+    all.values()
+      .filter(func(s : BackupTypes.VersionBackupSummary) : Bool {
+        s.backupType.startsWith(#text "version-snapshot")
+      })
+      .toArray()
+  };
+
+  /// Create a version snapshot with adaptive frequency control.
+  /// Checks lastAutoSnapshotTime against user count thresholds.
+  /// Safe to call on a timer — silently skips if not yet due.
+  public shared ({ caller }) func createAdaptiveVersionSnapshot() : async ?BackupTypes.VersionBackup {
+    let now = Time.now();
+    let userCount = profiles.size();
+
+    // Determine interval in nanoseconds based on user count
+    let HOUR_NS : Int = 3_600_000_000_000;
+    let intervalNs : Int = if (userCount > 200) {
+      HOUR_NS          // 200+ users: every hour
+    } else if (userCount > 50) {
+      6 * HOUR_NS      // 51-200 users: every 6 hours
+    } else if (userCount > 10) {
+      12 * HOUR_NS     // 11-50 users: every 12 hours
+    } else {
+      24 * HOUR_NS     // 0-10 users: daily
+    };
+
+    // Skip if not enough time has passed since last auto snapshot
+    if (now - lastAutoSnapshotTime.value < intervalNs) {
+      return null;
+    };
+
+    lastAutoSnapshotTime.value := now;
+
+    let backup = BackupLib.createVersionSnapshot(
+      versionBackups,
+      profiles,
+      listings,
+      subscriptions,
+      notifications,
+      siteSettings,
+      appVersions,
+      "version-snapshot-auto",
+      "auto-adaptive",
+      ?("Adaptive auto snapshot — " # userCount.toText() # " users"),
+      now,
+    );
+    ?backup
+  };
+
   /// Create a version backup.
   /// isManual=true → manual (never auto-deleted); isManual=false → auto (capped at 50).
   /// Admin-only for manual; system can call with isManual=false for auto.
@@ -317,7 +374,8 @@ mixin (
       };
     };
     let createdBy = if (isManual) caller.toText() else "auto";
-    let backup = BackupLib.createVersionBackup(
+    let snapshotType = if (isManual) "version-snapshot-manual" else "version-snapshot-auto";
+    let backup = BackupLib.createVersionSnapshot(
       versionBackups,
       profiles,
       listings,
@@ -325,7 +383,7 @@ mixin (
       notifications,
       siteSettings,
       appVersions,
-      isManual,
+      snapshotType,
       createdBy,
       notes,
       now,
@@ -403,8 +461,8 @@ mixin (
     switch (target) {
       case null { false };
       case (?b) {
-        if (b.backupType == "manual" or b.isStable) {
-          false // refuse to delete manual or stable backups
+        if (b.backupType.startsWith(#text "version-snapshot-manual") or b.backupType == "manual" or b.isStable) {
+          false // refuse to delete manual, version-snapshot-manual, or stable backups
         } else {
           let keep = versionBackups.filter(func(x : BackupTypes.VersionBackup) : Bool {
             x.id != backupId

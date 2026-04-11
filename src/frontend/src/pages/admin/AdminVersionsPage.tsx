@@ -27,8 +27,20 @@ import {
   useRevertToVersion,
   useRollbackToVersion,
 } from "@/hooks/useAdminVersions";
+import {
+  useCreateVersionSnapshot,
+  useExportBackupAsJson,
+  useMarkBackupStable,
+  useRestoreFromBackup,
+  useVersionSnapshotList,
+} from "@/hooks/useBackupDashboard";
 import { AdminBackupDashboard } from "@/pages/admin/AdminBackupDashboard";
-import type { AppVersion, SiteSettings } from "@/types";
+import type {
+  AppVersion,
+  RestoreResult,
+  SiteSettings,
+  VersionBackupSummary,
+} from "@/types";
 import {
   Archive,
   CheckCircle2,
@@ -37,11 +49,14 @@ import {
   Clock,
   Copy,
   Database,
+  FileJson,
   History,
   Plus,
   RefreshCw,
   Shield,
+  Star,
   Upload,
+  Users,
   Zap,
 } from "lucide-react";
 import { useState } from "react";
@@ -229,6 +244,390 @@ function VersionDiff({
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Version Snapshot Dashboard (data snapshots) ──────────────────────────────
+
+function snapshotFreshness(backups: VersionBackupSummary[]) {
+  const last = backups[0];
+  const lastTs = last ? Number(last.createdAt) / 1_000_000 : null;
+  const hoursSince = lastTs
+    ? (Date.now() - lastTs) / (1000 * 60 * 60)
+    : Number.POSITIVE_INFINITY;
+  return {
+    dotColor:
+      hoursSince < 24
+        ? "bg-green-500"
+        : hoursSince < 48
+          ? "bg-amber-400"
+          : "bg-destructive",
+    hoursSince,
+    lastTs,
+    lastBackup: last,
+  };
+}
+
+function SnapshotTypeBadge({ type }: { type: string }) {
+  const isManual = type.includes("manual");
+  const isPreDeploy = type.includes("pre-deploy");
+  const label = isManual ? "Manual" : isPreDeploy ? "Pre-Deploy" : "Auto";
+  return (
+    <Badge
+      variant="outline"
+      className={[
+        "font-mono text-[9px] uppercase tracking-widest",
+        isManual
+          ? "border-accent/40 text-accent bg-accent/5"
+          : isPreDeploy
+            ? "border-primary/40 text-primary bg-primary/5"
+            : "border-border/40 text-muted-foreground bg-muted/5",
+      ].join(" ")}
+    >
+      {label}
+    </Badge>
+  );
+}
+
+function DataSnapshotDashboard() {
+  const { data: snapshots = [], isLoading } = useVersionSnapshotList();
+  const createSnapshot = useCreateVersionSnapshot();
+  const restore = useRestoreFromBackup();
+  const markStable = useMarkBackupStable();
+  const exportJson = useExportBackupAsJson();
+
+  const [restoreTarget, setRestoreTarget] =
+    useState<VersionBackupSummary | null>(null);
+  const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(
+    null,
+  );
+
+  const { dotColor, lastBackup } = snapshotFreshness(snapshots);
+  const totalSizeKb = snapshots.reduce(
+    (acc, b) => acc + Number(b.sizeKb ?? 0),
+    0,
+  );
+
+  async function handleCreate() {
+    try {
+      await createSnapshot.mutateAsync({ notes: "Manual version snapshot" });
+      toast.success("Version snapshot created", {
+        icon: <CheckCircle2 className="w-4 h-4 text-primary" />,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Snapshot failed.");
+    }
+  }
+
+  async function handleRestore() {
+    if (!restoreTarget) return;
+    try {
+      const result = await restore.mutateAsync(restoreTarget.id);
+      if (result.success) {
+        setRestoreResult(result);
+        setRestoreTarget(null);
+        toast.success("Restore complete!");
+      } else {
+        toast.error(result.errorMessage || "Restore failed.");
+        setRestoreTarget(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.");
+      setRestoreTarget(null);
+    }
+  }
+
+  async function handleToggleStable(snapshot: VersionBackupSummary) {
+    try {
+      await markStable.mutateAsync(snapshot.id);
+      toast.success(
+        snapshot.isStable ? "Stable mark removed." : "Marked as stable.",
+      );
+    } catch {
+      toast.error("Could not update stable status.");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status bar */}
+      {!isLoading && (
+        <div className="flex items-center gap-3 flex-wrap px-4 py-3 rounded-lg bg-secondary/20 border border-border/40">
+          <span
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`}
+            aria-hidden="true"
+          />
+          <span className="font-mono text-xs text-foreground">
+            Last snapshot:{" "}
+            <span className="text-primary">
+              {lastBackup
+                ? new Date(
+                    Number(lastBackup.createdAt) / 1_000_000,
+                  ).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "Never"}
+            </span>
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">|</span>
+          <span className="font-mono text-xs text-foreground">
+            <span className="text-primary">{snapshots.length}</span> snapshots
+            stored
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">|</span>
+          <span className="font-mono text-xs text-foreground">
+            <span className="text-primary">
+              {(totalSizeKb / 1024).toFixed(1)}
+            </span>{" "}
+            MB used
+          </span>
+        </div>
+      )}
+
+      {/* Create button */}
+      <Button
+        size="sm"
+        onClick={handleCreate}
+        disabled={createSnapshot.isPending}
+        className="font-mono text-xs gap-1.5 neon-border-blue glow-blue-sm"
+        data-ocid="create-version-snapshot-btn"
+      >
+        <Plus className="w-3 h-3" />
+        {createSnapshot.isPending ? "Creating…" : "Create Version Snapshot Now"}
+      </Button>
+
+      {/* Snapshot table */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-12 rounded-lg" />
+          ))}
+        </div>
+      ) : snapshots.length === 0 ? (
+        <div
+          className="rounded-xl bg-card neon-border-blue p-10 text-center"
+          data-ocid="version-snapshots-empty-state"
+        >
+          <Archive className="w-7 h-7 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="font-display text-xs text-muted-foreground uppercase tracking-widest">
+            No version snapshots yet
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">
+            Snapshots are created automatically before each version change.
+            Create one manually above.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl bg-card neon-border-blue">
+          <table className="w-full min-w-[680px] text-left">
+            <thead>
+              <tr className="border-b border-border/40">
+                {[
+                  "ID",
+                  "Type",
+                  "Created",
+                  "Version",
+                  "Users",
+                  "Listings",
+                  "Size",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest px-3 py-3 whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {snapshots.map((snap) => (
+                <tr
+                  key={snap.id}
+                  className="border-b border-border/20 hover:bg-secondary/10 transition-smooth"
+                  data-ocid="version-snapshot-row"
+                >
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-[11px] text-muted-foreground bg-secondary/30 px-1.5 py-0.5 rounded">
+                      {snap.id.slice(0, 8)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <SnapshotTypeBadge type={snap.backupType ?? ""} />
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap font-mono text-[11px] text-foreground">
+                    {new Date(
+                      Number(snap.createdAt) / 1_000_000,
+                    ).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-xs text-primary">
+                      {snap.versionLabel || "—"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-xs tabular-nums flex items-center gap-1">
+                      <Users className="w-3 h-3 text-muted-foreground" />
+                      {snap.userCount?.toString() ?? "—"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-xs tabular-nums flex items-center gap-1">
+                      <Archive className="w-3 h-3 text-muted-foreground" />
+                      {snap.listingCount?.toString() ?? "—"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                    {snap.sizeKb ? `${snap.sizeKb.toString()} KB` : "—"}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Stable star */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStable(snap)}
+                        aria-label={
+                          snap.isStable ? "Unmark stable" : "Mark as stable"
+                        }
+                        className="p-1 rounded hover:bg-accent/10 transition-colors"
+                        data-ocid={`snap-stable-toggle-${snap.id}`}
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 ${snap.isStable ? "fill-accent text-accent" : "text-muted-foreground"}`}
+                        />
+                      </button>
+                      {/* Restore */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRestoreTarget(snap)}
+                        disabled={restore.isPending}
+                        className="font-mono text-[10px] h-7 border-accent/40 text-accent hover:bg-accent/10 whitespace-nowrap"
+                        data-ocid={`snap-restore-btn-${snap.id}`}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Restore
+                      </Button>
+                      {/* Download JSON */}
+                      <button
+                        type="button"
+                        onClick={() => exportJson.mutateAsync(snap)}
+                        aria-label="Download as JSON"
+                        className="p-1.5 rounded border border-border/40 hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        data-ocid={`snap-download-${snap.id}`}
+                      >
+                        <FileJson className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Restore confirm */}
+      <AlertDialog
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <AlertDialogContent className="bg-card border-accent/30 font-body">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-sm uppercase tracking-wider text-accent text-glow-yellow">
+              Restore from version snapshot?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="font-mono text-xs text-muted-foreground leading-relaxed space-y-3">
+                <p>
+                  Restore snapshot{" "}
+                  <span className="font-bold text-foreground bg-secondary/40 px-1.5 py-0.5 rounded">
+                    {restoreTarget ? restoreTarget.id.slice(0, 8) : ""}
+                  </span>{" "}
+                  — this will restore{" "}
+                  <span className="text-primary font-bold">
+                    {restoreTarget?.userCount?.toString() ?? "0"} user accounts
+                  </span>{" "}
+                  and{" "}
+                  <span className="text-primary font-bold">
+                    {restoreTarget?.listingCount?.toString() ?? "0"} listings
+                  </span>
+                  .
+                </p>
+                <p className="text-primary/80">
+                  Current state will be auto-saved as a new backup first.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono text-xs">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleRestore();
+              }}
+              disabled={restore.isPending}
+              className="font-mono text-xs bg-accent text-accent-foreground hover:bg-accent/80"
+              data-ocid="confirm-snap-restore-btn"
+            >
+              <RefreshCw className="w-3 h-3 mr-1.5" />
+              {restore.isPending ? "Restoring…" : "Restore — I Understand"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore success */}
+      <AlertDialog
+        open={!!restoreResult}
+        onOpenChange={(open) => !open && setRestoreResult(null)}
+      >
+        <AlertDialogContent className="bg-card border-primary/30 font-body">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-sm uppercase tracking-wider text-primary text-glow-blue flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              Restore Complete
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="font-mono text-xs text-muted-foreground space-y-2">
+                <p>
+                  <span className="text-primary font-bold">
+                    {restoreResult?.usersRestored?.toString() ?? "0"} users
+                  </span>{" "}
+                  and{" "}
+                  <span className="text-primary font-bold">
+                    {restoreResult?.listingsRestored?.toString() ?? "0"}{" "}
+                    listings
+                  </span>{" "}
+                  restored.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              className="font-mono text-xs"
+              onClick={() => setRestoreResult(null)}
+            >
+              Done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -556,7 +955,24 @@ export function AdminVersionsPage() {
             </div>
           )}
 
-          {/* ── Section B: Data Backups ── */}
+          {/* ── Section B: Data Snapshots (full-state backups for version revert) ── */}
+          <div className="mt-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center glow-yellow-sm">
+                <Database className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold tracking-wider uppercase text-foreground">
+                  Section B — Data Snapshots
+                </h3>
+                <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                  Full-state backups for safe version rollback — restore users,
+                  listings, and config to any saved point
+                </p>
+              </div>
+            </div>
+            <DataSnapshotDashboard />
+          </div>
         </>
       )}
 

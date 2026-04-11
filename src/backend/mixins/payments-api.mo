@@ -74,6 +74,9 @@ mixin (
     let travelerPriceId = paymentsGetConfig("stripe_price_traveler");
     let lordPriceId = paymentsGetConfig("stripe_price_lord");
     let backupPriceId = paymentsGetConfig("stripe_price_backup");
+    let gasWalkerPriceId = paymentsGetConfig("stripe_price_gas_walker");
+    let gasTravelerPriceId = paymentsGetConfig("stripe_price_gas_traveler");
+    let gasLordPriceId = paymentsGetConfig("stripe_price_gas_lord");
     let stripeMode = paymentsGetConfig("stripe_mode");
     let paypalClientId = paymentsGetConfig("paypal_client_id");
     let paypalClientSecret = paymentsGetConfig("paypal_client_secret");
@@ -96,8 +99,9 @@ mixin (
     };
   };
 
-  // Management canister reference for HTTP outcalls
-  let IC_MANAGEMENT : actor {
+  // Management canister reference factory — instantiated locally per call to avoid
+  // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
+  func icManagement() : actor {
     http_request : ({
       url : Text;
       max_response_bytes : ?Nat64;
@@ -105,12 +109,108 @@ mixin (
       headers : [{ name : Text; value : Text }];
       body : ?Blob;
       is_replicated : ?Bool;
+      transform : ?{
+        function : shared query ({
+          response : {
+            status : Nat;
+            headers : [{ name : Text; value : Text }];
+            body : Blob;
+          };
+          context : Blob;
+        }) -> async {
+          status : Nat;
+          headers : [{ name : Text; value : Text }];
+          body : Blob;
+        };
+        context : Blob;
+      };
     }) -> async {
       status : Nat;
       headers : [{ name : Text; value : Text }];
       body : Blob;
     };
-  } = actor "aaaaa-aa";
+  } {
+    actor "aaaaa-aa"
+  };
+
+  // ── Transform functions for ICP consensus ────────────────────────────────
+  // Stripe responses include non-deterministic fields (request IDs, timestamps,
+  // livemode). These transforms keep only stable fields needed for consensus.
+
+  /// Transform for Stripe payment intent — keeps only: id, client_secret, status.
+  public query func transformStripePaymentIntentResponse(raw : {
+    response : {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status : Nat;
+    headers : [{ name : Text; value : Text }];
+    body : Blob;
+  } {
+    let stableBody : Blob = switch (raw.response.body.decodeUtf8()) {
+      case null { "{}".encodeUtf8() };
+      case (?bodyText) {
+        let id           = paymentsExtractJsonStringField(bodyText, "id");
+        let clientSecret = paymentsExtractJsonStringField(bodyText, "client_secret");
+        let status       = paymentsExtractJsonStringField(bodyText, "status");
+        let stableJson = "{\"id\":\"" # id # "\",\"client_secret\":\"" # clientSecret # "\",\"status\":\"" # status # "\"}";
+        stableJson.encodeUtf8()
+      };
+    };
+    {
+      status = raw.response.status;
+      headers = [];
+      body = stableBody;
+    }
+  };
+
+  /// Transform for PayPal OAuth token — keeps only: token_type, scope (stable fields).
+  public query func transformPaypalTokenResponse(raw : {
+    response : {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status : Nat;
+    headers : [{ name : Text; value : Text }];
+    body : Blob;
+  } {
+    // For PayPal OAuth test, we only need to know the call succeeded.
+    // Return just the status code result — no body fields needed.
+    let stableBody : Blob = if (raw.response.status >= 200 and raw.response.status < 300) {
+      "{\"connected\":true}".encodeUtf8()
+    } else {
+      "{\"connected\":false}".encodeUtf8()
+    };
+    {
+      status = raw.response.status;
+      headers = [];
+      body = stableBody;
+    }
+  };
+
+  // ── Helper: extract a JSON string field ──────────────────────────────────
+
+  func paymentsExtractJsonStringField(json : Text, field : Text) : Text {
+    let marker = "\"" # field # "\":\"";
+    let parts = json.split(#text marker);
+    ignore parts.next();
+    switch (parts.next()) {
+      case null { "" };
+      case (?afterMarker) {
+        let valueParts = afterMarker.split(#char '\"');
+        switch (valueParts.next()) {
+          case null { "" };
+          case (?v) { v };
+        };
+      };
+    };
+  };
 
   // Read the active Stripe secret key from appConfig only.
   func activeStripeSecretKey() : Text {
@@ -119,16 +219,8 @@ mixin (
 
   /// Extract a JSON string field value by splitting on the key pattern.
   func parseJsonStringField(json : Text, field : Text) : ?Text {
-    let marker = "\"" # field # "\":\"";
-    let parts = json.split(#text marker);
-    ignore parts.next();
-    switch (parts.next()) {
-      case null { null };
-      case (?afterMarker) {
-        let valueParts = afterMarker.split(#char '\"');
-        valueParts.next();
-      };
-    };
+    let v = paymentsExtractJsonStringField(json, field);
+    if (v == "") null else ?v;
   };
 
   /// Create a Stripe PaymentIntent via HTTP outcall; returns client_secret or null on failure
@@ -142,7 +234,9 @@ mixin (
       # "&automatic_payment_methods[enabled]=true";
 
     try {
-      let response = await (with cycles = 500_000_000) IC_MANAGEMENT.http_request({
+      // Cycles: 10_000_000_000 for Stripe POST calls.
+      // transform: strips non-deterministic fields (created, livemode, etc.).
+      let response = await (with cycles = 10_000_000_000) icManagement().http_request({
         url = "https://api.stripe.com/v1/payment_intents";
         method = #post;
         body = ?body.encodeUtf8();
@@ -153,6 +247,10 @@ mixin (
         ];
         max_response_bytes = ?10_000;
         is_replicated = null;
+        transform = ?{
+          function = transformStripePaymentIntentResponse;
+          context = Blob.fromArray([]);
+        };
       });
       if (response.status >= 200 and response.status < 300) {
         switch (response.body.decodeUtf8()) {
@@ -439,6 +537,8 @@ mixin (
   /// Admin: save the payment gateway configuration.
   /// Writes EACH field individually to appConfig (stable Map).
   /// Never writes to paymentConfig.current.
+  /// Gas Wallet Price IDs are auto-populated from the tier price IDs
+  /// (Gas Walker = Time Walker, Gas Traveler = Time Traveler, Gas Lord = Time Lord).
   public shared ({ caller }) func adminSavePaymentConfig(
     config : PaymentTypes.PaymentConfig,
   ) : async { #ok; #err : Text } {
@@ -481,6 +581,12 @@ mixin (
     writeOptional("stripe_price_lord",          config.stripeMaxPriceId,        false, "stripe");
     writeOptional("stripe_price_backup",        config.stripeBackupPriceId,     false, "stripe");
 
+    // Gas Wallet Price IDs are the same products as the tier Price IDs.
+    // Auto-populate them from the tier price IDs so they stay in sync.
+    writeOptional("stripe_price_gas_walker",   config.stripeWalkerPriceId,  false, "stripe");
+    writeOptional("stripe_price_gas_traveler", config.stripeProPriceId,     false, "stripe");
+    writeOptional("stripe_price_gas_lord",     config.stripeMaxPriceId,     false, "stripe");
+
     // Always write stripe_mode (it has a non-null default of "test")
     appConfig.add("stripe_mode", {
       key       = "stripe_mode";
@@ -507,55 +613,6 @@ mixin (
     #ok;
   };
 
-  /// Admin: test the Stripe connection by calling GET /v1/account with the provided secret key.
-  /// Reads the secret key from appConfig when the caller passes "".
-  /// Returns #ok("connected") on success or #err(reason) on failure.
-  public shared ({ caller }) func adminTestStripeConnection(
-    secretKey : Text,
-  ) : async { #ok : Text; #err : Text } {
-    if (not AccessControl.isAdmin(accessControlState, caller)) {
-      return #err("Unauthorized");
-    };
-    // Prefer the explicitly-passed key; fall back to the one stored in appConfig
-    let keyToUse = if (secretKey == "") { paymentsGetConfig("stripe_secret_key") } else { secretKey };
-    if (keyToUse == "") {
-      return #err("No Stripe secret key configured. Go to admin > Payments and save your keys.");
-    };
-    try {
-      let response = await (with cycles = 500_000_000) IC_MANAGEMENT.http_request({
-        url = "https://api.stripe.com/v1/account";
-        method = #get;
-        body = null;
-        headers = [
-          { name = "Authorization"; value = "Bearer " # keyToUse },
-          { name = "Stripe-Version"; value = "2023-10-16" },
-        ];
-        max_response_bytes = ?4_096;
-        is_replicated = null;
-      });
-      if (response.status >= 200 and response.status < 300) {
-        // Check if Price IDs are also configured
-        let walkerPriceId = paymentsGetConfig("stripe_price_walker");
-        let travelerPriceId = paymentsGetConfig("stripe_price_traveler");
-        let lordPriceId = paymentsGetConfig("stripe_price_lord");
-        let hasPriceIds = walkerPriceId != "" or travelerPriceId != "" or lordPriceId != "";
-        if (hasPriceIds) {
-          #ok("connected");
-        } else {
-          #ok("keys_ok_no_price_ids");
-        };
-      } else {
-        let reason = switch (response.body.decodeUtf8()) {
-          case (?t) { "Stripe error (status " # debug_show(response.status) # "): " # t };
-          case null { "Stripe error: status " # debug_show(response.status) };
-        };
-        #err(reason);
-      };
-    } catch (e) {
-      #err("HTTP outcall failed: " # e.message());
-    };
-  };
-
   /// Admin: test the PayPal connection by requesting an OAuth token.
   public shared ({ caller }) func adminTestPaypalConnection(
     clientId : Text,
@@ -573,7 +630,8 @@ mixin (
     let credentials = clientId # ":" # clientSecret;
     let encoded = base64Encode(credentials);
     try {
-      let response = await (with cycles = 500_000_000) IC_MANAGEMENT.http_request({
+      // transform: strips non-deterministic OAuth token fields — keeps only connected status.
+      let response = await (with cycles = 10_000_000_000) icManagement().http_request({
         url = baseUrl # "/v1/oauth2/token";
         method = #post;
         body = ?"grant_type=client_credentials".encodeUtf8();
@@ -583,6 +641,10 @@ mixin (
         ];
         max_response_bytes = ?4_096;
         is_replicated = null;
+        transform = ?{
+          function = transformPaypalTokenResponse;
+          context = Blob.fromArray([]);
+        };
       });
       if (response.status >= 200 and response.status < 300) {
         #ok("connected");

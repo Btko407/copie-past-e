@@ -213,7 +213,10 @@ function TierCard({
             variant="outline"
             className={`w-full font-display font-bold tracking-widest uppercase text-[10px] transition-smooth
               ${selected ? `${flavor.color} border-current bg-current/10` : "border-border/50"}`}
-            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
             data-ocid={`tier-select-btn-${tier.tierId}`}
           >
             Proceed to Payment — $6.99
@@ -229,7 +232,10 @@ function TierCard({
           variant="outline"
           className={`w-full font-display font-bold tracking-widest uppercase text-[10px] transition-smooth
             ${selected ? `${flavor.color} border-current bg-current/10` : "border-border/50"}`}
-          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
           data-ocid={`tier-select-btn-${tier.tierId}`}
         >
           {flavor.cta}
@@ -592,23 +598,45 @@ export function UpgradePage() {
       .finally(() => setStripeKeyLoading(false));
 
     // Fetch subscription tier price IDs from backend config
+    // Try both the canonical app_config key names and the PaymentConfig field names
+    const fetchPriceId = async (keys: string[]): Promise<string> => {
+      for (const key of keys) {
+        try {
+          const val = await a.getConfig(key);
+          if (val && typeof val === "string" && val.startsWith("price_"))
+            return val;
+        } catch {
+          /* ignore */
+        }
+      }
+      return "";
+    };
+
     Promise.all([
-      a.getConfig("stripe_price_walker").catch(() => null),
-      a.getConfig("stripe_gas_traveler").catch(() => null),
-      a.getConfig("stripe_gas_lord").catch(() => null),
-    ]).then(
-      ([walker, traveler, lord]: [
-        string | null,
-        string | null,
-        string | null,
-      ]) => {
-        setTierPriceIds({
-          1: walker ?? "",
-          2: traveler ?? "",
-          3: lord ?? "",
-        });
-      },
-    );
+      fetchPriceId([
+        "stripe_price_walker",
+        "stripeWalkerPriceId",
+        "stripe_walker_price_id",
+      ]),
+      fetchPriceId([
+        "stripe_price_traveler",
+        "stripeProPriceId",
+        "stripe_pro_price_id",
+        "stripe_gas_traveler",
+      ]),
+      fetchPriceId([
+        "stripe_price_lord",
+        "stripeMaxPriceId",
+        "stripe_max_price_id",
+        "stripe_gas_lord",
+      ]),
+    ]).then(([walker, traveler, lord]) => {
+      setTierPriceIds({
+        1: walker,
+        2: traveler,
+        3: lord,
+      });
+    });
   }, [actor]);
 
   const stripePromise: Promise<Stripe | null> = stripeKey

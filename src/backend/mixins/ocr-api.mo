@@ -13,8 +13,9 @@ mixin (
   geminiConfig : { var current : ?OcrTypes.GeminiConfig },
   appConfig    : Map.Map<Text, AppConfigTypes.ConfigEntry>,
 ) {
-  // Management canister reference for HTTP outcalls
-  let IC_MANAGEMENT_OCR : actor {
+  // Management canister reference factory — instantiated locally per call to avoid
+  // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
+  func icManagementOcr() : actor {
     http_request : ({
       url : Text;
       max_response_bytes : ?Nat64;
@@ -22,12 +23,151 @@ mixin (
       headers : [{ name : Text; value : Text }];
       body : ?Blob;
       is_replicated : ?Bool;
+      transform : ?{
+        function : shared query ({
+          response : {
+            status : Nat;
+            headers : [{ name : Text; value : Text }];
+            body : Blob;
+          };
+          context : Blob;
+        }) -> async {
+          status : Nat;
+          headers : [{ name : Text; value : Text }];
+          body : Blob;
+        };
+        context : Blob;
+      };
     }) -> async {
       status : Nat;
       headers : [{ name : Text; value : Text }];
       body : Blob;
     };
-  } = actor "aaaaa-aa";
+  } {
+    actor "aaaaa-aa"
+  };
+
+  /// Transform function for Gemini OCR responses.
+  /// Strips all headers and variable metadata (usageMetadata, modelVersion, etc.).
+  /// Extracts ONLY candidates[0].content.parts[0].text — the stable listing JSON.
+  /// Every replica must return identical data for ICP consensus.
+  public query func transformGeminiResponse(raw : {
+    response : {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status : Nat;
+    headers : [{ name : Text; value : Text }];
+    body : Blob;
+  } {
+    // Extract only the stable text content from the Gemini response.
+    // Strips usageMetadata, modelVersion, and all other variable fields.
+    // On error responses, preserve the error message for debugging.
+    let stableBody : Blob = switch (raw.response.body.decodeUtf8()) {
+      case null {
+        "{}".encodeUtf8()
+      };
+      case (?bodyText) {
+        // Check for candidates array (success path)
+        let textMarker = "\"text\":\"";
+        let parts = bodyText.split(#text textMarker);
+        ignore parts.next(); // skip preamble
+        switch (parts.next()) {
+          case null {
+            // No text field found — preserve error body for debugging
+            // Strip only non-deterministic metadata fields; keep error message
+            let errMarker = "\"message\":\"";
+            let errParts = bodyText.split(#text errMarker);
+            ignore errParts.next();
+            switch (errParts.next()) {
+              case null {
+                // Return status-only wrapper so error is not completely lost
+                ("{\"error\":\"status_" # raw.response.status.toText() # "\"}").encodeUtf8()
+              };
+              case (?afterErr) {
+                let errMsgParts = afterErr.split(#char '\"');
+                let errMsg = switch (errMsgParts.next()) {
+                  case null { "unknown" };
+                  case (?m) { m };
+                };
+                ("{\"error\":\"" # OcrLib.escapeJsonString(errMsg) # "\"}").encodeUtf8()
+              };
+            };
+          };
+          case (?afterText) {
+            // Un-escape the JSON string to get the actual inner JSON text
+            let innerJson = OcrLib.unescapeJsonString(afterText);
+            let cleaned = OcrLib.stripMarkdownFences(innerJson);
+            // Return as { "text": "<stable-listing-json>" }
+            let stableJson = "{\"text\":\"" # OcrLib.escapeJsonString(cleaned) # "\"}";
+            stableJson.encodeUtf8()
+          };
+        };
+      };
+    };
+    {
+      status = raw.response.status;
+      headers = []; // ALWAYS strip all headers for ICP consensus
+      body = stableBody;
+    }
+  };
+
+  /// Transform function for Gemini test connection responses.
+  /// Strips headers and non-deterministic fields (usageMetadata, modelVersion, promptTokenCount, etc.)
+  /// but KEEPS the candidates[0].content.parts[0].text field, which is stable.
+  /// Also preserves error messages from the error response body.
+  public query func transformGeminiTestResponse(raw : {
+    response : {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status : Nat;
+    headers : [{ name : Text; value : Text }];
+    body : Blob;
+  } {
+    let stableBody : Blob = switch (raw.response.body.decodeUtf8()) {
+      case null { "{}".encodeUtf8() };
+      case (?bodyText) {
+        // Try to extract the text field from candidates (success path)
+        let textMarker = "\"text\":\"";
+        let parts = bodyText.split(#text textMarker);
+        ignore parts.next();
+        switch (parts.next()) {
+          case (?afterText) {
+            // Un-escape to get the actual response word
+            let textValue = OcrLib.unescapeJsonString(afterText);
+            ("{\"text\":\"" # OcrLib.escapeJsonString(textValue) # "\"}").encodeUtf8()
+          };
+          case null {
+            // Error response — extract the error message field
+            let errMarker = "\"message\":\"";
+            let errParts = bodyText.split(#text errMarker);
+            ignore errParts.next();
+            switch (errParts.next()) {
+              case null {
+                ("{\"status\":" # raw.response.status.toText() # "}").encodeUtf8()
+              };
+              case (?afterErr) {
+                let errMsg = OcrLib.unescapeJsonString(afterErr);
+                ("{\"error\":\"" # OcrLib.escapeJsonString(errMsg) # "\"}").encodeUtf8()
+              };
+            };
+          };
+        };
+      };
+    };
+    {
+      status = raw.response.status;
+      headers = [];
+      body = stableBody;
+    }
+  };
 
   /// Get the active Gemini API key exclusively from appConfig (stable, survives upgrades).
   func activeGeminiApiKey() : ?Text {
@@ -62,9 +202,12 @@ mixin (
     let requestBody = OcrLib.buildGeminiRequestBody(imageBase64);
     let url = OcrLib.geminiUrl(apiKey);
 
-    // Call Gemini API via HTTP outcall — attach cycles required by ICP
+    // Call Gemini API via HTTP outcall.
+    // Cycles: 100_000_000_000 required for a POST request with image data.
+    // transform: strips all variable fields (usageMetadata, headers) so every replica
+    // receives identical data — required for ICP consensus.
     let response = try {
-      await (with cycles = 2_000_000_000) IC_MANAGEMENT_OCR.http_request({
+      await (with cycles = 100_000_000_000) icManagementOcr().http_request({
         url;
         method = #post;
         body = ?requestBody.encodeUtf8();
@@ -72,7 +215,11 @@ mixin (
           { name = "Content-Type"; value = "application/json" },
         ];
         max_response_bytes = ?50_000;
-        is_replicated = null;
+        is_replicated = ?false;
+        transform = ?{
+          function = transformGeminiResponse;
+          context = Blob.fromArray([]);
+        };
       });
     } catch (e) {
       return #err("OCR scan failed: " # e.message());
@@ -89,18 +236,26 @@ mixin (
 
     if (response.status < 200 or response.status >= 300) {
       let errBody = switch (response.body.decodeUtf8()) {
-        case (?t) { t };
+        case (?t) {
+          // Transform extracts error message into {"error":"<msg>"} format
+          switch (OcrLib.parseTestResponseError(t)) {
+            case (?msg) { msg };
+            case null { t };
+          };
+        };
         case null { "status " # debug_show(response.status) };
       };
       return #err("OCR scan failed: " # errBody);
     };
 
-    // Decode and parse the response
+    // The transform function already extracted the stable text content.
+    // Response body is now: {"text":"<listing-fields-json>"}
     let responseText = switch (response.body.decodeUtf8()) {
       case null { return #err("Could not read listing data from this image.") };
       case (?t) { t };
     };
 
+    // parseGeminiResponse expects the transform-produced {"text":"..."} format
     switch (OcrLib.parseGeminiResponse(responseText)) {
       case null { #err("Could not read listing data from this image.") };
       case (?result) { #ok(result) };
@@ -147,17 +302,18 @@ mixin (
 
   /// Admin: test the Gemini connection by sending a minimal 1x1 white JPEG image.
   /// Reads the API key exclusively from appConfig.
+  /// Returns { success, message } — never returns empty {}.
   public shared ({ caller }) func adminTestGeminiConnection() : async {
-    #ok : Text;
-    #err : Text;
+    success : Bool;
+    message : Text;
   } {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
-      return #err("Unauthorized");
+      return { success = false; message = "Unauthorized" };
     };
 
     let apiKey = switch (activeGeminiApiKey()) {
       case null {
-        return #err("API key not configured. Set it in admin Settings.");
+        return { success = false; message = "API key not configured. Set it in admin Settings." };
       };
       case (?k) { k };
     };
@@ -165,11 +321,11 @@ mixin (
     // Minimal 1x1 white JPEG (base64) to test the actual vision API path
     let testImageBase64 = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUEB//EAB0QAAICAgMBAAAAAAAAAAAAAAECAAMEBRESIf/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwDJ2e7LK7bdkqjKLFYlVAA4PJpSlKVKAUpSlKAUpSlKAUpSlKA/9k=";
 
-    let testBody = "{\"contents\":[{\"parts\":[{\"inlineData\":{\"mimeType\":\"image/jpeg\",\"data\":\"" # testImageBase64 # "\"}},{\"text\":\"Respond with the word: ok\"}]}]}";
+    let testBody = "{\"contents\":[{\"parts\":[{\"inlineData\":{\"mimeType\":\"image/jpeg\",\"data\":\"" # testImageBase64 # "\"}},{\"text\":\"Describe this image in one word.\"}]}]}";
     let url = OcrLib.geminiUrl(apiKey);
 
     let response = try {
-      await (with cycles = 2_000_000_000) IC_MANAGEMENT_OCR.http_request({
+      await (with cycles = 20_949_972_000) icManagementOcr().http_request({
         url;
         method = #post;
         body = ?testBody.encodeUtf8();
@@ -177,38 +333,59 @@ mixin (
           { name = "Content-Type"; value = "application/json" },
         ];
         max_response_bytes = ?8_192;
-        is_replicated = null;
+        is_replicated = ?false;
+        transform = ?{
+          function = transformGeminiTestResponse;
+          context = Blob.fromArray([]);
+        };
       });
     } catch (e) {
-      return #err("Connection failed: " # e.message());
-    };
-
-    if (response.status == 403) {
-      return #err("Connection failed: API key invalid or quota exceeded.");
-    };
-
-    if (response.status == 429) {
-      return #err("Connection failed: Rate limit reached. Try again in 60 seconds.");
-    };
-
-    if (response.status < 200 or response.status >= 300) {
-      let errBody = switch (response.body.decodeUtf8()) {
-        case (?t) { t };
-        case null { "HTTP " # debug_show(response.status) };
-      };
-      return #err("Connection failed: " # errBody);
+      return { success = false; message = "Connection failed: " # e.message() };
     };
 
     let responseText = switch (response.body.decodeUtf8()) {
-      case null { return #err("Connection failed: empty response") };
+      case null { return { success = false; message = "Connection failed: empty response" } };
       case (?t) { t };
     };
 
-    // Check if response contains "ok" (case-insensitive via toLower)
-    if (responseText.toLower().contains(#text "ok")) {
-      #ok("Connected — OCR Active. Model: gemini-2.5-flash-lite");
+    if (response.status == 400) {
+      let errMsg = switch (OcrLib.parseTestResponseError(responseText)) {
+        case (?m) { m };
+        case null { "Invalid API key or request" };
+      };
+      return { success = false; message = "Connection failed: HTTP 400 - " # errMsg };
+    };
+
+    if (response.status == 403) {
+      let errMsg = switch (OcrLib.parseTestResponseError(responseText)) {
+        case (?m) { m };
+        case null { "API key invalid or quota exceeded" };
+      };
+      return { success = false; message = "Connection failed: HTTP 403 - " # errMsg };
+    };
+
+    if (response.status == 429) {
+      return { success = false; message = "Connection failed: HTTP 429 - Rate limit reached. Try again in 60 seconds." };
+    };
+
+    if (response.status < 200 or response.status >= 300) {
+      let errMsg = switch (OcrLib.parseTestResponseError(responseText)) {
+        case (?m) { m };
+        case null { "Unknown error" };
+      };
+      return { success = false; message = "Connection failed: HTTP " # response.status.toText() # " - " # errMsg };
+    };
+
+    // Parse the text field from the transformed response
+    let responseWord = switch (OcrLib.parseTestResponseText(responseText)) {
+      case (?word) { word };
+      case null { responseText };
+    };
+
+    if (responseWord.size() > 0) {
+      { success = true; message = "Connected — OCR Active. Model: gemini-2.5-flash-lite. Response: " # responseWord }
     } else {
-      #err("Connection failed: unexpected response — " # responseText);
+      { success = false; message = "Connection failed: HTTP " # response.status.toText() # " - Empty or unreadable response from Gemini" }
     };
   };
 };

@@ -192,6 +192,16 @@ export const BackupHistoryRecord = IDL.Record({
   'listingCount' : IDL.Nat,
   'paymentIntentId' : IDL.Text,
 });
+export const VersionBackup = IDL.Record({
+  'id' : IDL.Text,
+  'versionLabel' : IDL.Text,
+  'createdAt' : Timestamp,
+  'createdBy' : IDL.Text,
+  'isStable' : IDL.Bool,
+  'backupData' : IDL.Text,
+  'backupType' : IDL.Text,
+  'notes' : IDL.Opt(IDL.Text),
+});
 export const BackupStatus = IDL.Variant({
   'pending' : IDL.Null,
   'complete' : IDL.Null,
@@ -240,16 +250,6 @@ export const AppVersion = IDL.Record({
   'description' : IDL.Text,
   'settingsSnapshot' : SiteSettings,
   'isRollback' : IDL.Bool,
-});
-export const VersionBackup = IDL.Record({
-  'id' : IDL.Text,
-  'versionLabel' : IDL.Text,
-  'createdAt' : Timestamp,
-  'createdBy' : IDL.Text,
-  'isStable' : IDL.Bool,
-  'backupData' : IDL.Text,
-  'backupType' : IDL.Text,
-  'notes' : IDL.Opt(IDL.Text),
 });
 export const MarketplaceSource = IDL.Variant({
   'facebookMarketplace' : IDL.Null,
@@ -313,15 +313,6 @@ export const UserCleanupSummary = IDL.Record({
   'archivedListingCount' : IDL.Nat,
   'oldestActiveExpirationDate' : IDL.Opt(Timestamp),
   'activeListingCount' : IDL.Nat,
-});
-export const FailedWebhookEvent = IDL.Record({
-  'id' : IDL.Text,
-  'stripeEventId' : IDL.Text,
-  'createdAt' : IDL.Int,
-  'errorMessage' : IDL.Text,
-  'retryCount' : IDL.Nat,
-  'payload' : IDL.Text,
-  'eventType' : IDL.Text,
 });
 export const FbListing = IDL.Record({
   'id' : IDL.Text,
@@ -419,15 +410,18 @@ export const VerificationRecord = IDL.Record({
   'email' : IDL.Text,
   'lastResendAt' : IDL.Opt(Timestamp),
 });
-export const WebhookEvent = IDL.Record({
+export const VersionBackupSummary = IDL.Record({
   'id' : IDL.Text,
-  'status' : IDL.Text,
-  'userId' : IDL.Opt(IDL.Text),
-  'error' : IDL.Opt(IDL.Text),
-  'processedAt' : IDL.Int,
-  'stripeCustomerId' : IDL.Opt(IDL.Text),
-  'amount' : IDL.Opt(IDL.Nat),
-  'eventType' : IDL.Text,
+  'versionLabel' : IDL.Text,
+  'createdAt' : Timestamp,
+  'createdBy' : IDL.Text,
+  'isStable' : IDL.Bool,
+  'backupType' : IDL.Text,
+  'notes' : IDL.Opt(IDL.Text),
+  'configCount' : IDL.Nat,
+  'sizeKb' : IDL.Nat,
+  'listingCount' : IDL.Nat,
+  'userCount' : IDL.Nat,
 });
 export const AdminNotification = IDL.Record({
   'id' : IDL.Nat,
@@ -447,19 +441,6 @@ export const UserSummary = IDL.Record({
   'imageCount' : IDL.Nat,
   'registrationDate' : Timestamp,
   'listingCount' : IDL.Nat,
-});
-export const VersionBackupSummary = IDL.Record({
-  'id' : IDL.Text,
-  'versionLabel' : IDL.Text,
-  'createdAt' : Timestamp,
-  'createdBy' : IDL.Text,
-  'isStable' : IDL.Bool,
-  'backupType' : IDL.Text,
-  'notes' : IDL.Opt(IDL.Text),
-  'configCount' : IDL.Nat,
-  'sizeKb' : IDL.Nat,
-  'listingCount' : IDL.Nat,
-  'userCount' : IDL.Nat,
 });
 export const MarkReadResult = IDL.Variant({
   'ok' : IDL.Null,
@@ -654,11 +635,6 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
-  'adminRetryFailedWebhookEvent' : IDL.Func(
-      [IDL.Text],
-      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
-      [],
-    ),
   'adminSaveGeminiConfig' : IDL.Func(
       [IDL.Text],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -674,9 +650,17 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
     ),
+  'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
+  'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+  'adminSetStripeKeys' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+  'adminSetStripePrices' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [],
+      [],
+    ),
   'adminTestGeminiConnection' : IDL.Func(
       [],
-      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
       [],
     ),
   'adminTestPaypalConnection' : IDL.Func(
@@ -685,8 +669,8 @@ export const idlService = IDL.Service({
       [],
     ),
   'adminTestStripeConnection' : IDL.Func(
-      [IDL.Text],
-      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+      [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
       [],
     ),
   'adminUpsertTier' : IDL.Func([TierConfig], [], []),
@@ -703,6 +687,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
     ),
+  'clearPendingSession' : IDL.Func([], [], []),
   'closeSupportTicket' : IDL.Func(
       [IDL.Nat],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -729,6 +714,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'confirmStripePayment' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'createAdaptiveVersionSnapshot' : IDL.Func([], [IDL.Opt(VersionBackup)], []),
   'createBackupRecord' : IDL.Func([IDL.Nat], [BackupRecord], []),
   'createBroadcastNotification' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
@@ -752,6 +738,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : VersionBackup, 'err' : IDL.Text })],
       [],
     ),
+  'debugCheckStripeKeyLength' : IDL.Func([], [IDL.Nat], ['query']),
   'deleteBackup' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'deleteBackupRecord' : IDL.Func(
       [IDL.Nat],
@@ -815,17 +802,13 @@ export const idlService = IDL.Service({
   'getBackupHistory' : IDL.Func([], [IDL.Vec(BackupHistoryRecord)], ['query']),
   'getBulkGasDiscounts' : IDL.Func([], [IDL.Vec(BulkGasDiscount)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCanisterCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
   'getCleanupSummaries' : IDL.Func(
       [],
       [IDL.Vec(UserCleanupSummary)],
       ['query'],
     ),
   'getConfig' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
-  'getFailedWebhookEvents' : IDL.Func(
-      [],
-      [IDL.Vec(FailedWebhookEvent)],
-      ['query'],
-    ),
   'getFbListings' : IDL.Func(
       [],
       [IDL.Variant({ 'ok' : IDL.Vec(FbListing), 'err' : IDL.Text })],
@@ -867,9 +850,37 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getPaymentBanner' : IDL.Func([], [IDL.Opt(PaymentBannerState)], []),
+  'getPendingSession' : IDL.Func(
+      [],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'tierId' : IDL.Nat,
+            'tierDays' : IDL.Nat,
+            'sessionId' : IDL.Text,
+          })
+        ),
+      ],
+      [],
+    ),
   'getProfileByUsername' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
+  'getPublicConfig' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'maintenanceMessage' : IDL.Text,
+          'mode' : IDL.Text,
+          'gasWalkerPriceId' : IDL.Text,
+          'maintenanceMode' : IDL.Bool,
+          'gasLordPriceId' : IDL.Text,
+          'gasTravelerPriceId' : IDL.Text,
+          'publishableKey' : IDL.Text,
+        }),
+      ],
       ['query'],
     ),
   'getRefuelHistory' : IDL.Func([], [IDL.Vec(RefuelEntry)], ['query']),
@@ -956,7 +967,11 @@ export const idlService = IDL.Service({
       [IDL.Opt(VerificationRecord)],
       ['query'],
     ),
-  'getWebhookLog' : IDL.Func([], [IDL.Vec(WebhookEvent)], ['query']),
+  'getVersionSnapshotList' : IDL.Func(
+      [],
+      [IDL.Vec(VersionBackupSummary)],
+      ['query'],
+    ),
   'initConfigFromPaymentConfig' : IDL.Func([], [], []),
   'initiateCryptoPayment' : IDL.Func(
       [IDL.Nat, IDL.Opt(IDL.Text)],
@@ -1046,27 +1061,6 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
     ),
-  'processStripeWebhookEvent' : IDL.Func(
-      [
-        IDL.Text,
-        IDL.Text,
-        IDL.Text,
-        IDL.Opt(IDL.Text),
-        IDL.Opt(IDL.Text),
-        IDL.Opt(IDL.Text),
-        IDL.Opt(IDL.Nat),
-        IDL.Opt(IDL.Text),
-        IDL.Opt(IDL.Int),
-      ],
-      [
-        IDL.Variant({
-          'ok' : IDL.Text,
-          'err' : IDL.Text,
-          'alreadyProcessed' : IDL.Null,
-        }),
-      ],
-      [],
-    ),
   'receiveExtensionData' : IDL.Func(
       [ExtensionListingData, IDL.Text],
       [IDL.Variant({ 'ok' : DraftListingId, 'err' : IDL.Text })],
@@ -1144,6 +1138,222 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text })],
       [],
     ),
+  'transformGeminiResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformGeminiTestResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformPaypalTokenResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripeAccountResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripeCheckoutResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripeCustomerResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripePaymentIntentResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripePortalResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
+  'transformStripeVerifyResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        }),
+      ],
+      [
+        IDL.Record({
+          'status' : IDL.Nat,
+          'body' : IDL.Vec(IDL.Nat8),
+          'headers' : IDL.Vec(
+            IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+          ),
+        }),
+      ],
+      ['query'],
+    ),
   'triggerAdaptiveAutoBackup' : IDL.Func(
       [],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -1156,6 +1366,11 @@ export const idlService = IDL.Service({
       [IDL.Text, IDL.Nat],
       [IDL.Opt(DiscountCode)],
       ['query'],
+    ),
+  'verifyAndGrantPayment' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
     ),
   'verifyEmail' : IDL.Func([IDL.Text], [VerifyEmailResult], []),
 });
@@ -1347,6 +1562,16 @@ export const idlFactory = ({ IDL }) => {
     'listingCount' : IDL.Nat,
     'paymentIntentId' : IDL.Text,
   });
+  const VersionBackup = IDL.Record({
+    'id' : IDL.Text,
+    'versionLabel' : IDL.Text,
+    'createdAt' : Timestamp,
+    'createdBy' : IDL.Text,
+    'isStable' : IDL.Bool,
+    'backupData' : IDL.Text,
+    'backupType' : IDL.Text,
+    'notes' : IDL.Opt(IDL.Text),
+  });
   const BackupStatus = IDL.Variant({
     'pending' : IDL.Null,
     'complete' : IDL.Null,
@@ -1395,16 +1620,6 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'settingsSnapshot' : SiteSettings,
     'isRollback' : IDL.Bool,
-  });
-  const VersionBackup = IDL.Record({
-    'id' : IDL.Text,
-    'versionLabel' : IDL.Text,
-    'createdAt' : Timestamp,
-    'createdBy' : IDL.Text,
-    'isStable' : IDL.Bool,
-    'backupData' : IDL.Text,
-    'backupType' : IDL.Text,
-    'notes' : IDL.Opt(IDL.Text),
   });
   const MarketplaceSource = IDL.Variant({
     'facebookMarketplace' : IDL.Null,
@@ -1468,15 +1683,6 @@ export const idlFactory = ({ IDL }) => {
     'archivedListingCount' : IDL.Nat,
     'oldestActiveExpirationDate' : IDL.Opt(Timestamp),
     'activeListingCount' : IDL.Nat,
-  });
-  const FailedWebhookEvent = IDL.Record({
-    'id' : IDL.Text,
-    'stripeEventId' : IDL.Text,
-    'createdAt' : IDL.Int,
-    'errorMessage' : IDL.Text,
-    'retryCount' : IDL.Nat,
-    'payload' : IDL.Text,
-    'eventType' : IDL.Text,
   });
   const FbListing = IDL.Record({
     'id' : IDL.Text,
@@ -1574,15 +1780,18 @@ export const idlFactory = ({ IDL }) => {
     'email' : IDL.Text,
     'lastResendAt' : IDL.Opt(Timestamp),
   });
-  const WebhookEvent = IDL.Record({
+  const VersionBackupSummary = IDL.Record({
     'id' : IDL.Text,
-    'status' : IDL.Text,
-    'userId' : IDL.Opt(IDL.Text),
-    'error' : IDL.Opt(IDL.Text),
-    'processedAt' : IDL.Int,
-    'stripeCustomerId' : IDL.Opt(IDL.Text),
-    'amount' : IDL.Opt(IDL.Nat),
-    'eventType' : IDL.Text,
+    'versionLabel' : IDL.Text,
+    'createdAt' : Timestamp,
+    'createdBy' : IDL.Text,
+    'isStable' : IDL.Bool,
+    'backupType' : IDL.Text,
+    'notes' : IDL.Opt(IDL.Text),
+    'configCount' : IDL.Nat,
+    'sizeKb' : IDL.Nat,
+    'listingCount' : IDL.Nat,
+    'userCount' : IDL.Nat,
   });
   const AdminNotification = IDL.Record({
     'id' : IDL.Nat,
@@ -1602,19 +1811,6 @@ export const idlFactory = ({ IDL }) => {
     'imageCount' : IDL.Nat,
     'registrationDate' : Timestamp,
     'listingCount' : IDL.Nat,
-  });
-  const VersionBackupSummary = IDL.Record({
-    'id' : IDL.Text,
-    'versionLabel' : IDL.Text,
-    'createdAt' : Timestamp,
-    'createdBy' : IDL.Text,
-    'isStable' : IDL.Bool,
-    'backupType' : IDL.Text,
-    'notes' : IDL.Opt(IDL.Text),
-    'configCount' : IDL.Nat,
-    'sizeKb' : IDL.Nat,
-    'listingCount' : IDL.Nat,
-    'userCount' : IDL.Nat,
   });
   const MarkReadResult = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const OcrResult = IDL.Record({
@@ -1811,11 +2007,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
-    'adminRetryFailedWebhookEvent' : IDL.Func(
-        [IDL.Text],
-        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
-        [],
-      ),
     'adminSaveGeminiConfig' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -1831,9 +2022,17 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
       ),
+    'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
+    'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+    'adminSetStripeKeys' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+    'adminSetStripePrices' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [],
+        [],
+      ),
     'adminTestGeminiConnection' : IDL.Func(
         [],
-        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
         [],
       ),
     'adminTestPaypalConnection' : IDL.Func(
@@ -1842,8 +2041,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminTestStripeConnection' : IDL.Func(
-        [IDL.Text],
-        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+        [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
         [],
       ),
     'adminUpsertTier' : IDL.Func([TierConfig], [], []),
@@ -1860,6 +2059,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
       ),
+    'clearPendingSession' : IDL.Func([], [], []),
     'closeSupportTicket' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -1886,6 +2086,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'confirmStripePayment' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'createAdaptiveVersionSnapshot' : IDL.Func(
+        [],
+        [IDL.Opt(VersionBackup)],
+        [],
+      ),
     'createBackupRecord' : IDL.Func([IDL.Nat], [BackupRecord], []),
     'createBroadcastNotification' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
@@ -1909,6 +2114,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : VersionBackup, 'err' : IDL.Text })],
         [],
       ),
+    'debugCheckStripeKeyLength' : IDL.Func([], [IDL.Nat], ['query']),
     'deleteBackup' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'deleteBackupRecord' : IDL.Func(
         [IDL.Nat],
@@ -1984,17 +2190,13 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getBulkGasDiscounts' : IDL.Func([], [IDL.Vec(BulkGasDiscount)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCanisterCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getCleanupSummaries' : IDL.Func(
         [],
         [IDL.Vec(UserCleanupSummary)],
         ['query'],
       ),
     'getConfig' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
-    'getFailedWebhookEvents' : IDL.Func(
-        [],
-        [IDL.Vec(FailedWebhookEvent)],
-        ['query'],
-      ),
     'getFbListings' : IDL.Func(
         [],
         [IDL.Variant({ 'ok' : IDL.Vec(FbListing), 'err' : IDL.Text })],
@@ -2036,9 +2238,37 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getPaymentBanner' : IDL.Func([], [IDL.Opt(PaymentBannerState)], []),
+    'getPendingSession' : IDL.Func(
+        [],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'tierId' : IDL.Nat,
+              'tierDays' : IDL.Nat,
+              'sessionId' : IDL.Text,
+            })
+          ),
+        ],
+        [],
+      ),
     'getProfileByUsername' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
+    'getPublicConfig' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'maintenanceMessage' : IDL.Text,
+            'mode' : IDL.Text,
+            'gasWalkerPriceId' : IDL.Text,
+            'maintenanceMode' : IDL.Bool,
+            'gasLordPriceId' : IDL.Text,
+            'gasTravelerPriceId' : IDL.Text,
+            'publishableKey' : IDL.Text,
+          }),
+        ],
         ['query'],
       ),
     'getRefuelHistory' : IDL.Func([], [IDL.Vec(RefuelEntry)], ['query']),
@@ -2129,7 +2359,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(VerificationRecord)],
         ['query'],
       ),
-    'getWebhookLog' : IDL.Func([], [IDL.Vec(WebhookEvent)], ['query']),
+    'getVersionSnapshotList' : IDL.Func(
+        [],
+        [IDL.Vec(VersionBackupSummary)],
+        ['query'],
+      ),
     'initConfigFromPaymentConfig' : IDL.Func([], [], []),
     'initiateCryptoPayment' : IDL.Func(
         [IDL.Nat, IDL.Opt(IDL.Text)],
@@ -2219,27 +2453,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
       ),
-    'processStripeWebhookEvent' : IDL.Func(
-        [
-          IDL.Text,
-          IDL.Text,
-          IDL.Text,
-          IDL.Opt(IDL.Text),
-          IDL.Opt(IDL.Text),
-          IDL.Opt(IDL.Text),
-          IDL.Opt(IDL.Nat),
-          IDL.Opt(IDL.Text),
-          IDL.Opt(IDL.Int),
-        ],
-        [
-          IDL.Variant({
-            'ok' : IDL.Text,
-            'err' : IDL.Text,
-            'alreadyProcessed' : IDL.Null,
-          }),
-        ],
-        [],
-      ),
     'receiveExtensionData' : IDL.Func(
         [ExtensionListingData, IDL.Text],
         [IDL.Variant({ 'ok' : DraftListingId, 'err' : IDL.Text })],
@@ -2317,6 +2530,222 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text })],
         [],
       ),
+    'transformGeminiResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformGeminiTestResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformPaypalTokenResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripeAccountResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripeCheckoutResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripeCustomerResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripePaymentIntentResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripePortalResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
+    'transformStripeVerifyResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : IDL.Record({
+              'status' : IDL.Nat,
+              'body' : IDL.Vec(IDL.Nat8),
+              'headers' : IDL.Vec(
+                IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+              ),
+            }),
+          }),
+        ],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
     'triggerAdaptiveAutoBackup' : IDL.Func(
         [],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -2333,6 +2762,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text, IDL.Nat],
         [IDL.Opt(DiscountCode)],
         ['query'],
+      ),
+    'verifyAndGrantPayment' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
       ),
     'verifyEmail' : IDL.Func([IDL.Text], [VerifyEmailResult], []),
   });

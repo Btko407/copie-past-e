@@ -39,7 +39,6 @@ import LoyaltyApi "mixins/loyalty-api";
 import LoyaltyTypes "types/loyalty";
 import BackupTypes "types/backup";
 import BackupApi "mixins/backup-api";
-import StripeWebhooksApi "mixins/stripe-webhooks-api";
 import StripeCheckoutApi "mixins/stripe-checkout-api";
 import OcrTypes "types/ocr";
 import OcrApi "mixins/ocr-api";
@@ -61,6 +60,55 @@ actor {
   // declared here so Motoko's compatibility check does not reject the upgrade.
   // They are never read or written by any live code path.
   stable var STRIPE_SECRET_KEY : Text = "";
+
+  // IC_MANAGEMENT, IC_MANAGEMENT_OCR, IC_MANAGEMENT_STRIPE were previously stored
+  // as stable actor references with the old http_request signature (no transform field).
+  // Redeclared here with the same old type so the upgrade compatibility check passes.
+  // Live code now uses local factory functions instead of these stable refs.
+  stable var IC_MANAGEMENT : actor {
+    http_request : shared {
+      url : Text;
+      max_response_bytes : ?Nat64;
+      method : { #get; #head; #post };
+      headers : [{ name : Text; value : Text }];
+      body : ?Blob;
+      is_replicated : ?Bool;
+    } -> async {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+  } = actor "aaaaa-aa";
+
+  stable var IC_MANAGEMENT_OCR : actor {
+    http_request : shared {
+      url : Text;
+      max_response_bytes : ?Nat64;
+      method : { #get; #head; #post };
+      headers : [{ name : Text; value : Text }];
+      body : ?Blob;
+      is_replicated : ?Bool;
+    } -> async {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+  } = actor "aaaaa-aa";
+
+  stable var IC_MANAGEMENT_STRIPE : actor {
+    http_request : shared {
+      url : Text;
+      max_response_bytes : ?Nat64;
+      method : { #get; #head; #post };
+      headers : [{ name : Text; value : Text }];
+      body : ?Blob;
+      is_replicated : ?Bool;
+    } -> async {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+  } = actor "aaaaa-aa";
 
   let listings = Map.empty<Common.ListingId, ListingTypes.Listing>();
   let listingCounter = { var value : Nat = 0 };
@@ -137,13 +185,18 @@ actor {
   // Full-data version backups (auto + manual) — keyed by timestamp-based ID
   let versionBackups = List.empty<BackupTypes.VersionBackup>();
 
+  // Tracks the last time an adaptive auto version snapshot was created.
+  // Used by createAdaptiveVersionSnapshot to enforce frequency thresholds.
+  let lastAutoSnapshotTime : { var value : Int } = { var value = 0 };
+
   // ── Initial backup on first load ─────────────────────────────────────────
   // If no backups exist (e.g., fresh deploy), create an initial auto backup so
   // the System Debugger never reports "0 backups" on first visit.
   if (versionBackups.isEmpty()) {
-    ignore BackupLib.createVersionBackup(
+    ignore BackupLib.createVersionSnapshot(
       versionBackups, profiles, listings, subscriptions, notifications,
-      siteSettings, appVersions, false, "system", ?"Initial backup on first load", Time.now(),
+      siteSettings, appVersions, "version-snapshot-auto", "system",
+      ?"Initial snapshot on first load", Time.now(),
     );
   };
 
@@ -242,6 +295,28 @@ actor {
             );
           };
         };
+      };
+
+      // Adaptive version snapshot — frequency depends on user count
+      // Silently skips if not enough time has passed since last snapshot
+      let userCount = profiles.size();
+      let HOUR_NS : Int = 3_600_000_000_000;
+      let intervalNs : Int = if (userCount > 200) {
+        HOUR_NS
+      } else if (userCount > 50) {
+        6 * HOUR_NS
+      } else if (userCount > 10) {
+        12 * HOUR_NS
+      } else {
+        24 * HOUR_NS
+      };
+      if (now - lastAutoSnapshotTime.value >= intervalNs) {
+        lastAutoSnapshotTime.value := now;
+        ignore BackupLib.createVersionSnapshot(
+          versionBackups, profiles, listings, subscriptions, notifications,
+          siteSettings, appVersions, "version-snapshot-auto", "auto-adaptive",
+          ?("Adaptive auto snapshot — " # userCount.toText() # " users"), now,
+        );
       };
     },
   );
@@ -348,6 +423,7 @@ actor {
     appVersions,
     versionBackups,
     appConfig,
+    lastAutoSnapshotTime,
   );
 
   // Config API — persistent admin-configurable key/value store
@@ -359,29 +435,18 @@ actor {
   );
 
   // ── Stripe Payment Backend ────────────────────────────────────────────────
-  // processedStripeEvents: eventId -> processedAt timestamp (idempotency)
-  let processedStripeEvents = Map.empty<Text, Int>();
-  // webhookEventLog: ring buffer of last 50 processed events
+  // webhookEventLog: ring buffer of last 50 processed payment events (kept for revenue stats)
   let webhookEventLog = List.empty<PaymentTypes.WebhookEvent>();
-  // failedWebhookEvents: events that failed processing (admin retry queue)
-  let failedWebhookEvents = Map.empty<Text, PaymentTypes.FailedWebhookEvent>();
-  // paymentBanners: userId+bannerType -> banner state
-  let paymentBanners = Map.empty<Text, PaymentTypes.PaymentBannerState>();
   // stripeCheckoutRateLimit: userId -> list of attempt timestamps
   let stripeCheckoutRateLimit = Map.empty<Text, List.List<Int>>();
-
-  include StripeWebhooksApi(
-    accessControlState,
-    appConfig,
-    subscriptions,
-    profiles,
-    notifications,
-    notifCounter,
-    processedStripeEvents,
-    webhookEventLog,
-    failedWebhookEvents,
-    paymentBanners,
-  );
+  // pendingSessions: userId -> pending checkout session awaiting verifyAndGrantPayment
+  let pendingSessions = Map.empty<Text, PaymentTypes.PendingSession>();
+  // paymentBanners: userId+bannerType -> banner state (kept for frontend banner display)
+  let paymentBanners = Map.empty<Text, PaymentTypes.PaymentBannerState>();
+  // processedStripeEvents: kept for upgrade compatibility (webhooks removed, no longer written)
+  let processedStripeEvents = Map.empty<Text, Int>();
+  // failedWebhookEvents: kept for upgrade compatibility (webhooks removed, no longer written)
+  let failedWebhookEvents = Map.empty<Text, PaymentTypes.FailedWebhookEvent>();
 
   include StripeCheckoutApi(
     accessControlState,
@@ -390,6 +455,10 @@ actor {
     subscriptions,
     stripeCheckoutRateLimit,
     webhookEventLog,
+    pendingSessions,
+    notifications,
+    notifCounter,
+    paymentBanners,
   );
 
   // ── Gemini OCR ────────────────────────────────────────────────────────────

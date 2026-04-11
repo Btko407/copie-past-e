@@ -132,4 +132,34 @@ module {
   public func geminiUrl(apiKey : Text) : Text {
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" # apiKey;
   };
+
+  /// Parse the text field from a transformed Gemini test response.
+  /// Expects: {"text":"<value>"}
+  public func parseTestResponseText(responseBody : Text) : ?Text {
+    let marker = "\"text\":\"";
+    let parts = responseBody.split(#text marker);
+    ignore parts.next();
+    switch (parts.next()) {
+      case null { null };
+      case (?after) {
+        let value = unescapeJsonString(after);
+        if (value.size() > 0) { ?value } else { null };
+      };
+    };
+  };
+
+  /// Parse the error message field from a transformed Gemini error response.
+  /// Expects: {"error":"<value>"}
+  public func parseTestResponseError(responseBody : Text) : ?Text {
+    let marker = "\"error\":\"";
+    let parts = responseBody.split(#text marker);
+    ignore parts.next();
+    switch (parts.next()) {
+      case null { null };
+      case (?after) {
+        let value = unescapeJsonString(after);
+        if (value.size() > 0) { ?value } else { null };
+      };
+    };
+  };
 };

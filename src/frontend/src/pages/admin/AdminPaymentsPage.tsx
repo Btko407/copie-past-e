@@ -8,25 +8,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useActor } from "@caffeineai/core-infrastructure";
 import {
+  AlertTriangle,
   CheckCircle2,
-  Copy,
   Eye,
   EyeOff,
   Loader2,
   RefreshCcw,
   Save,
+  Shield,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../../backend";
 import type { PaymentConfig } from "../../backend.d";
 import {
-  useGetFailedWebhookEvents,
+  useGetCanisterCyclesBalance,
   useGetRevenueStats,
   useGetStripeHealthStatus,
-  useGetWebhookLog,
-  useRetryFailedWebhookEvent,
 } from "../../hooks/useStripePayments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,33 +38,27 @@ type ConnectionStatus =
   | "testing"
   | "keys-ok-no-prices";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActorAny = any;
+
 // ─── Safe Number Helper ───────────────────────────────────────────────────────
-// Prevents .toFixed() crashes when stats values are null/undefined/non-numeric
 
 function safeNum(val: unknown): number {
   const n = Number.parseFloat(String(val));
   return Number.isNaN(n) ? 0 : n;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ActorAny = any;
-
-// Internal form state — flat, matches each form field one-to-one
+// Internal form state
 interface StripeFormState {
   publishableKey: string;
   secretKey: string;
-  /** Webhook secret for test mode (stripeWebhookSecretTest) */
-  webhookSecretTest: string;
-  /** Webhook secret for live mode (stripeWebhookSecretLive) */
-  webhookSecretLive: string;
-  /** Time Walker $6.99 → stripeWalkerPriceId */
   priceWalker: string;
-  /** Time Traveler $9.99 → stripeProPriceId */
   priceTraveler: string;
-  /** Time Lord $19.99 → stripeLordPriceId */
   priceLord: string;
-  /** Smart Backup $29.99 → stripeBackupPriceId */
   priceBackup: string;
+  gasWalkerPriceId: string;
+  gasTravelerPriceId: string;
+  gasLordPriceId: string;
   isTestMode: boolean;
 }
 
@@ -76,7 +70,6 @@ interface PayPalFormState {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract a string value from a PaymentConfig optional field safely */
 function str(v: string | undefined | null): string {
   return v ?? "";
 }
@@ -131,10 +124,12 @@ function StatusBadge({
   status,
   mode,
   label,
+  errorMsg,
 }: {
   status: ConnectionStatus;
   mode: "live" | "sandbox" | "test";
   label: string;
+  errorMsg?: string;
 }) {
   if (status === "connected") {
     return (
@@ -156,7 +151,7 @@ function StatusBadge({
         className="font-mono text-[10px] text-accent border-accent/40 bg-accent/5 gap-1"
       >
         <CheckCircle2 className="w-2.5 h-2.5" />
-        {label}: Keys OK — Price IDs missing
+        {label}: Keys OK — Add Price IDs
       </Badge>
     );
   }
@@ -164,10 +159,11 @@ function StatusBadge({
     return (
       <Badge
         variant="outline"
-        className="font-mono text-[10px] text-destructive border-destructive/40 bg-destructive/5 gap-1"
+        className="font-mono text-[10px] text-destructive border-destructive/40 bg-destructive/5 gap-1 max-w-[260px] truncate"
+        title={errorMsg ? `Key Invalid: ${errorMsg}` : "Connection Failed"}
       >
-        <XCircle className="w-2.5 h-2.5" />
-        {label}: Connection Failed
+        <XCircle className="w-2.5 h-2.5 shrink-0" />
+        {label}: {errorMsg ? `Key Invalid: ${errorMsg}` : "Connection Failed"}
       </Badge>
     );
   }
@@ -181,6 +177,147 @@ function StatusBadge({
   );
 }
 
+// ─── Cycles Balance Card ──────────────────────────────────────────────────────
+
+function CyclesBalanceCard() {
+  const { data: balance, isLoading } = useGetCanisterCyclesBalance();
+
+  // Convert raw cycles to trillions
+  const ONE_TRILLION = 1_000_000_000_000n;
+  const LOW_THRESHOLD = 1_000_000_000_000n; // 1 trillion
+
+  const isLow =
+    balance !== null && balance !== undefined && balance < LOW_THRESHOLD;
+  const trillions =
+    balance !== null && balance !== undefined
+      ? (Number(balance) / 1_000_000_000_000).toFixed(3)
+      : null;
+
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${
+        isLow
+          ? "border-accent/40 bg-accent/5"
+          : "border-primary/20 bg-primary/5"
+      }`}
+      data-ocid="cycles-balance-card"
+    >
+      <Zap
+        className={`w-4 h-4 shrink-0 ${isLow ? "text-accent" : "text-primary"}`}
+      />
+      <div className="flex-1 min-w-0">
+        {isLoading ? (
+          <Skeleton className="h-4 w-40 bg-primary/10" />
+        ) : trillions !== null ? (
+          <p className="font-mono text-xs text-foreground">
+            Canister Cycles:{" "}
+            <span
+              className={`font-bold ${isLow ? "text-accent" : "text-primary"}`}
+            >
+              {trillions} trillion
+            </span>
+            {balance !== null && balance !== undefined && (
+              <span className="text-muted-foreground ml-2 text-[10px]">
+                ({Number(balance).toLocaleString()} cycles)
+              </span>
+            )}
+          </p>
+        ) : (
+          <p className="font-mono text-xs text-muted-foreground">
+            Canister Cycles: Not available (
+            <span className="text-muted-foreground/60">
+              getCanisterCyclesBalance not yet deployed
+            </span>
+            )
+          </p>
+        )}
+        {isLow && (
+          <p className="font-mono text-[10px] text-accent mt-0.5">
+            ⚠ Low cycles warning. Top up your canister to prevent outages. HTTPS
+            outcalls (Stripe, Gemini) will fail if cycles run out.
+          </p>
+        )}
+      </div>
+      {ONE_TRILLION && null /* keep import used */}
+    </div>
+  );
+}
+
+// ─── ICP Payment Verification Info Block ─────────────────────────────────────
+
+function IcpPaymentVerificationBlock() {
+  return (
+    <section
+      className="rounded-xl border border-primary/20 bg-card overflow-hidden"
+      data-ocid="icp-payment-verification-block"
+    >
+      <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+          <Shield className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+            Payment Verification
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+            ICP Architecture — Polling, not webhooks
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className="ml-auto font-mono text-[10px] text-primary border-primary/40 bg-primary/5"
+        >
+          Polling (ICP)
+        </Badge>
+      </div>
+      <div className="p-5 space-y-3">
+        <div className="rounded-lg bg-primary/5 border border-primary/15 px-4 py-3">
+          <p className="font-mono text-xs font-bold text-primary mb-1">
+            Payment Verification: Polling (ICP Architecture)
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+            Stripe payments are verified by direct canister HTTPS calls to
+            Stripe&apos;s API. Webhooks are not used on Internet Computer — the
+            canister cannot receive inbound HTTP requests.
+          </p>
+        </div>
+        <div className="space-y-2 font-mono text-[10px] text-muted-foreground">
+          <p className="flex items-start gap-2">
+            <span className="text-primary shrink-0 mt-0.5">1.</span>
+            <span>
+              User clicks upgrade → canister calls{" "}
+              <code className="text-primary bg-primary/10 px-1 rounded">
+                createStripeCheckoutSession
+              </code>{" "}
+              → browser redirects to Stripe
+            </span>
+          </p>
+          <p className="flex items-start gap-2">
+            <span className="text-primary shrink-0 mt-0.5">2.</span>
+            <span>
+              After payment, Stripe redirects to{" "}
+              <code className="text-primary bg-primary/10 px-1 rounded">
+                /payment-success?session_id=XXX
+              </code>
+            </span>
+          </p>
+          <p className="flex items-start gap-2">
+            <span className="text-primary shrink-0 mt-0.5">3.</span>
+            <span>
+              Frontend calls{" "}
+              <code className="text-primary bg-primary/10 px-1 rounded">
+                verifyAndGrantPayment(sessionId)
+              </code>{" "}
+              → canister verifies with Stripe API → days added additively
+            </span>
+          </p>
+        </div>
+        <CyclesBalanceCard />
+      </div>
+    </section>
+  );
+}
+
 // ─── Stripe Panel ─────────────────────────────────────────────────────────────
 
 function StripePanel() {
@@ -188,33 +325,38 @@ function StripePanel() {
   const [form, setForm] = useState<StripeFormState>({
     publishableKey: "",
     secretKey: "",
-    webhookSecretTest: "",
-    webhookSecretLive: "",
     priceWalker: "",
     priceTraveler: "",
     priceLord: "",
     priceBackup: "",
+    gasWalkerPriceId: "",
+    gasTravelerPriceId: "",
+    gasLordPriceId: "",
     isTestMode: true,
   });
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<ConnectionStatus>("untested");
+  const [statusError, setStatusError] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
-  // Map PaymentConfig → form state — always called fresh from backend data
   const applyConfig = useCallback((cfg: PaymentConfig) => {
+    const walkerPrice = str(cfg.stripeWalkerPriceId);
+    const travelerPrice = str(cfg.stripeProPriceId);
+    const lordPrice = str(cfg.stripeMaxPriceId);
     setForm({
       publishableKey: str(cfg.stripePublishableKey),
       secretKey: str(cfg.stripeSecretKey),
-      webhookSecretTest: str(cfg.stripeWebhookSecretTest),
-      webhookSecretLive: str(cfg.stripeWebhookSecretLive),
-      // Price IDs — load from all possible field names for backward compat
-      priceWalker: str(cfg.stripeWalkerPriceId),
-      priceTraveler: str(cfg.stripeProPriceId),
-      priceLord: str(cfg.stripeMaxPriceId),
+      priceWalker: walkerPrice,
+      priceTraveler: travelerPrice,
+      priceLord: lordPrice,
       priceBackup: str(cfg.stripeBackupPriceId),
+      gasWalkerPriceId:
+        str((cfg as ActorAny).stripeGasWalkerPriceId) || walkerPrice,
+      gasTravelerPriceId:
+        str((cfg as ActorAny).stripeGasTravelerPriceId) || travelerPrice,
+      gasLordPriceId: str((cfg as ActorAny).stripeGasLordPriceId) || lordPrice,
       isTestMode: cfg.stripeMode !== "live",
     });
-    // Derive initial status indicator from loaded config
     const hasKeys = !!(cfg.stripePublishableKey && cfg.stripeSecretKey);
     const hasPrices = !!(
       cfg.stripeWalkerPriceId ||
@@ -223,26 +365,20 @@ function StripePanel() {
     );
     if (hasKeys && !hasPrices) setStatus("keys-ok-no-prices");
     else if (!hasKeys) setStatus("untested");
-    // If both keys and prices present, leave as untested until Test Connection runs
   }, []);
 
-  // Load config from backend on mount — always re-fetches fresh data on each mount
   useEffect(() => {
     if (!actor) return;
     setLoading(true);
     (actor as ActorAny)
       .adminGetPaymentConfig()
-      .then((cfg: PaymentConfig) => {
-        applyConfig(cfg);
-      })
+      .then((cfg: PaymentConfig) => applyConfig(cfg))
       .catch(() => {
         toast.error("Could not load payment config", {
           description: "Check your connection and refresh the page.",
         });
       })
-      .finally(() => {
-        setLoading(false);
-      });
+      .finally(() => setLoading(false));
   }, [actor, applyConfig]);
 
   function setField<K extends keyof StripeFormState>(
@@ -250,7 +386,10 @@ function StripePanel() {
     v: StripeFormState[K],
   ) {
     setForm((prev) => ({ ...prev, [k]: v }));
-    if (status !== "untested") setStatus("untested");
+    if (status !== "untested") {
+      setStatus("untested");
+      setStatusError("");
+    }
   }
 
   async function handleTest() {
@@ -265,11 +404,16 @@ function StripePanel() {
       return;
     }
     setStatus("testing");
+    setStatusError("");
     try {
       const result = await (actor as ActorAny).adminTestStripeConnection(
         form.secretKey,
       );
       if (result.__kind__ === "ok") {
+        const raw = result.ok as string;
+        const chargesEnabled =
+          raw.includes("charges_enabled:true") ||
+          raw.includes('"charges_enabled":true');
         const hasPrices = !!(
           form.priceWalker ||
           form.priceTraveler ||
@@ -278,18 +422,20 @@ function StripePanel() {
         setStatus(hasPrices ? "connected" : "keys-ok-no-prices");
         toast.success("Stripe connected", {
           description: hasPrices
-            ? `Keys validated (${form.isTestMode ? "Test" : "Live"} Mode)`
+            ? `Connected — charges_enabled: ${chargesEnabled} (${form.isTestMode ? "Test" : "Live"} Mode)`
             : "Keys OK — add Price IDs to complete setup",
         });
       } else {
         const errMsg =
           (result.err as string) ?? "Invalid keys or unreachable endpoint.";
         setStatus("failed");
+        setStatusError(errMsg);
         toast.error("Stripe connection failed", { description: errMsg });
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Unknown error.";
       setStatus("failed");
+      setStatusError(errMsg);
       toast.error("Stripe connection failed", { description: errMsg });
     }
   }
@@ -299,8 +445,6 @@ function StripePanel() {
       toast.error("Not ready", { description: "Backend actor not available." });
       return;
     }
-
-    // Allow saving price IDs even without keys — just warn if keys are also missing
     const hasBothKeys = !!(form.publishableKey && form.secretKey);
     const hasPriceIds = !!(
       form.priceWalker ||
@@ -318,6 +462,24 @@ function StripePanel() {
 
     setSaving(true);
     try {
+      // Auto-populate Gas Wallet price IDs from tier price IDs if left empty
+      const gasWalker = form.gasWalkerPriceId || form.priceWalker;
+      const gasTraveler = form.gasTravelerPriceId || form.priceTraveler;
+      const gasLord = form.gasLordPriceId || form.priceLord;
+
+      if (
+        gasWalker !== form.gasWalkerPriceId ||
+        gasTraveler !== form.gasTravelerPriceId ||
+        gasLord !== form.gasLordPriceId
+      ) {
+        setForm((prev) => ({
+          ...prev,
+          gasWalkerPriceId: gasWalker,
+          gasTravelerPriceId: gasTraveler,
+          gasLordPriceId: gasLord,
+        }));
+      }
+
       // Fetch existing PayPal config so we don't overwrite it
       let existingPayPal: Pick<
         PaymentConfig,
@@ -337,35 +499,28 @@ function StripePanel() {
           paypalMode: existing.paypalMode,
         };
       } catch {
-        /* ignore — proceed with empty PayPal config */
+        /* ignore */
       }
 
-      // Build the PaymentConfig, mapping every form field to the correct key.
-      // Use undefined (not empty string) for blank optional fields so the backend
-      // stores null rather than an empty string that looks "configured".
-      const paymentConfig: PaymentConfig = {
-        // Stripe keys — only set if non-empty
+      const paymentConfig = {
         stripePublishableKey: form.publishableKey || undefined,
         stripeSecretKey: form.secretKey || undefined,
-        // Webhook secrets — test and live are separate fields
-        stripeWebhookSecretTest: form.webhookSecretTest || undefined,
-        stripeWebhookSecretLive: form.webhookSecretLive || undefined,
-        // Legacy single webhook field — write active mode's secret here too
-        stripeWebhookSecret: form.isTestMode
-          ? form.webhookSecretTest || undefined
-          : form.webhookSecretLive || undefined,
-        // Price IDs — ALL FOUR must always be written to prevent field deletion
+        // No webhook secrets — ICP architecture uses polling
+        stripeWebhookSecret: undefined,
+        stripeWebhookSecretTest: undefined,
+        stripeWebhookSecretLive: undefined,
         stripeWalkerPriceId: form.priceWalker || undefined,
         stripeProPriceId: form.priceTraveler || undefined,
         stripeMaxPriceId: form.priceLord || undefined,
         stripeBackupPriceId: form.priceBackup || undefined,
-        // Mode
+        stripeGasWalkerPriceId: gasWalker || undefined,
+        stripeGasTravelerPriceId: gasTraveler || undefined,
+        stripeGasLordPriceId: gasLord || undefined,
         stripeMode: form.isTestMode ? "test" : "live",
-        // Preserve existing PayPal config untouched
         paypalClientId: existingPayPal.paypalClientId,
         paypalClientSecret: existingPayPal.paypalClientSecret,
         paypalMode: existingPayPal.paypalMode ?? "sandbox",
-      };
+      } as ActorAny;
 
       const result = await (actor as ActorAny).adminSavePaymentConfig(
         paymentConfig,
@@ -374,17 +529,13 @@ function StripePanel() {
       if (result.__kind__ === "ok") {
         toast.success("Payment settings saved", {
           description:
-            "All keys and Price IDs stored permanently. They will never disappear on redeploy.",
+            "Keys and Price IDs stored permanently in canister stable storage.",
         });
-
-        // Re-fetch from backend to confirm what was actually persisted
         try {
           const confirmed: PaymentConfig = await (
             actor as ActorAny
           ).adminGetPaymentConfig();
           applyConfig(confirmed);
-
-          // Warn if any field that was entered is missing from what came back
           const savedOk =
             (!form.priceWalker ||
               confirmed.stripeWalkerPriceId === form.priceWalker) &&
@@ -397,8 +548,6 @@ function StripePanel() {
                 "Some fields may not have saved — please check and re-save if needed.",
             });
           }
-
-          // Update status badge based on confirmed saved values
           const hasKeys = !!(
             confirmed.stripePublishableKey && confirmed.stripeSecretKey
           );
@@ -411,7 +560,7 @@ function StripePanel() {
           else if (hasKeys) setStatus("keys-ok-no-prices");
           else if (hasPrices) setStatus("untested");
         } catch {
-          /* silent — save already succeeded */
+          /* silent */
         }
       } else {
         toast.error("Save failed", {
@@ -480,6 +629,7 @@ function StripePanel() {
           status={status}
           mode={form.isTestMode ? "test" : "live"}
           label="Stripe"
+          errorMsg={statusError}
         />
       </div>
 
@@ -493,8 +643,8 @@ function StripePanel() {
             </p>
             <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
               {form.isTestMode
-                ? "Sandbox only — use test keys"
-                : "Real payments enabled — use live keys"}
+                ? "Test mode: use Stripe test keys and test cards (e.g. 4242 4242 4242 4242). No real charges."
+                : "Live mode: real payments only — use your live keys from the Stripe dashboard."}
             </p>
           </div>
           <Switch
@@ -543,72 +693,11 @@ function StripePanel() {
               data-ocid="stripe-secret-key"
             />
           </div>
-
-          {/* Webhook secrets — separate fields for test and live */}
-          <div>
-            <Label
-              htmlFor="stripe-webhook-test"
-              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-            >
-              Webhook Secret — Test Mode
-              <span className="text-muted-foreground/50 normal-case tracking-normal ml-1">
-                (STRIPE_WEBHOOK_SECRET_TEST)
-              </span>
-            </Label>
-            <MaskedInput
-              id="stripe-webhook-test"
-              value={form.webhookSecretTest}
-              onChange={(v) => setField("webhookSecretTest", v)}
-              placeholder="whsec_… (test)"
-              data-ocid="stripe-webhook-secret-test"
-            />
-          </div>
-          <div>
-            <Label
-              htmlFor="stripe-webhook-live"
-              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-            >
-              Webhook Secret — Live Mode
-              <span className="text-muted-foreground/50 normal-case tracking-normal ml-1">
-                (STRIPE_WEBHOOK_SECRET_LIVE)
-              </span>
-            </Label>
-            <MaskedInput
-              id="stripe-webhook-live"
-              value={form.webhookSecretLive}
-              onChange={(v) => setField("webhookSecretLive", v)}
-              placeholder="whsec_… (live)"
-              data-ocid="stripe-webhook-secret-live"
-            />
-            {/* Webhook URL info */}
-            <div className="mt-2 flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2">
-              <p className="font-mono text-[10px] text-muted-foreground flex-1 min-w-0 truncate">
-                Webhook URL:{" "}
-                <span className="text-primary">
-                  https://past-e-jev.caffeine.xyz/api/stripe/webhook
-                </span>
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    "https://past-e-jev.caffeine.xyz/api/stripe/webhook",
-                  );
-                  toast.success("Webhook URL copied");
-                }}
-                className="text-muted-foreground hover:text-primary transition-colors shrink-0"
-                aria-label="Copy webhook URL"
-                data-ocid="copy-webhook-url-btn"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
         </div>
 
         <Separator className="bg-border/40" />
 
-        {/* Subscription Tier Price IDs — ALL FOUR always visible */}
+        {/* Subscription Tier Price IDs */}
         <div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
             Subscription Tier Price IDs
@@ -619,7 +708,6 @@ function StripePanel() {
             saved together.
           </p>
           <div className="grid grid-cols-1 gap-4">
-            {/* Time Walker $6.99 */}
             <div>
               <Label
                 htmlFor="stripe-walker-price"
@@ -639,7 +727,6 @@ function StripePanel() {
                 data-ocid="stripe-walker-price-id"
               />
             </div>
-            {/* Time Traveler $9.99 */}
             <div>
               <Label
                 htmlFor="stripe-pro-price"
@@ -659,7 +746,6 @@ function StripePanel() {
                 data-ocid="stripe-pro-price-id"
               />
             </div>
-            {/* Time Lord $19.99 */}
             <div>
               <Label
                 htmlFor="stripe-lord-price"
@@ -679,7 +765,6 @@ function StripePanel() {
                 data-ocid="stripe-lord-price-id"
               />
             </div>
-            {/* Smart Backup $29.99 */}
             <div>
               <Label
                 htmlFor="stripe-backup-price"
@@ -699,6 +784,58 @@ function StripePanel() {
                 data-ocid="stripe-backup-price-id"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Gas Wallet Price IDs — read-only display, auto-populated */}
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+            Gas Wallet Price IDs
+          </p>
+          <p className="font-mono text-[9px] text-muted-foreground/60 mb-3">
+            Auto-populated from tier Price IDs above when you save. Gas Wallet
+            purchases use the same Stripe products as subscription tiers — no
+            new Stripe products needed.
+          </p>
+          <div className="grid grid-cols-1 gap-3">
+            {[
+              {
+                label: "Gas Walker Price ID",
+                hint: "= Time Walker",
+                value: form.gasWalkerPriceId || form.priceWalker || "—",
+                ocid: "stripe-gas-walker-price-id",
+              },
+              {
+                label: "Gas Traveler Price ID",
+                hint: "= Time Traveler",
+                value: form.gasTravelerPriceId || form.priceTraveler || "—",
+                ocid: "stripe-gas-traveler-price-id",
+              },
+              {
+                label: "Gas Lord Price ID",
+                hint: "= Time Lord",
+                value: form.gasLordPriceId || form.priceLord || "—",
+                ocid: "stripe-gas-lord-price-id",
+              },
+            ].map(({ label, hint, value, ocid }) => (
+              <div
+                key={ocid}
+                className="flex items-center justify-between rounded-lg bg-secondary/10 border border-border/30 px-3 py-2.5"
+                data-ocid={ocid}
+              >
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {label}
+                    <span className="normal-case tracking-normal text-muted-foreground/50 ml-1">
+                      ({hint})
+                    </span>
+                  </p>
+                </div>
+                <code className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded max-w-[180px] truncate">
+                  {value}
+                </code>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -750,6 +887,7 @@ function PayPalPanel() {
   });
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<ConnectionStatus>("untested");
+  const [statusError, setStatusError] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -765,7 +903,7 @@ function PayPalPanel() {
         });
       })
       .catch(() => {
-        /* silent — no saved config yet */
+        /* silent */
       })
       .finally(() => setLoading(false));
   }, [actor]);
@@ -775,7 +913,10 @@ function PayPalPanel() {
     v: PayPalFormState[K],
   ) {
     setConfig((prev) => ({ ...prev, [k]: v }));
-    if (status !== "untested") setStatus("untested");
+    if (status !== "untested") {
+      setStatus("untested");
+      setStatusError("");
+    }
   }
 
   async function handleTest() {
@@ -790,6 +931,7 @@ function PayPalPanel() {
       return;
     }
     setStatus("testing");
+    setStatusError("");
     try {
       const result = await (actor as ActorAny).adminTestPaypalConnection(
         config.clientId,
@@ -802,16 +944,16 @@ function PayPalPanel() {
           description: `Connected in ${config.liveMode ? "Live" : "Sandbox"} mode`,
         });
       } else {
+        const errMsg = (result.err as string) ?? "Invalid credentials.";
         setStatus("failed");
-        toast.error("PayPal connection failed", {
-          description: (result.err as string) ?? "Invalid credentials.",
-        });
+        setStatusError(errMsg);
+        toast.error("PayPal connection failed", { description: errMsg });
       }
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Unknown error.";
       setStatus("failed");
-      toast.error("PayPal connection failed", {
-        description: err instanceof Error ? err.message : "Unknown error.",
-      });
+      setStatusError(errMsg);
+      toast.error("PayPal connection failed", { description: errMsg });
     }
   }
 
@@ -828,16 +970,15 @@ function PayPalPanel() {
     }
     setSaving(true);
     try {
-      // Merge with existing Stripe config to avoid overwriting it
       const existing: PaymentConfig = await (
         actor as ActorAny
       ).adminGetPaymentConfig();
       const paymentConfig: PaymentConfig = {
         stripePublishableKey: existing.stripePublishableKey,
         stripeSecretKey: existing.stripeSecretKey,
-        stripeWebhookSecret: existing.stripeWebhookSecret,
-        stripeWebhookSecretTest: existing.stripeWebhookSecretTest,
-        stripeWebhookSecretLive: existing.stripeWebhookSecretLive,
+        stripeWebhookSecret: undefined,
+        stripeWebhookSecretTest: undefined,
+        stripeWebhookSecretLive: undefined,
         stripeWalkerPriceId: existing.stripeWalkerPriceId,
         stripeProPriceId: existing.stripeProPriceId,
         stripeMaxPriceId: existing.stripeMaxPriceId,
@@ -873,7 +1014,6 @@ function PayPalPanel() {
       className="rounded-xl border border-accent/20 bg-card overflow-hidden"
       data-ocid="paypal-panel"
     >
-      {/* Header */}
       <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center shrink-0">
@@ -892,10 +1032,10 @@ function PayPalPanel() {
           status={status}
           mode={config.liveMode ? "live" : "sandbox"}
           label="PayPal"
+          errorMsg={statusError}
         />
       </div>
 
-      {/* Body */}
       <div className="p-5 space-y-5">
         {loading ? (
           <div className="space-y-3">
@@ -905,7 +1045,6 @@ function PayPalPanel() {
           </div>
         ) : (
           <>
-            {/* Sandbox / Live toggle */}
             <div className="flex items-center justify-between rounded-lg bg-secondary/20 border border-border/40 px-4 py-3">
               <div>
                 <p className="font-mono text-xs font-bold text-foreground">
@@ -924,7 +1063,6 @@ function PayPalPanel() {
               />
             </div>
 
-            {/* Credentials */}
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label
@@ -965,7 +1103,6 @@ function PayPalPanel() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-1 flex-wrap">
               <Button
                 variant="outline"
@@ -1009,12 +1146,6 @@ function PayPalPanel() {
 function ConnectionStatusBar() {
   const { data: health, isLoading } = useGetStripeHealthStatus();
 
-  function formatTs(ts: bigint | null | undefined): string {
-    if (!ts) return "No webhooks received yet";
-    const ms = Number(ts) > 1e15 ? Number(ts) / 1_000_000 : Number(ts);
-    return new Date(ms).toLocaleString();
-  }
-
   const stripeStatusText = (() => {
     if (!health) return "Not configured";
     if (!health.keysConfigured) return "Not configured";
@@ -1041,7 +1172,7 @@ function ConnectionStatusBar() {
           Connection Status
         </p>
       </div>
-      <div className="px-5 py-4 flex flex-col sm:flex-row gap-4">
+      <div className="px-5 py-4 flex flex-col sm:flex-row gap-4 flex-wrap">
         {isLoading ? (
           <Skeleton className="h-8 w-64 bg-primary/5" />
         ) : (
@@ -1063,225 +1194,26 @@ function ConnectionStatusBar() {
             </div>
             <div className="hidden sm:block w-px bg-border/40" />
             <div className="flex items-center gap-2">
-              {health?.webhookConfigured ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-              ) : (
-                <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />
-              )}
+              <Shield className="w-4 h-4 text-primary shrink-0" />
               <span className="font-mono text-xs text-muted-foreground">
-                Webhook:{" "}
-                <span className="text-foreground">
-                  {health?.webhookConfigured ? "Configured" : "Not configured"}
+                Verification:{" "}
+                <span className="text-primary font-bold">
+                  Polling (ICP Architecture)
                 </span>
               </span>
             </div>
-            <div className="hidden sm:block w-px bg-border/40" />
-            <span className="font-mono text-[10px] text-muted-foreground">
-              Last webhook:{" "}
-              <span className="text-foreground">
-                {formatTs(health?.lastWebhookReceived)}
-              </span>
-            </span>
+            {!health?.keysConfigured && (
+              <>
+                <div className="hidden sm:block w-px bg-border/40" />
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-accent shrink-0" />
+                  <span className="font-mono text-[10px] text-accent">
+                    Add keys below to enable payments
+                  </span>
+                </div>
+              </>
+            )}
           </>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ─── Webhook Log ──────────────────────────────────────────────────────────────
-
-function WebhookLogSection() {
-  const { data: log = [], isLoading } = useGetWebhookLog();
-
-  function formatTs(ts: bigint): string {
-    const ms = Number(ts) > 1e15 ? Number(ts) / 1_000_000 : Number(ts);
-    return new Date(ms).toLocaleString();
-  }
-
-  return (
-    <section
-      className="rounded-xl border border-border/40 bg-card overflow-hidden"
-      data-ocid="webhook-log-section"
-    >
-      <div className="px-5 py-4 border-b border-border/50 bg-card/80">
-        <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
-          Webhook Log{" "}
-          <span className="font-mono text-[10px] font-normal text-muted-foreground normal-case tracking-normal ml-1">
-            (Last 50 Events)
-          </span>
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        {isLoading ? (
-          <div className="p-5 space-y-2">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-10 w-full bg-primary/5" />
-            ))}
-          </div>
-        ) : log.length === 0 ? (
-          <div className="px-5 py-8 text-center">
-            <p className="font-mono text-xs text-muted-foreground">
-              No webhook events received yet. ⚡
-            </p>
-          </div>
-        ) : (
-          <table className="w-full min-w-[600px] text-left">
-            <thead>
-              <tr className="border-b border-border/40">
-                {["Time", "Event Type", "User", "Amount", "Status"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {log.map((entry, i) => {
-                // Handle both amountCents (legacy hook type) and amount (backend type)
-                const rawAmount =
-                  (entry as { amountCents?: number }).amountCents ??
-                  (entry as { amount?: bigint }).amount;
-                const amountDisplay = rawAmount
-                  ? `$${safeNum(Number(rawAmount) / 100).toFixed(2)}`
-                  : "—";
-                return (
-                  <tr
-                    key={entry.eventId}
-                    className={`border-b border-border/20 ${i % 2 === 0 ? "bg-card/60" : "bg-background/40"}`}
-                    data-ocid={`webhook-log-row-${i}`}
-                  >
-                    <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                      {formatTs(entry.processedAt)}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-foreground whitespace-nowrap">
-                      {entry.eventType}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground max-w-[120px] truncate">
-                      {entry.userId ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-right text-foreground whitespace-nowrap">
-                      {amountDisplay}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {entry.status === "processed" ? (
-                        <span className="font-mono text-[10px] text-green-400">
-                          ✓ Processed
-                        </span>
-                      ) : entry.status === "failed" ? (
-                        <span className="font-mono text-[10px] text-destructive">
-                          ✗ Failed
-                        </span>
-                      ) : (
-                        <span className="font-mono text-[10px] text-muted-foreground">
-                          Skipped
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ─── Failed Events ────────────────────────────────────────────────────────────
-
-function FailedEventsSection() {
-  const { data: events = [], isLoading } = useGetFailedWebhookEvents();
-  const retryEvent = useRetryFailedWebhookEvent();
-
-  function formatTs(ts: bigint): string {
-    const ms = Number(ts) > 1e15 ? Number(ts) / 1_000_000 : Number(ts);
-    return new Date(ms).toLocaleString();
-  }
-
-  return (
-    <section
-      className="rounded-xl border border-border/40 bg-card overflow-hidden"
-      data-ocid="failed-events-section"
-    >
-      <div className="px-5 py-4 border-b border-border/50 bg-card/80">
-        <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
-          Failed Events
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        {isLoading ? (
-          <div className="p-5 space-y-2">
-            {[0, 1].map((i) => (
-              <Skeleton key={i} className="h-10 w-full bg-primary/5" />
-            ))}
-          </div>
-        ) : events.length === 0 ? (
-          <div className="px-5 py-8 text-center">
-            <p className="font-mono text-xs text-green-400">
-              No failed events. All systems go! ⚡
-            </p>
-          </div>
-        ) : (
-          <table className="w-full min-w-[640px] text-left">
-            <thead>
-              <tr className="border-b border-border/40">
-                {["Time", "Event Type", "Error", "Retries", "Actions"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((ev, i) => (
-                <tr
-                  key={ev.id}
-                  className={`border-b border-border/20 ${i % 2 === 0 ? "bg-card/60" : "bg-background/40"}`}
-                  data-ocid={`failed-event-row-${i}`}
-                >
-                  <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-                    {formatTs(ev.createdAt)}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-foreground whitespace-nowrap">
-                    {ev.eventType}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-[10px] text-destructive max-w-[200px] truncate">
-                    {ev.errorMessage}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground text-right">
-                    {ev.retryCount}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2.5 font-mono text-[10px] gap-1.5"
-                      disabled={retryEvent.isPending}
-                      onClick={() => retryEvent.mutate({ eventId: ev.id })}
-                      data-ocid={`retry-event-btn-${i}`}
-                    >
-                      {retryEvent.isPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <RefreshCcw className="w-3 h-3" />
-                      )}
-                      Retry
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
       </div>
     </section>
@@ -1387,8 +1319,9 @@ export function AdminPaymentsPage() {
           </p>
           <p className="font-mono text-[10px] text-muted-foreground mt-1">
             Configure Stripe and PayPal credentials. All values are stored
-            permanently in the database — they survive every redeploy and never
-            disappear. Secret keys are never displayed in plain text.
+            permanently in canister stable variables — they survive every
+            redeploy and never disappear. Secret keys are never displayed in
+            plain text.
           </p>
           <div className="mt-3 rounded-md bg-destructive/5 border border-destructive/20 px-4 py-2.5">
             <p className="font-mono text-[10px] text-destructive/80">
@@ -1398,14 +1331,11 @@ export function AdminPaymentsPage() {
           </div>
         </div>
 
+        {/* ICP Payment Verification Info (replaces webhook section) */}
+        <IcpPaymentVerificationBlock />
+
         <StripePanel />
         <PayPalPanel />
-
-        {/* Webhook Log */}
-        <WebhookLogSection />
-
-        {/* Failed Events */}
-        <FailedEventsSection />
 
         {/* Revenue Summary */}
         <RevenueSummarySection />

@@ -142,15 +142,6 @@ export interface ExtensionListingData {
   'price' : [] | [string],
 }
 export type ExternalBlob = Uint8Array;
-export interface FailedWebhookEvent {
-  'id' : string,
-  'stripeEventId' : string,
-  'createdAt' : bigint,
-  'errorMessage' : string,
-  'retryCount' : bigint,
-  'payload' : string,
-  'eventType' : string,
-}
 export interface FbCredentials { 'appId' : string, 'accessToken' : string }
 export interface FbListing {
   'id' : string,
@@ -493,16 +484,6 @@ export interface VersionBackupSummary {
   'listingCount' : bigint,
   'userCount' : bigint,
 }
-export interface WebhookEvent {
-  'id' : string,
-  'status' : string,
-  'userId' : [] | [string],
-  'error' : [] | [string],
-  'processedAt' : bigint,
-  'stripeCustomerId' : [] | [string],
-  'amount' : [] | [bigint],
-  'eventType' : string,
-}
 export interface ZipRestoreResult {
   'errorMessage' : [] | [string],
   'listingsRestored' : bigint,
@@ -593,11 +574,6 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : string }
   >,
-  'adminRetryFailedWebhookEvent' : ActorMethod<
-    [string],
-    { 'ok' : null } |
-      { 'err' : string }
-  >,
   'adminSaveGeminiConfig' : ActorMethod<
     [string],
     { 'ok' : null } |
@@ -613,10 +589,16 @@ export interface _SERVICE {
     { 'ok' : null } |
       { 'err' : string }
   >,
+  'adminSetGeminiKey' : ActorMethod<[string], undefined>,
+  'adminSetMaintenanceMode' : ActorMethod<[boolean, string], undefined>,
+  'adminSetStripeKeys' : ActorMethod<[string, string, string], undefined>,
+  'adminSetStripePrices' : ActorMethod<
+    [string, string, string, string],
+    undefined
+  >,
   'adminTestGeminiConnection' : ActorMethod<
     [],
-    { 'ok' : string } |
-      { 'err' : string }
+    { 'message' : string, 'success' : boolean }
   >,
   'adminTestPaypalConnection' : ActorMethod<
     [string, string, string],
@@ -624,9 +606,8 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'adminTestStripeConnection' : ActorMethod<
-    [string],
-    { 'ok' : string } |
-      { 'err' : string }
+    [],
+    { 'message' : string, 'success' : boolean }
   >,
   'adminUpsertTier' : ActorMethod<[TierConfig], undefined>,
   'archiveListing' : ActorMethod<[ListingId], Listing>,
@@ -641,6 +622,7 @@ export interface _SERVICE {
     { 'ok' : null } |
       { 'err' : string }
   >,
+  'clearPendingSession' : ActorMethod<[], undefined>,
   'closeSupportTicket' : ActorMethod<
     [bigint],
     { 'ok' : null } |
@@ -667,6 +649,7 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'confirmStripePayment' : ActorMethod<[bigint, string], undefined>,
+  'createAdaptiveVersionSnapshot' : ActorMethod<[], [] | [VersionBackup]>,
   'createBackupRecord' : ActorMethod<[bigint], BackupRecord>,
   'createBroadcastNotification' : ActorMethod<
     [string, string, string, string, [] | [string]],
@@ -690,6 +673,7 @@ export interface _SERVICE {
     { 'ok' : VersionBackup } |
       { 'err' : string }
   >,
+  'debugCheckStripeKeyLength' : ActorMethod<[], bigint>,
   'deleteBackup' : ActorMethod<[string], boolean>,
   'deleteBackupRecord' : ActorMethod<
     [bigint],
@@ -731,9 +715,9 @@ export interface _SERVICE {
   'getBackupHistory' : ActorMethod<[], Array<BackupHistoryRecord>>,
   'getBulkGasDiscounts' : ActorMethod<[], Array<BulkGasDiscount>>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCanisterCyclesBalance' : ActorMethod<[], bigint>,
   'getCleanupSummaries' : ActorMethod<[], Array<UserCleanupSummary>>,
   'getConfig' : ActorMethod<[string], [] | [string]>,
-  'getFailedWebhookEvents' : ActorMethod<[], Array<FailedWebhookEvent>>,
   'getFbListings' : ActorMethod<
     [],
     { 'ok' : Array<FbListing> } |
@@ -756,7 +740,23 @@ export interface _SERVICE {
   'getMySubscription' : ActorMethod<[], [] | [UserTierSubscription]>,
   'getMyWebhookToken' : ActorMethod<[], { 'ok' : string } | { 'err' : string }>,
   'getPaymentBanner' : ActorMethod<[], [] | [PaymentBannerState]>,
+  'getPendingSession' : ActorMethod<
+    [],
+    [] | [{ 'tierId' : bigint, 'tierDays' : bigint, 'sessionId' : string }]
+  >,
   'getProfileByUsername' : ActorMethod<[string], [] | [UserProfile]>,
+  'getPublicConfig' : ActorMethod<
+    [],
+    {
+      'maintenanceMessage' : string,
+      'mode' : string,
+      'gasWalkerPriceId' : string,
+      'maintenanceMode' : boolean,
+      'gasLordPriceId' : string,
+      'gasTravelerPriceId' : string,
+      'publishableKey' : string,
+    }
+  >,
   'getRefuelHistory' : ActorMethod<[], Array<RefuelEntry>>,
   'getRevenueStats' : ActorMethod<
     [],
@@ -811,7 +811,7 @@ export interface _SERVICE {
   'getUnreadAdminNotificationCount' : ActorMethod<[], bigint>,
   'getUserNotifications' : ActorMethod<[], Array<InAppNotification>>,
   'getVerificationStatus' : ActorMethod<[], [] | [VerificationRecord]>,
-  'getWebhookLog' : ActorMethod<[], Array<WebhookEvent>>,
+  'getVersionSnapshotList' : ActorMethod<[], Array<VersionBackupSummary>>,
   'initConfigFromPaymentConfig' : ActorMethod<[], undefined>,
   'initiateCryptoPayment' : ActorMethod<
     [bigint, [] | [string]],
@@ -884,22 +884,6 @@ export interface _SERVICE {
     { 'ok' : null } |
       { 'err' : string }
   >,
-  'processStripeWebhookEvent' : ActorMethod<
-    [
-      string,
-      string,
-      string,
-      [] | [string],
-      [] | [string],
-      [] | [string],
-      [] | [bigint],
-      [] | [string],
-      [] | [bigint],
-    ],
-    { 'ok' : string } |
-      { 'err' : string } |
-      { 'alreadyProcessed' : null }
-  >,
   'receiveExtensionData' : ActorMethod<
     [ExtensionListingData, string],
     { 'ok' : DraftListingId } |
@@ -970,6 +954,159 @@ export interface _SERVICE {
     { 'ok' : boolean } |
       { 'err' : string }
   >,
+  'transformGeminiResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformGeminiTestResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformPaypalTokenResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripeAccountResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripeCheckoutResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripeCustomerResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripePaymentIntentResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripePortalResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripeVerifyResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
   'triggerAdaptiveAutoBackup' : ActorMethod<
     [],
     { 'ok' : null } |
@@ -979,6 +1116,11 @@ export interface _SERVICE {
   'updateListing' : ActorMethod<[UpdateListingArgs], Listing>,
   'updateMyProfile' : ActorMethod<[UpdateProfileArgs], UpdateProfileResult>,
   'validateDiscountCode' : ActorMethod<[string, bigint], [] | [DiscountCode]>,
+  'verifyAndGrantPayment' : ActorMethod<
+    [string],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'verifyEmail' : ActorMethod<[string], VerifyEmailResult>,
 }
 export declare const idlService: IDL.ServiceClass;

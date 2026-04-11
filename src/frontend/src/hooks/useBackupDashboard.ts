@@ -4,6 +4,7 @@ import { createActor } from "../backend";
 import type { RestoreResult, VersionBackupSummary } from "../types";
 
 const BACKUP_QUERY_KEY = ["versionBackups"];
+const VERSION_SNAPSHOT_QUERY_KEY = ["versionSnapshots"];
 
 export function useBackupList() {
   const { actor, isFetching } = useActor(createActor);
@@ -133,6 +134,81 @@ export function useRollbackToStable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUP_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["versionHistory"] });
+    },
+  });
+}
+
+// ── Version Snapshot hooks ────────────────────────────────────────────────────
+
+/**
+ * Returns backups whose backupType contains 'version-snapshot'.
+ * These are full data snapshots created before version changes.
+ */
+export function useVersionSnapshotList() {
+  const { actor, isFetching } = useActor(createActor);
+  return useQuery<VersionBackupSummary[]>({
+    queryKey: VERSION_SNAPSHOT_QUERY_KEY,
+    queryFn: async () => {
+      if (!actor) return [];
+      // getVersionSnapshotList returns only version-snapshot typed backups
+      const a = actor as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<unknown>
+      >;
+      if (typeof a.getVersionSnapshotList === "function") {
+        return (await a.getVersionSnapshotList()) as VersionBackupSummary[];
+      }
+      // Fallback: filter from full backup list
+      const all =
+        (await actor.listVersionBackups()) as unknown as VersionBackupSummary[];
+      return all.filter((b) =>
+        (b.backupType ?? "").toLowerCase().includes("version-snapshot"),
+      );
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+/**
+ * Creates a manual version snapshot (backupType = 'version-snapshot-manual').
+ */
+export function useCreateVersionSnapshot() {
+  const { actor } = useActor(createActor);
+  const queryClient = useQueryClient();
+
+  return useMutation<VersionBackupSummary, Error, { notes?: string }>({
+    mutationFn: async ({ notes } = {}) => {
+      if (!actor) throw new Error("Actor not ready");
+      const a = actor as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<unknown>
+      >;
+      if (typeof a.createAdaptiveVersionSnapshot === "function") {
+        // Backend returns ?VersionBackup (Option), not a Result.
+        // null = skipped due to frequency limit; non-null = snapshot created.
+        const result =
+          (await a.createAdaptiveVersionSnapshot()) as VersionBackupSummary | null;
+        if (result === null) {
+          throw new Error(
+            "Snapshot skipped: not yet due based on adaptive frequency. Try again later.",
+          );
+        }
+        return result;
+      }
+      // Fallback: use createVersionBackup with version-snapshot type
+      const result = await (actor.createVersionBackup(
+        true,
+        notes ?? null,
+      ) as unknown as Promise<
+        | { __kind__: "ok"; ok: VersionBackupSummary }
+        | { __kind__: "err"; err: string }
+      >);
+      if (result.__kind__ === "err") throw new Error(result.err);
+      return result.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: VERSION_SNAPSHOT_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: BACKUP_QUERY_KEY });
     },
   });
 }

@@ -224,15 +224,39 @@ function GeminiOCRSection() {
     setStatusMsg(null);
     try {
       const result = await (actor as ActorAny).adminTestGeminiConnection();
-      if (result.__kind__ === "ok") {
+
+      // Handle both return shapes:
+      //   New: { success: boolean; message: string }
+      //   Old: { __kind__: "ok" | "err"; ok?: ...; err?: string }
+      let succeeded = false;
+      let errMsg = "";
+
+      if (result && typeof result === "object") {
+        if ("success" in result) {
+          // New { success: Bool; message: Text } shape
+          succeeded = result.success === true;
+          errMsg = result.message ?? "";
+        } else if (result.__kind__ === "ok") {
+          succeeded = true;
+        } else if (result.__kind__ === "err") {
+          succeeded = false;
+          errMsg = (result.err as string) ?? "Connection failed";
+        }
+      }
+
+      if (succeeded) {
         setStatus("connected");
         setStatusMsg("Connected — OCR Active (gemini-2.5-flash-lite)");
         toast.success("Gemini connected. Smart Photo OCR is active.");
       } else {
-        const errMsg = result.err as string;
+        // Always show the real message — never empty {}
+        const displayMsg =
+          errMsg && errMsg !== "{}"
+            ? errMsg
+            : "Connection failed — check your API key in admin Settings.";
         setStatus("failed");
-        setStatusMsg(errMsg);
-        if (isCyclesError(errMsg)) {
+        setStatusMsg(displayMsg);
+        if (isCyclesError(displayMsg)) {
           toast.error("OCR Connection: Cycles required", {
             description:
               "The backend needs ICP cycles to call external APIs. " +
@@ -241,14 +265,18 @@ function GeminiOCRSection() {
             duration: 8000,
           });
         } else {
-          toast.error("OCR connection failed", { description: errMsg });
+          toast.error("OCR connection failed", { description: displayMsg });
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Connection failed";
+      const displayMsg =
+        msg && msg !== "{}"
+          ? msg
+          : "Connection failed — check your API key in admin Settings.";
       setStatus("failed");
-      setStatusMsg(msg);
-      if (isCyclesError(msg)) {
+      setStatusMsg(displayMsg);
+      if (isCyclesError(displayMsg)) {
         toast.error("OCR Connection: Cycles required", {
           description:
             "The backend needs ICP cycles to call the Gemini API. " +
@@ -256,7 +284,7 @@ function GeminiOCRSection() {
           duration: 8000,
         });
       } else {
-        toast.error("OCR connection failed", { description: msg });
+        toast.error("OCR connection failed", { description: displayMsg });
       }
     }
   }

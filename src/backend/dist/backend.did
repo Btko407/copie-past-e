@@ -17,17 +17,6 @@ type ZipRestoreResult =
    listingsRestored: nat;
    success: bool;
  };
-type WebhookEvent = 
- record {
-   amount: opt nat;
-   error: opt text;
-   eventType: text;
-   id: text;
-   processedAt: int;
-   status: text;
-   stripeCustomerId: opt text;
-   userId: opt text;
- };
 type VersionBackupSummary = 
  record {
    backupType: text;
@@ -455,16 +444,6 @@ type FbCredentials =
    accessToken: text;
    appId: text;
  };
-type FailedWebhookEvent = 
- record {
-   createdAt: int;
-   errorMessage: text;
-   eventType: text;
-   id: text;
-   payload: text;
-   retryCount: nat;
-   stripeEventId: text;
- };
 type ExternalBlob = blob;
 type ExtensionListingData = 
  record {
@@ -679,10 +658,6 @@ service : {
       err: text;
       ok: text;
     });
-  adminRetryFailedWebhookEvent: (eventId: text) -> (variant {
-                                                      err: text;
-                                                      ok;
-                                                    });
   adminSaveGeminiConfig: (apiKey: text) -> (variant {
                                               err: text;
                                               ok;
@@ -697,20 +672,24 @@ service : {
       err: text;
       ok;
     });
-  adminTestGeminiConnection: () -> (variant {
-                                      err: text;
-                                      ok: text;
+  adminSetGeminiKey: (key: text) -> ();
+  adminSetMaintenanceMode: (enabled: bool, message: text) -> ();
+  adminSetStripeKeys: (publishable: text, secret: text, mode: text) -> ();
+  adminSetStripePrices: (walker: text, traveler: text, lord: text, backup:
+   text) -> ();
+  adminTestGeminiConnection: () -> (record {
+                                      message: text;
+                                      success: bool;
                                     });
   adminTestPaypalConnection: (clientId: text, clientSecret: text, mode:
    text) -> (variant {
                err: text;
                ok: text;
              });
-  adminTestStripeConnection: (secretKey: text) ->
-   (variant {
-      err: text;
-      ok: text;
-    });
+  adminTestStripeConnection: () -> (record {
+                                      message: text;
+                                      success: bool;
+                                    });
   adminUpsertTier: (config: TierConfig) -> ();
   archiveListing: (listingId: ListingId) -> (Listing);
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
@@ -721,6 +700,7 @@ service : {
                                              err: text;
                                              ok;
                                            });
+  clearPendingSession: () -> ();
   closeSupportTicket: (id: nat) -> (variant {
                                       err: text;
                                       ok;
@@ -748,6 +728,7 @@ service : {
     });
   confirmStripePayment: (paymentRecordId: nat, stripePaymentIntentId:
    text) -> ();
+  createAdaptiveVersionSnapshot: () -> (opt VersionBackup);
   createBackupRecord: (fileSize: nat) -> (BackupRecord);
   createBroadcastNotification: (title: text, message: text, priority: 
    text, targetType: text, targetUserId: opt text) ->
@@ -771,6 +752,7 @@ service : {
       err: text;
       ok: VersionBackup;
     });
+  debugCheckStripeKeyLength: () -> (nat) query;
   deleteBackup: (backupId: text) -> (bool);
   deleteBackupRecord: (backupId: nat) -> (variant {
                                             err: text;
@@ -815,9 +797,9 @@ service : {
   getBackupHistory: () -> (vec BackupHistoryRecord) query;
   getBulkGasDiscounts: () -> (vec BulkGasDiscount) query;
   getCallerUserRole: () -> (UserRole) query;
+  getCanisterCyclesBalance: () -> (nat) query;
   getCleanupSummaries: () -> (vec UserCleanupSummary) query;
   getConfig: (key: text) -> (opt text) query;
-  getFailedWebhookEvents: () -> (vec FailedWebhookEvent) query;
   getFbListings: () -> (variant {
                           err: text;
                           ok: vec FbListing;
@@ -847,7 +829,23 @@ service : {
                               ok: text;
                             }) query;
   getPaymentBanner: () -> (opt PaymentBannerState);
+  getPendingSession: () ->
+   (opt record {
+          sessionId: text;
+          tierDays: nat;
+          tierId: nat;
+        });
   getProfileByUsername: (username: text) -> (opt UserProfile) query;
+  getPublicConfig: () ->
+   (record {
+      gasLordPriceId: text;
+      gasTravelerPriceId: text;
+      gasWalkerPriceId: text;
+      maintenanceMessage: text;
+      maintenanceMode: bool;
+      mode: text;
+      publishableKey: text;
+    }) query;
   getRefuelHistory: () -> (vec RefuelEntry) query;
   getRevenueStats: () ->
    (record {
@@ -907,7 +905,7 @@ service : {
   getUnreadAdminNotificationCount: () -> (nat) query;
   getUserNotifications: () -> (vec InAppNotification) query;
   getVerificationStatus: () -> (opt VerificationRecord) query;
-  getWebhookLog: () -> (vec WebhookEvent) query;
+  getVersionSnapshotList: () -> (vec VersionBackupSummary) query;
   initConfigFromPaymentConfig: () -> ();
   initiateCryptoPayment: (tierId: nat, discountCode: opt text) ->
    (variant {
@@ -972,14 +970,6 @@ service : {
                                                        err: text;
                                                        ok;
                                                      });
-  processStripeWebhookEvent: (eventId: text, eventType: text, payload: 
-   text, stripeCustomerId: opt text, userId: opt text, priceId: opt text,
-   amountTotal: opt nat, subscriptionStatus: opt text, currentPeriodEnd:
-   opt int) -> (variant {
-                  alreadyProcessed;
-                  err: text;
-                  ok: text;
-                });
   receiveExtensionData: (data: ExtensionListingData, webhookToken: text) ->
    (variant {
       err: text;
@@ -1045,6 +1035,195 @@ service : {
       err: text;
       ok: bool;
     });
+  transformGeminiResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformGeminiTestResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformPaypalTokenResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripeAccountResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripeCheckoutResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripeCustomerResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripePaymentIntentResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripePortalResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripeVerifyResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
   triggerAdaptiveAutoBackup: () -> (variant {
                                       err: text;
                                       ok;
@@ -1053,5 +1232,9 @@ service : {
   updateListing: (args: UpdateListingArgs) -> (Listing);
   updateMyProfile: (args: UpdateProfileArgs) -> (UpdateProfileResult);
   validateDiscountCode: (code: text, tierId: nat) -> (opt DiscountCode) query;
+  verifyAndGrantPayment: (sessionId: text) -> (variant {
+                                                 err: text;
+                                                 ok: text;
+                                               });
   verifyEmail: (token: text) -> (VerifyEmailResult);
 }

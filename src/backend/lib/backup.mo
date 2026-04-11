@@ -545,17 +545,21 @@ module {
 
     versionBackups.add(backup);
 
-    // Rotate: if this was an auto backup, prune oldest auto backups beyond cap
+    // Rotate: if this was an auto backup, prune oldest auto/version-snapshot backups beyond cap
     if (not isManual) {
-      // Count current auto backups
+      // Count current auto-type backups (auto + version-snapshot-auto)
       let autoCount = versionBackups.filter(
-        func(b : BackupTypes.VersionBackup) : Bool { b.backupType == "auto" }
+        func(b : BackupTypes.VersionBackup) : Bool {
+          b.backupType == "auto" or b.backupType.startsWith(#text "version-snapshot")
+        }
       ).size();
 
       if (autoCount > MAX_AUTO_BACKUPS) {
-        // Find and remove the oldest auto backup
+        // Find and remove the oldest auto backup (auto or version-snapshot-auto)
         let oldestIdx = versionBackups.findIndex(
-          func(b : BackupTypes.VersionBackup) : Bool { b.backupType == "auto" }
+          func(b : BackupTypes.VersionBackup) : Bool {
+            b.backupType == "auto" or b.backupType.startsWith(#text "version-snapshot")
+          }
         );
         switch (oldestIdx) {
           case (?idx) {
@@ -602,6 +606,76 @@ module {
       isStable     = b.isStable;
       notes        = b.notes;
     }
+  };
+
+  /// Create a version SNAPSHOT backup with a specific snapshot type string.
+  /// snapshotType must be one of: "version-snapshot-auto", "version-snapshot-manual", "version-snapshot-pre-upgrade"
+  /// Manual snapshots are never auto-deleted; auto snapshots follow the rotation cap.
+  public func createVersionSnapshot(
+    versionBackups : List.List<BackupTypes.VersionBackup>,
+    profiles       : Map.Map<Common.UserId, ProfileTypes.UserProfile>,
+    listings       : Map.Map<Common.ListingId, ListingTypes.Listing>,
+    subscriptions  : Map.Map<Common.UserId, TierTypes.UserTierSubscription>,
+    notifications  : Map.Map<Common.UserId, List.List<NotifTypes.InAppNotification>>,
+    siteSettings   : { var current : ?AdminTypes.SiteSettings },
+    appVersions    : List.List<AdminTypes.AppVersion>,
+    snapshotType   : Text,
+    createdBy      : Text,
+    notes          : ?Text,
+    nowNs          : Common.Timestamp,
+  ) : BackupTypes.VersionBackup {
+    let versionLabel : Text = switch (appVersions.last()) {
+      case (?v) { v.versionLabel };
+      case null { "v-" # nowNs.toText() };
+    };
+
+    let backupData = serializeAllData(
+      profiles, listings, subscriptions, notifications, siteSettings, versionLabel, nowNs,
+    );
+
+    let backup : BackupTypes.VersionBackup = {
+      id          = generateBackupId(nowNs);
+      versionLabel;
+      createdAt   = nowNs;
+      createdBy;
+      backupData;
+      backupType  = snapshotType;
+      notes;
+      isStable    = false;
+    };
+
+    versionBackups.add(backup);
+
+    // Rotate: auto snapshots count against the rotation cap
+    let isAuto = snapshotType == "version-snapshot-auto";
+    if (isAuto) {
+      let autoCount = versionBackups.filter(
+        func(b : BackupTypes.VersionBackup) : Bool {
+          b.backupType == "auto" or b.backupType.startsWith(#text "version-snapshot")
+        }
+      ).size();
+
+      if (autoCount > MAX_AUTO_BACKUPS) {
+        let oldestIdx = versionBackups.findIndex(
+          func(b : BackupTypes.VersionBackup) : Bool {
+            b.backupType == "auto" or b.backupType.startsWith(#text "version-snapshot")
+          }
+        );
+        switch (oldestIdx) {
+          case (?idx) {
+            let keep = List.empty<BackupTypes.VersionBackup>();
+            versionBackups.forEachEntry(func(i : Nat, b : BackupTypes.VersionBackup) {
+              if (i != idx) { keep.add(b) };
+            });
+            versionBackups.clear();
+            versionBackups.append(keep);
+          };
+          case null {};
+        };
+      };
+    };
+
+    backup;
   };
 
   /// List all version backups as summaries, newest first.
@@ -1027,7 +1101,7 @@ module {
       };
       case (?backup) {
         // Step 1: auto-create a backup of current state before restoring
-        let preSave = createVersionBackup(
+        let preSave = createVersionSnapshot(
           versionBackups,
           profiles,
           listings,
@@ -1035,7 +1109,7 @@ module {
           notifications,
           siteSettings,
           appVersions,
-          false,
+          "version-snapshot-auto",
           "auto-pre-restore",
           ?("Auto-save before restore " # backupId),
           nowNs,

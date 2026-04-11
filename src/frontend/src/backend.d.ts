@@ -229,12 +229,6 @@ export type UpdateProfileResult = {
     __kind__: "err";
     err: string;
 };
-export interface ParsedListingResult {
-    title?: string;
-    description?: string;
-    category?: string;
-    price?: string;
-}
 export interface VersionBackupSummary {
     id: string;
     versionLabel: string;
@@ -247,6 +241,12 @@ export interface VersionBackupSummary {
     sizeKb: bigint;
     listingCount: bigint;
     userCount: bigint;
+}
+export interface ParsedListingResult {
+    title?: string;
+    description?: string;
+    category?: string;
+    price?: string;
 }
 export interface UserProfile {
     fbWebhookToken?: string;
@@ -262,16 +262,6 @@ export interface UserProfile {
     updatedAt: Timestamp;
     stripeCustomerId?: string;
     phoneNumber?: string;
-}
-export interface WebhookEvent {
-    id: string;
-    status: string;
-    userId?: string;
-    error?: string;
-    processedAt: bigint;
-    stripeCustomerId?: string;
-    amount?: bigint;
-    eventType: string;
 }
 export interface BackupHistoryRecord {
     id: string;
@@ -439,15 +429,6 @@ export interface Listing {
     category?: string;
     price?: string;
     archivedAt?: Timestamp;
-}
-export interface FailedWebhookEvent {
-    id: string;
-    stripeEventId: string;
-    createdAt: bigint;
-    errorMessage: string;
-    retryCount: bigint;
-    payload: string;
-    eventType: string;
 }
 export interface SiteAnalytics {
     totalListings: bigint;
@@ -629,13 +610,6 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
-    adminRetryFailedWebhookEvent(eventId: string): Promise<{
-        __kind__: "ok";
-        ok: null;
-    } | {
-        __kind__: "err";
-        err: string;
-    }>;
     adminSaveGeminiConfig(apiKey: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -657,12 +631,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    adminSetGeminiKey(key: string): Promise<void>;
+    adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
+    adminSetStripeKeys(publishable: string, secret: string, mode: string): Promise<void>;
+    adminSetStripePrices(walker: string, traveler: string, lord: string, backup: string): Promise<void>;
     adminTestGeminiConnection(): Promise<{
-        __kind__: "ok";
-        ok: string;
-    } | {
-        __kind__: "err";
-        err: string;
+        message: string;
+        success: boolean;
     }>;
     adminTestPaypalConnection(clientId: string, clientSecret: string, mode: string): Promise<{
         __kind__: "ok";
@@ -671,12 +646,9 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
-    adminTestStripeConnection(secretKey: string): Promise<{
-        __kind__: "ok";
-        ok: string;
-    } | {
-        __kind__: "err";
-        err: string;
+    adminTestStripeConnection(): Promise<{
+        message: string;
+        success: boolean;
     }>;
     adminUpsertTier(config: TierConfig): Promise<void>;
     archiveListing(listingId: ListingId): Promise<Listing>;
@@ -690,6 +662,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    clearPendingSession(): Promise<void>;
     closeSupportTicket(id: bigint): Promise<{
         __kind__: "ok";
         ok: null;
@@ -726,6 +699,7 @@ export interface backendInterface {
         err: string;
     }>;
     confirmStripePayment(paymentRecordId: bigint, stripePaymentIntentId: string): Promise<void>;
+    createAdaptiveVersionSnapshot(): Promise<VersionBackup | null>;
     createBackupRecord(fileSize: bigint): Promise<BackupRecord>;
     createBroadcastNotification(title: string, message: string, priority: string, targetType: string, targetUserId: string | null): Promise<{
         __kind__: "ok";
@@ -757,6 +731,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    debugCheckStripeKeyLength(): Promise<bigint>;
     deleteBackup(backupId: string): Promise<boolean>;
     deleteBackupRecord(backupId: bigint): Promise<{
         __kind__: "ok";
@@ -800,9 +775,9 @@ export interface backendInterface {
     getBackupHistory(): Promise<Array<BackupHistoryRecord>>;
     getBulkGasDiscounts(): Promise<Array<BulkGasDiscount>>;
     getCallerUserRole(): Promise<UserRole>;
+    getCanisterCyclesBalance(): Promise<bigint>;
     getCleanupSummaries(): Promise<Array<UserCleanupSummary>>;
     getConfig(key: string): Promise<string | null>;
-    getFailedWebhookEvents(): Promise<Array<FailedWebhookEvent>>;
     getFbListings(): Promise<{
         __kind__: "ok";
         ok: Array<FbListing>;
@@ -840,7 +815,21 @@ export interface backendInterface {
         err: string;
     }>;
     getPaymentBanner(): Promise<PaymentBannerState | null>;
+    getPendingSession(): Promise<{
+        tierId: bigint;
+        tierDays: bigint;
+        sessionId: string;
+    } | null>;
     getProfileByUsername(username: string): Promise<UserProfile | null>;
+    getPublicConfig(): Promise<{
+        maintenanceMessage: string;
+        mode: string;
+        gasWalkerPriceId: string;
+        maintenanceMode: boolean;
+        gasLordPriceId: string;
+        gasTravelerPriceId: string;
+        publishableKey: string;
+    }>;
     getRefuelHistory(): Promise<Array<RefuelEntry>>;
     getRevenueStats(): Promise<{
         month: bigint;
@@ -899,7 +888,7 @@ export interface backendInterface {
     getUnreadAdminNotificationCount(): Promise<bigint>;
     getUserNotifications(): Promise<Array<InAppNotification>>;
     getVerificationStatus(): Promise<VerificationRecord | null>;
-    getWebhookLog(): Promise<Array<WebhookEvent>>;
+    getVersionSnapshotList(): Promise<Array<VersionBackupSummary>>;
     initConfigFromPaymentConfig(): Promise<void>;
     initiateCryptoPayment(tierId: bigint, discountCode: string | null): Promise<{
         __kind__: "ok";
@@ -975,16 +964,6 @@ export interface backendInterface {
     } | {
         __kind__: "err";
         err: string;
-    }>;
-    processStripeWebhookEvent(eventId: string, eventType: string, payload: string, stripeCustomerId: string | null, userId: string | null, priceId: string | null, amountTotal: bigint | null, subscriptionStatus: string | null, currentPeriodEnd: bigint | null): Promise<{
-        __kind__: "ok";
-        ok: string;
-    } | {
-        __kind__: "err";
-        err: string;
-    } | {
-        __kind__: "alreadyProcessed";
-        alreadyProcessed: null;
     }>;
     receiveExtensionData(data: ExtensionListingData, webhookToken: string): Promise<{
         __kind__: "ok";
@@ -1070,6 +1049,168 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    transformGeminiResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformGeminiTestResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformPaypalTokenResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeAccountResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeCheckoutResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeCustomerResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripePaymentIntentResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripePortalResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeVerifyResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
     triggerAdaptiveAutoBackup(): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1081,5 +1222,12 @@ export interface backendInterface {
     updateListing(args: UpdateListingArgs): Promise<Listing>;
     updateMyProfile(args: UpdateProfileArgs): Promise<UpdateProfileResult>;
     validateDiscountCode(code: string, tierId: bigint): Promise<DiscountCode | null>;
+    verifyAndGrantPayment(sessionId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     verifyEmail(token: string): Promise<VerifyEmailResult>;
 }
