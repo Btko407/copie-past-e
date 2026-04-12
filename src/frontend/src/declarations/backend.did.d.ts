@@ -1037,6 +1037,23 @@ export interface _SERVICE {
       'headers' : Array<{ 'value' : string, 'name' : string }>,
     }
   >,
+  'transformStripeBackupPaymentIntentResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
   'transformStripeCheckoutResponse' : ActorMethod<
     [
       {
@@ -1055,6 +1072,23 @@ export interface _SERVICE {
     }
   >,
   'transformStripeCustomerResponse' : ActorMethod<
+    [
+      {
+        'context' : Uint8Array,
+        'response' : {
+          'status' : bigint,
+          'body' : Uint8Array,
+          'headers' : Array<{ 'value' : string, 'name' : string }>,
+        },
+      },
+    ],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
+  'transformStripeGasPaymentIntentResponse' : ActorMethod<
     [
       {
         'context' : Uint8Array,

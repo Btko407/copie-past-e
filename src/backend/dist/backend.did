@@ -1134,6 +1134,27 @@ service : {
                    };
       status: nat;
     }) query;
+  transformStripeBackupPaymentIntentResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
   transformStripeCheckoutResponse: (raw:
    record {
      context: blob;
@@ -1156,6 +1177,27 @@ service : {
       status: nat;
     }) query;
   transformStripeCustomerResponse: (raw:
+   record {
+     context: blob;
+     response:
+      record {
+        body: blob;
+        headers: vec record {
+                       name: text;
+                       value: text;
+                     };
+        status: nat;
+      };
+   }) ->
+   (record {
+      body: blob;
+      headers: vec record {
+                     name: text;
+                     value: text;
+                   };
+      status: nat;
+    }) query;
+  transformStripeGasPaymentIntentResponse: (raw:
    record {
      context: blob;
      response:

@@ -7,33 +7,91 @@ import AccessControl "mo:caffeineai-authorization/access-control";
 import GasTypes "../types/gas-wallet";
 import TierTypes "../types/tiers";
 import Common "../types/common";
+import AppConfigTypes "../types/app-config";
 import GasWalletLib "../lib/gas-wallet";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
+  appConfig : Map.Map<Text, AppConfigTypes.ConfigEntry>,
   wallets : Map.Map<Common.UserId, GasTypes.GasWallet>,
   gasPurchases : Map.Map<Nat, GasTypes.GasPurchase>,
   gasPackages : Map.Map<Nat, GasTypes.GasPackage>,
   gasPurchaseCounter : { var value : Nat },
   subscriptions : Map.Map<Common.UserId, TierTypes.UserTierSubscription>,
 ) {
-  // Management canister reference for HTTP outcalls to Stripe (gas wallet)
-  let IC_MANAGEMENT_GAS : actor {
-    http_request : ({
-      url : Text;
-      max_response_bytes : ?Nat64;
-      method : { #get; #head; #post };
-      headers : [{ name : Text; value : Text }];
-      body : ?Blob;
-      is_replicated : ?Bool;
-    }) -> async {
-      status : Nat;
-      headers : [{ name : Text; value : Text }];
-      body : Blob;
+  // Management canister reference factory — instantiated locally per call to avoid
+  // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
+  type IcHttpArgGas = {
+    url : Text;
+    max_response_bytes : ?Nat64;
+    method : { #get; #head; #post };
+    headers : [{ name : Text; value : Text }];
+    body : ?Blob;
+    is_replicated : ?Bool;
+    transform : ?{
+      function : shared query ({
+        response : {
+          status  : Nat;
+          headers : [{ name : Text; value : Text }];
+          body    : Blob;
+        };
+        context : Blob;
+      }) -> async {
+        status  : Nat;
+        headers : [{ name : Text; value : Text }];
+        body    : Blob;
+      };
+      context : Blob;
     };
-  } = actor "aaaaa-aa";
+  };
+  type IcHttpRespGas = {
+    status : Nat;
+    headers : [{ name : Text; value : Text }];
+    body : Blob;
+  };
 
-  let STRIPE_SECRET_KEY_GAS : Text = "sk_live_CONFIGURE_IN_ADMIN";
+  func icManagementGas() : actor { http_request : IcHttpArgGas -> async IcHttpRespGas } {
+    actor "aaaaa-aa"
+  };
+
+  /// Read Stripe secret key from appConfig at call-time (survives all upgrades/redeploys).
+  func gasStripeSecretKey() : ?Text {
+    switch (appConfig.get("stripe_secret_key")) {
+      case (?entry) { if (entry.value == "") null else ?entry.value };
+      case null { null };
+    };
+  };
+
+  /// Transform for Stripe payment intent (gas wallet) — strips all non-deterministic fields.
+  /// Keeps only: id, client_secret, status. Headers are always stripped.
+  public query func transformStripeGasPaymentIntentResponse(raw : {
+    response : {
+      status  : Nat;
+      headers : [{ name : Text; value : Text }];
+      body    : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status  : Nat;
+    headers : [{ name : Text; value : Text }];
+    body    : Blob;
+  } {
+    let stableBody : Blob = switch (raw.response.body.decodeUtf8()) {
+      case null { "{}".encodeUtf8() };
+      case (?bodyText) {
+        let cs = switch (parseJsonStringFieldGas(bodyText, "client_secret")) { case (?v) v; case null "" };
+        let id = switch (parseJsonStringFieldGas(bodyText, "id"))            { case (?v) v; case null "" };
+        let st = switch (parseJsonStringFieldGas(bodyText, "status"))        { case (?v) v; case null "" };
+        let stableJson = "{\"id\":\"" # id # "\",\"client_secret\":\"" # cs # "\",\"status\":\"" # st # "\"}";
+        stableJson.encodeUtf8()
+      };
+    };
+    {
+      status  = raw.response.status;
+      headers = [];
+      body    = stableBody;
+    }
+  };
 
   /// Extract a JSON string field value by splitting on the key pattern (gas wallet).
   func parseJsonStringFieldGas(json : Text, field : Text) : ?Text {
@@ -54,23 +112,34 @@ mixin (
     amountCents : Nat,
     purchaseRecordId : Nat,
   ) : async ?Text {
+    let secretKey = switch (gasStripeSecretKey()) {
+      case null { return null };
+      case (?k) { k };
+    };
+
     let body = "amount=" # debug_show(amountCents)
       # "&currency=usd"
       # "&metadata[gasPurchaseId]=" # debug_show(purchaseRecordId)
       # "&automatic_payment_methods[enabled]=true";
 
     try {
-      let response = await IC_MANAGEMENT_GAS.http_request({
+      // Cycles: 49_140_000_000 for Stripe POST calls (required by ICP for outbound POST).
+      // is_replicated = ?false: only one replica makes the call — bypasses ICP consensus for non-deterministic Stripe responses.
+      let response = await (with cycles = 49_140_000_000) icManagementGas().http_request({
         url = "https://api.stripe.com/v1/payment_intents";
         method = #post;
         body = ?body.encodeUtf8();
         headers = [
-          { name = "Authorization"; value = "Bearer " # STRIPE_SECRET_KEY_GAS },
+          { name = "Authorization"; value = "Bearer " # secretKey },
           { name = "Content-Type"; value = "application/x-www-form-urlencoded" },
           { name = "Stripe-Version"; value = "2023-10-16" },
         ];
         max_response_bytes = ?10_000;
-        is_replicated = null;
+        is_replicated = ?false;
+        transform = ?{
+          function = transformStripeGasPaymentIntentResponse;
+          context  = Blob.fromArray([]);
+        };
       });
       if (response.status >= 200 and response.status < 300) {
         switch (response.body.decodeUtf8()) {

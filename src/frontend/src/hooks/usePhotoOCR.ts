@@ -1,21 +1,23 @@
 /**
- * usePhotoOCR — Calls the canister backend's ocrScanImage() function.
+ * usePhotoOCR — Extracts listing data from an image.
  *
  * Flow:
  *  1. Accept an image File
  *  2. Resize to max 1024px via Canvas API, convert to JPEG, base64 encode
- *  3. Call backend.ocrScanImage(base64String)
+ *  3. If the Copie Past-e extension with OCR capability is present:
+ *       - Post COPIE_PASTE_OCR_REQUEST to window (extension intercepts → Gemini)
+ *       - Listen for COPIE_PASTE_OCR_RESPONSE with the matching requestId
+ *     Otherwise fall back to calling backend.ocrScanImage(base64String)
  *  4. Return parsed OcrResult
  *
  * Error handling:
- *  - All backend errors are surfaced verbatim (including cycles errors).
+ *  - All errors are surfaced verbatim (including cycles errors).
  *  - Never swallows the real reason for failure.
  */
 
 import { useActor } from "@caffeineai/core-infrastructure";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createActor } from "../backend";
-import type { OcrResult } from "../backend.d";
 import type { ParsedListingResult } from "../types";
 
 // ── Extended result type ───────────────────────────────────────────────────────
@@ -23,7 +25,7 @@ import type { ParsedListingResult } from "../types";
 export interface PhotoOCRResult extends ParsedListingResult {
   condition?: string;
   brand?: string;
-  /** Set when extraction partially or fully succeeded */
+  /** Set when extraction failed */
   error?: string;
 }
 
@@ -235,50 +237,17 @@ async function resizeImageToBase64(file: File, maxPx = 1024): Promise<string> {
   });
 }
 
-// ── Safely extract OcrResult from any response shape ─────────────────────────
-
-type OcrBackendResponse =
-  | { __kind__: "ok"; ok: OcrResult }
-  | { __kind__: "err"; err: string }
-  | OcrResult;
-
-function parseOcrResponse(raw: OcrBackendResponse): {
-  data: OcrResult | null;
-  error: string | null;
-} {
-  // Variant result: { __kind__: "ok", ok: {...} } or { __kind__: "err", err: "..." }
-  if (raw && typeof raw === "object" && "__kind__" in raw) {
-    if (raw.__kind__ === "ok") {
-      return { data: raw.ok as OcrResult, error: null };
-    }
-    if (raw.__kind__ === "err") {
-      // Surface the full error text from the backend verbatim — this includes
-      // cycles errors like "http_request request sent with 0 cycles, but X required"
-      return { data: null, error: raw.err as string };
-    }
-  }
-  // Direct object (backend returned OcrResult without variant wrapper)
-  if (raw && typeof raw === "object" && "title" in raw) {
-    return { data: raw as OcrResult, error: null };
-  }
-  return { data: null, error: "Unexpected response shape from OCR backend" };
-}
-
 /** Returns a user-friendly prefix for known error types */
 function formatOcrError(raw: string): string {
-  // Cycles errors — these are backend/platform resource errors, not key errors
   if (raw.includes("cycles") || raw.includes("http_request")) {
     return `OCR scan failed: ${raw}`;
   }
-  // Rate limit
   if (raw.includes("429") || raw.toLowerCase().includes("quota")) {
     return `OCR rate limit reached — try again in a minute. (${raw})`;
   }
-  // Auth / key errors
   if (raw.includes("403") || raw.toLowerCase().includes("api key")) {
     return `OCR API key error — check your Gemini key in admin Settings. (${raw})`;
   }
-  // Not configured
   if (
     raw.toLowerCase().includes("not configured") ||
     raw.toLowerCase().includes("api key not")
@@ -288,12 +257,113 @@ function formatOcrError(raw: string): string {
   return raw;
 }
 
+// ── Normalise raw OCR data fields into PhotoOCRResult ─────────────────────────
+
+interface RawOcrFields {
+  title?: string;
+  price?: string;
+  description?: string;
+  category?: string;
+  condition?: string;
+  brand?: string;
+}
+
+function normaliseOcrFields(data: RawOcrFields): PhotoOCRResult | null {
+  const allEmpty =
+    !data.title &&
+    !data.price &&
+    !data.description &&
+    !data.category &&
+    !data.condition &&
+    !data.brand;
+
+  if (allEmpty) return null;
+
+  const category = normaliseCategory(data.category ?? "");
+  const condition = normaliseCondition(data.condition ?? "");
+  const rawPrice = (data.price ?? "").replace(/[^0-9.,]/g, "").trim();
+
+  return {
+    title: data.title?.trim() || undefined,
+    price: rawPrice || undefined,
+    description: data.description?.trim() || undefined,
+    category: category || undefined,
+    condition: condition || undefined,
+    brand: data.brand?.trim() || undefined,
+  };
+}
+
+// ── Extension OCR via postMessage ─────────────────────────────────────────────
+
+/** Module-level flag — set when the extension announces hasOcr: true */
+let extHasOcrGlobal = false;
+
+/**
+ * Send an image to the extension for Gemini OCR.
+ * Resolves with the response or rejects after 30s timeout.
+ */
+function ocrViaExtension(
+  imageBase64: string,
+): Promise<{ success?: boolean; data?: RawOcrFields; error?: string }> {
+  return new Promise((resolve) => {
+    const requestId = Date.now().toString();
+    const timeout = setTimeout(() => {
+      window.removeEventListener("message", handler);
+      resolve({ error: "Extension OCR timed out. Try again." });
+    }, 30000);
+
+    function handler(event: MessageEvent) {
+      if (
+        (event.data as { type?: string; requestId?: string })?.type !==
+        "COPIE_PASTE_OCR_RESPONSE"
+      )
+        return;
+      if ((event.data as { requestId?: string })?.requestId !== requestId)
+        return;
+      clearTimeout(timeout);
+      window.removeEventListener("message", handler);
+      resolve(
+        event.data as {
+          success?: boolean;
+          data?: RawOcrFields;
+          error?: string;
+        },
+      );
+    }
+
+    window.addEventListener("message", handler);
+    window.postMessage(
+      { type: "COPIE_PASTE_OCR_REQUEST", imageBase64, requestId },
+      "*",
+    );
+  });
+}
+
 // ── Main hook ─────────────────────────────────────────────────────────────────
 
 export function usePhotoOCR(): UsePhotoOCRReturn {
   const { actor, isFetching } = useActor(createActor);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Track whether extension OCR was detected after mount
+  const extOcrRef = useRef(extHasOcrGlobal);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (
+        (event.data as { type?: string; hasOcr?: boolean })?.type ===
+          "COPIE_PASTE_EXT_PRESENT" &&
+        (event.data as { hasOcr?: boolean })?.hasOcr
+      ) {
+        extHasOcrGlobal = true;
+        extOcrRef.current = true;
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    // Ping the extension to announce itself
+    window.postMessage({ type: "COPIE_PASTE_PING" }, "*");
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   async function extractFromImage(file: File): Promise<PhotoOCRResult> {
     setIsProcessing(true);
@@ -309,59 +379,50 @@ export function usePhotoOCR(): UsePhotoOCRReturn {
       // Step 1: Resize and encode to base64 (strip data-URL prefix)
       const base64 = await resizeImageToBase64(file, 1024);
 
+      // Step 2: Use extension OCR if available (faster, no cycles cost)
+      if (extOcrRef.current || extHasOcrGlobal) {
+        console.log("[OCR] Using extension Gemini OCR path");
+        const response = await ocrViaExtension(base64);
+
+        if (response.error) {
+          return fail(response.error);
+        }
+
+        if (!response.data) {
+          return fail("Extension OCR returned no data. Try again.");
+        }
+
+        const result = normaliseOcrFields(response.data);
+        if (!result) {
+          return fail(
+            "No listing text found in this image. Try a screenshot that shows the full listing.",
+          );
+        }
+        return result;
+      }
+
+      // Step 3: Fall back to canister backend OCR
       if (!actor || isFetching) {
         return fail("Backend not ready. Please try again in a moment.");
       }
 
-      // Step 2: Call canister backend — signature: ocrScanImage(imageBase64: string)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = await (
-        actor as unknown as {
-          ocrScanImage: (b: string) => Promise<OcrBackendResponse>;
-        }
-      ).ocrScanImage(base64);
+      const raw = await actor.ocrScanImage(base64);
 
       // Debug log so we can see exactly what the backend returned
       console.log("[OCR] Backend response:", JSON.stringify(raw));
 
-      // Step 3: Normalise the response shape
-      const { data, error: backendError } = parseOcrResponse(raw);
-
-      if (backendError || !data) {
-        return fail(
-          backendError ?? "OCR returned no data. Try a clearer screenshot.",
-        );
+      if (raw.__kind__ === "err") {
+        return fail(raw.err);
       }
 
-      // Step 4: Check if all fields are empty (no text found in image)
-      const allEmpty =
-        !data.title &&
-        !data.price &&
-        !data.description &&
-        !data.category &&
-        !data.condition &&
-        !data.brand;
-
-      if (allEmpty) {
+      const data = raw.ok;
+      const result = normaliseOcrFields(data);
+      if (!result) {
         return fail(
           "No listing text found in this image. Try a screenshot that shows the full listing.",
         );
       }
-
-      // Step 5: Normalise category and condition to app canonical values
-      const category = normaliseCategory(data.category ?? "");
-      const condition = normaliseCondition(data.condition ?? "");
-      // Strip any currency symbols from price — form prepends $ itself
-      const rawPrice = (data.price ?? "").replace(/[^0-9.,]/g, "").trim();
-
-      return {
-        title: data.title?.trim() || undefined,
-        price: rawPrice || undefined,
-        description: data.description?.trim() || undefined,
-        category: category || undefined,
-        condition: condition || undefined,
-        brand: data.brand?.trim() || undefined,
-      };
+      return result;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to process image";

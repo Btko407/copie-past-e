@@ -1,25 +1,23 @@
 {
-  "overview": "Copie Past-e is a SaaS marketplace listing manager running on the Internet Computer. Users can archive, manage, and repost marketplace listings with Stripe-powered subscriptions, Smart Photo OCR via Gemini, and a full admin control panel.",
+  "overview": "Copie Past-e is a SaaS web app for archiving, reusing, and posting marketplace listings, optimized for speed with a retro-futuristic dark UI. Users can import listings via Smart Photo OCR (Gemini), Smart Text Paste, or Manual Entry, and post to Facebook Marketplace via a Chrome extension.",
   "features": [
-    "Stripe subscription payments via ICP polling/verification (no webhooks)",
-    "Gemini OCR for smart photo listing extraction",
-    "Stable variable config that survives every canister upgrade",
-    "Admin control panel with payments, debugger, backup, and user management",
-    "Tiered subscriptions (Time Walker, Time Traveler, Time Lord)",
-    "Gas Wallet with fuel level display",
-    "Maintenance mode with custom message",
-    "Canister cycles balance monitoring"
+    "Smart Photo OCR via Gemini (extension-based or canister-based fallback)",
+    "Chrome extension with Gemini API key storage and OCR intercept",
+    "Facebook Marketplace auto-fill via extension",
+    "Tiered subscriptions with Stripe payments on ICP",
+    "Admin panel with user management, analytics, backup/restore, and debugger",
+    "Mobile-responsive UI with retro-futuristic BTTF theme"
   ],
   "category": "productivity",
   "tags": [
     "marketplace",
     "listings",
+    "chrome-extension",
+    "ocr",
+    "gemini",
     "icp",
     "motoko",
-    "stripe",
-    "ocr",
-    "subscriptions",
-    "admin-panel"
+    "saas"
   ],
-  "last_updated": "2026-04-11T04:03:55.682Z"
+  "last_updated": "2026-04-12T05:30:33.573Z"
 }

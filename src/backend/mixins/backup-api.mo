@@ -42,20 +42,40 @@ mixin (
   // Smart Backup uses tierId=0 to distinguish it from tier upgrades in the payments table
   let BACKUP_TIER_ID : Nat = 0;
 
-  let IC_MANAGEMENT_BACKUP : actor {
-    http_request : ({
-      url              : Text;
-      max_response_bytes : ?Nat64;
-      method           : { #get; #head; #post };
-      headers          : [{ name : Text; value : Text }];
-      body             : ?Blob;
-      is_replicated    : ?Bool;
-    }) -> async {
-      status  : Nat;
-      headers : [{ name : Text; value : Text }];
-      body    : Blob;
+  // Management canister reference factory — instantiated locally per call to avoid
+  // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
+  type IcHttpArg = {
+    url              : Text;
+    max_response_bytes : ?Nat64;
+    method           : { #get; #head; #post };
+    headers          : [{ name : Text; value : Text }];
+    body             : ?Blob;
+    is_replicated    : ?Bool;
+    transform        : ?{
+      function : shared query ({
+        response : {
+          status  : Nat;
+          headers : [{ name : Text; value : Text }];
+          body    : Blob;
+        };
+        context : Blob;
+      }) -> async {
+        status  : Nat;
+        headers : [{ name : Text; value : Text }];
+        body    : Blob;
+      };
+      context : Blob;
     };
-  } = actor "aaaaa-aa";
+  };
+  type IcHttpResp = {
+    status  : Nat;
+    headers : [{ name : Text; value : Text }];
+    body    : Blob;
+  };
+
+  func icManagementBackup() : actor { http_request : IcHttpArg -> async IcHttpResp } {
+    actor "aaaaa-aa"
+  };
 
   func backupGetConfig(key : Text) : Text {
     switch (appConfig.get(key)) {
@@ -87,13 +107,55 @@ mixin (
     };
   };
 
+  /// Transform for Stripe payment intent (backup module) — strips all non-deterministic fields.
+  /// Keeps only: id, client_secret, status. Headers are always stripped.
+  public query func transformStripeBackupPaymentIntentResponse(raw : {
+    response : {
+      status  : Nat;
+      headers : [{ name : Text; value : Text }];
+      body    : Blob;
+    };
+    context : Blob;
+  }) : async {
+    status  : Nat;
+    headers : [{ name : Text; value : Text }];
+    body    : Blob;
+  } {
+    let stableBody : Blob = switch (raw.response.body.decodeUtf8()) {
+      case null { "{}".encodeUtf8() };
+      case (?bodyText) {
+        let clientSecret = switch (parseJsonStringFieldForBackup(bodyText, "client_secret")) {
+          case (?v) v;
+          case null "";
+        };
+        let id = switch (parseJsonStringFieldForBackup(bodyText, "id")) {
+          case (?v) v;
+          case null "";
+        };
+        let status = switch (parseJsonStringFieldForBackup(bodyText, "status")) {
+          case (?v) v;
+          case null "";
+        };
+        let stableJson = "{\"id\":\"" # id # "\",\"client_secret\":\"" # clientSecret # "\",\"status\":\"" # status # "\"}";
+        stableJson.encodeUtf8()
+      };
+    };
+    {
+      status  = raw.response.status;
+      headers = [];
+      body    = stableBody;
+    }
+  };
+
   func createStripePaymentIntentForBackup(amountCents : Nat, paymentRecordId : Nat) : async ?Text {
     let body = "amount=" # debug_show(amountCents)
       # "&currency=usd"
       # "&metadata[paymentRecordId]=" # debug_show(paymentRecordId)
       # "&automatic_payment_methods[enabled]=true";
     try {
-      let response = await IC_MANAGEMENT_BACKUP.http_request({
+      // Cycles: 49_140_000_000 for Stripe POST calls (required by ICP for outbound POST).
+      // is_replicated = ?false: only one replica makes the call — bypasses ICP consensus for non-deterministic Stripe responses.
+      let response = await (with cycles = 49_140_000_000) icManagementBackup().http_request({
         url    = "https://api.stripe.com/v1/payment_intents";
         method = #post;
         body   = ?body.encodeUtf8();
@@ -103,7 +165,11 @@ mixin (
           { name = "Stripe-Version"; value = "2023-10-16" },
         ];
         max_response_bytes = ?10_000;
-        is_replicated      = null;
+        is_replicated      = ?false;
+        transform = ?{
+          function = transformStripeBackupPaymentIntentResponse;
+          context  = Blob.fromArray([]);
+        };
       });
       if (response.status >= 200 and response.status < 300) {
         switch (response.body.decodeUtf8()) {

@@ -491,8 +491,7 @@ function FreeGasSuccessOverlay({
 export function WalletPage() {
   const { actor } = useActor(createActor);
   const { data: wallet, isLoading: walletLoading } = useGetMyGasWallet();
-  const { data: packages = [], isLoading: packagesLoading } =
-    useGetGasPackages();
+  const { isLoading: packagesLoading } = useGetGasPackages();
   const { data: purchases = [], isLoading: purchasesLoading } =
     useGetMyGasPurchases();
   const { data: subscription } = useGetMySubscription();
@@ -581,7 +580,7 @@ export function WalletPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [purchaseRecordId, setPurchaseRecordId] = useState<number | null>(null);
   const [purchasedGasAmount, setPurchasedGasAmount] = useState(0);
-  const [finalAmount, setFinalAmount] = useState(0);
+  const [finalAmount] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [refuelHistoryOpen, setRefuelHistoryOpen] = useState(false);
   const [autoRenewalEnabled, setAutoRenewalEnabled] = useState(
@@ -627,57 +626,43 @@ export function WalletPage() {
     if (!selectedGasTierId || !selectedGasTier) return;
     setCheckoutPhase("loading");
 
-    // Use price IDs fetched from backend at runtime
+    // Get price ID from backend config
     const priceId = gasPriceIds[selectedGasTierId] ?? "";
+    if (!priceId) {
+      toast.error(
+        "Payment not configured. Please contact support or try again later.",
+      );
+      setCheckoutPhase("idle");
+      return;
+    }
 
-    // If we have a Stripe price ID, use the HTTP checkout redirect
-    if (priceId) {
-      try {
-        const res = await fetch("/api/stripe/create-checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceId, userId: "" }),
-        });
-        const data = (await res.json()) as { url?: string; error?: string };
-        if (!res.ok || !data.url) {
-          toast.error("Payment setup failed. Please try again.");
-          setCheckoutPhase("idle");
-          return;
-        }
-        window.location.href = data.url;
-        return;
-      } catch {
+    // Call canister directly — createStripeCheckoutSession returns #ok(sessionUrl) or #err(msg)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (actor as any).createStripeCheckoutSession?.(
+        priceId,
+        "",
+      );
+      if (!result) {
         toast.error("Payment setup failed. Please try again.");
         setCheckoutPhase("idle");
         return;
       }
-    }
-
-    // Fallback: canister-based flow (when no price ID configured yet)
-    const matchingPackage = packages.find((p) => {
-      const pName = p.name.toLowerCase();
-      const gTier = GAS_TIERS.find((g) => g.id === selectedGasTierId);
-      return (
-        gTier &&
-        (pName.includes(gTier.tierName.toLowerCase()) ||
-          pName.includes(gTier.name.toLowerCase()) ||
-          p.packageId === selectedGasTierId)
+      if (result.__kind__ === "err") {
+        toast.error(
+          (result.err as string) || "Payment setup failed. Please try again.",
+        );
+        setCheckoutPhase("idle");
+        return;
+      }
+      // Redirect to Stripe Checkout — do NOT show success state before redirect
+      window.location.href = result.ok as string;
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Payment setup failed. Please try again.",
       );
-    });
-
-    const pkgId = matchingPackage?.packageId ?? selectedGasTierId;
-
-    try {
-      const result = await initiateGasPurchase.mutateAsync({
-        packageId: pkgId,
-      });
-      setPurchaseRecordId(result.purchaseRecordId);
-      setFinalAmount(result.finalAmountUSD || (selectedGasTier?.price ?? 0));
-      setPurchasedGasAmount(result.gasAmount || (selectedGasTier?.days ?? 30));
-      setClientSecret(result.stripeClientSecret);
-      setCheckoutPhase("payment");
-    } catch {
-      toast.error("Purchase failed. Try again.");
       setCheckoutPhase("idle");
     }
   }

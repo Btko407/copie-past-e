@@ -163,7 +163,7 @@ export function useDownloadBackupZip() {
             username,
             total_listings: entries.length,
             total_images: processed,
-            app_version: "24",
+            app_version: "35",
           },
           null,
           2,

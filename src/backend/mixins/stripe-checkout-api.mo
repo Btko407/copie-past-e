@@ -710,13 +710,10 @@ mixin (
     let secretKey = checkoutGetConfig("stripe_secret_key");
     let keysConfigured = secretKey != "";
 
-    // Webhooks are not used on ICP — always report as "N/A"
+    // ICP-compat: webhooks are architecturally impossible on ICP.
+    // Fields kept for DID stability only.
     let webhookConfigured = false;
-
-    let lastWebhookReceived : ?Int = switch (webhookEventLog.last()) {
-      case null { null };
-      case (?e) { ?e.processedAt };
-    };
+    let lastWebhookReceived : ?Int = null;
 
     {
       status = if (keysConfigured) { "ok" } else { "not_configured" };
@@ -746,19 +743,18 @@ mixin (
     var todayCount : Nat = 0;
     var weekCount : Nat = 0;
     var monthCount : Nat = 0;
-
-    for (entry in webhookEventLog.values()) {
-      if (entry.eventType == "checkout.session.completed" and entry.status == "success") {
-        if (entry.processedAt >= todayCutoff) { todayCount += 1 };
-        if (entry.processedAt >= weekCutoff) { weekCount += 1 };
-        if (entry.processedAt >= monthCutoff) { monthCount += 1 };
-      };
-    };
-
     var activeSubscribers : Nat = 0;
+
     for ((_, sub) in subscriptions.entries()) {
+      // Count active subscribers
       if (sub.tier > 0 and sub.expirationDate > now) {
         activeSubscribers += 1;
+      };
+      // Count paid subscription grants by updatedAt timestamp (tier > 0 = paid tier)
+      if (sub.tier > 0) {
+        if (sub.updatedAt >= todayCutoff) { todayCount += 1 };
+        if (sub.updatedAt >= weekCutoff)  { weekCount  += 1 };
+        if (sub.updatedAt >= monthCutoff) { monthCount += 1 };
       };
     };
 

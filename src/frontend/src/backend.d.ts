@@ -1138,6 +1138,24 @@ export interface backendInterface {
             name: string;
         }>;
     }>;
+    transformStripeBackupPaymentIntentResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
     transformStripeCheckoutResponse(raw: {
         context: Uint8Array;
         response: {
@@ -1157,6 +1175,24 @@ export interface backendInterface {
         }>;
     }>;
     transformStripeCustomerResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeGasPaymentIntentResponse(raw: {
         context: Uint8Array;
         response: {
             status: bigint;

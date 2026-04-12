@@ -6,6 +6,7 @@ import { useAdminSettingsContext } from "@/hooks/useAdminSettings";
 import { useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useRef, useState } from "react";
+
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { CreateListingArgs, Listing } from "../backend.d.ts";
@@ -526,6 +527,9 @@ export function ImportForm({ onCancel }: ImportFormProps) {
   const [animStep, setAnimStep] = useState<AnimationStep>("idle");
   const [activeTab, setActiveTab] = useState<ActiveTab>("photo");
 
+  // ── Ref for scrolling to the photo preview form after OCR ─────────────────
+  const photoPanelRef = useRef<HTMLDivElement>(null);
+
   // ── Smart Photo state ──────────────────────────────────────────────────────
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -625,7 +629,7 @@ export function ImportForm({ onCancel }: ImportFormProps) {
       return;
     }
 
-    // Inject all extracted fields into form state — triggers re-render so the
+    // Inject ALL extracted fields into form state — triggers re-render so the
     // user sees the form fill in immediately.
     setPhotoTitle(result.title ?? "");
     setPhotoPrice(result.price ?? "");
@@ -640,7 +644,15 @@ export function ImportForm({ onCancel }: ImportFormProps) {
     // Switch to the preview/form view
     setPhotoShowPreview(true);
 
-    toast.success("Listing data extracted! Review and save.");
+    // Scroll the form into view so the user can see the filled fields
+    requestAnimationFrame(() => {
+      photoPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    toast.success("Listing data extracted. Review and save.");
   }
 
   // ── Smart Photo: save ───────────────────────────────────────────────────────
@@ -807,6 +819,7 @@ export function ImportForm({ onCancel }: ImportFormProps) {
         {activeTab === "photo" && (
           <motion.div
             key="tab-photo"
+            ref={photoPanelRef}
             className="rounded-xl border border-primary/30 bg-card/60 p-5 flex flex-col gap-4"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}

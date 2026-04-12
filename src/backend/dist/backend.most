@@ -394,7 +394,7 @@ actor {
               status : Nat
             }
     };
-  stable IC_MANAGEMENT_BACKUP :
+  stable var IC_MANAGEMENT_BACKUP :
     actor {
       http_request :
         shared {
@@ -412,7 +412,7 @@ actor {
               status : Nat
             }
     };
-  stable IC_MANAGEMENT_GAS :
+  stable var IC_MANAGEMENT_GAS :
     actor {
       http_request :
         shared {

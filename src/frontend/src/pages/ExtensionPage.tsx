@@ -59,6 +59,10 @@ const INSTALL_STEPS = [
     label: "Return to any listing and click Auto-Fill",
     note: "Your listings will be auto-filled directly into Facebook Marketplace",
   },
+  {
+    label: "Set up Smart Photo OCR",
+    note: "Open the extension popup and paste your Gemini API key in the Smart Photo OCR section. Get a free key at aistudio.google.com",
+  },
 ];
 
 // ─── Extension file list (served from /extension/ public folder) ──────────────
@@ -246,7 +250,7 @@ function InstallGuideSection() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "copie-paste-extension-v1.0.zip";
+      a.download = "copie-paste-extension-v1.1.zip";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -276,7 +280,7 @@ function InstallGuideSection() {
               INSTALL COPIE PAST-E EXTENSION
             </h1>
             <p className="font-mono text-[11px] text-muted-foreground mt-0.5">
-              Chrome Extension · Manifest V3 · v1.0.0
+              Chrome Extension · Manifest V3 · v1.1.0
             </p>
           </div>
         </div>
@@ -299,12 +303,12 @@ function InstallGuideSection() {
           data-ocid="extension-download-btn"
         >
           <Download className="w-4 h-4" />
-          {downloading ? "Generating zip..." : "⬇ Download Extension v1.0"}
+          {downloading ? "Generating zip..." : "⬇ Download Extension v1.1"}
         </Button>
         <p className="text-[11px] text-muted-foreground font-mono mt-2">
           Downloads as{" "}
           <code className="bg-muted px-1 rounded">
-            copie-paste-extension-v1.0.zip
+            copie-paste-extension-v1.1.zip
           </code>{" "}
           — extract and load in Chrome
         </p>

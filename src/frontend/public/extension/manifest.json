@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Copie Past-e Smart Post",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Auto-fill marketplace listings from Copie Past-e",
   "permissions": ["storage", "tabs", "activeTab", "scripting"],
   "host_permissions": [
-    "https://www.facebook.com/*"
+    "https://www.facebook.com/*",
+    "https://generativelanguage.googleapis.com/*"
   ],
   "background": { "service_worker": "background.js" },
   "content_scripts": [

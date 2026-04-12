@@ -234,9 +234,10 @@ mixin (
       # "&automatic_payment_methods[enabled]=true";
 
     try {
-      // Cycles: 10_000_000_000 for Stripe POST calls.
+      // Cycles: 49_140_000_000 for Stripe POST calls (required by ICP for outbound POST).
+      // is_replicated = ?false: only one replica makes the call — bypasses ICP consensus for non-deterministic Stripe responses.
       // transform: strips non-deterministic fields (created, livemode, etc.).
-      let response = await (with cycles = 10_000_000_000) icManagement().http_request({
+      let response = await (with cycles = 49_140_000_000) icManagement().http_request({
         url = "https://api.stripe.com/v1/payment_intents";
         method = #post;
         body = ?body.encodeUtf8();
@@ -246,7 +247,7 @@ mixin (
           { name = "Stripe-Version"; value = "2023-10-16" },
         ];
         max_response_bytes = ?10_000;
-        is_replicated = null;
+        is_replicated = ?false;
         transform = ?{
           function = transformStripePaymentIntentResponse;
           context = Blob.fromArray([]);
@@ -630,8 +631,10 @@ mixin (
     let credentials = clientId # ":" # clientSecret;
     let encoded = base64Encode(credentials);
     try {
+      // Cycles: 49_140_000_000 for PayPal POST calls (required by ICP for outbound POST).
+      // is_replicated = ?false: only one replica makes the call — bypasses ICP consensus for non-deterministic PayPal responses.
       // transform: strips non-deterministic OAuth token fields — keeps only connected status.
-      let response = await (with cycles = 10_000_000_000) icManagement().http_request({
+      let response = await (with cycles = 49_140_000_000) icManagement().http_request({
         url = baseUrl # "/v1/oauth2/token";
         method = #post;
         body = ?"grant_type=client_credentials".encodeUtf8();
@@ -640,7 +643,7 @@ mixin (
           { name = "Content-Type"; value = "application/x-www-form-urlencoded" },
         ];
         max_response_bytes = ?4_096;
-        is_replicated = null;
+        is_replicated = ?false;
         transform = ?{
           function = transformPaypalTokenResponse;
           context = Blob.fromArray([]);

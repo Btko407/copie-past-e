@@ -33,6 +33,9 @@ import { Check, ChevronRight, Lock, Shield, Zap } from "lucide-react";
 import { SiBitcoin, SiPaypal } from "react-icons/si";
 import { createActor } from "../backend";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActorAny = any;
+
 // ─── Stripe Setup ─────────────────────────────────────────────────────────────
 // Stripe publishable key is fetched at runtime from the backend — never from env vars.
 
@@ -651,7 +654,7 @@ export function UpgradePage() {
   >("idle");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentRecordId, setPaymentRecordId] = useState<number | null>(null);
-  const [finalAmount, setFinalAmount] = useState(0);
+  const [finalAmount] = useState(0);
   const [tierDurationDays, setTierDurationDays] = useState(0);
   const [stripeError, setStripeError] = useState<string | null>(null);
 
@@ -690,8 +693,6 @@ export function UpgradePage() {
   async function handleProceed() {
     if (!selectedTierId || !selectedTier) return;
 
-    const displayPrice = getTierDisplayPrice(selectedTier);
-
     if (isFree) {
       setCheckoutPhase("loading");
       try {
@@ -711,50 +712,42 @@ export function UpgradePage() {
     setCheckoutPhase("loading");
     setStripeError(null);
 
-    // Try Stripe Checkout redirect using price IDs from backend (not localStorage)
+    // Get price ID for the selected tier
     const priceId = tierPriceIds[selectedTierId] ?? "";
-    if (priceId) {
-      try {
-        const res = await fetch("/api/stripe/create-checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceId, userId: "" }),
-        });
-        const data = (await res.json()) as { url?: string; error?: string };
-        if (!res.ok || !data.url) {
-          toast.error("Payment setup failed. Please try again.");
-          setCheckoutPhase("idle");
-          return;
-        }
-        window.location.href = data.url;
-        return;
-      } catch {
+    if (!priceId) {
+      toast.error(
+        "Payment not configured. Please contact support or try again later.",
+      );
+      setCheckoutPhase("idle");
+      return;
+    }
+
+    // Call canister directly — createStripeCheckoutSession returns #ok(sessionUrl) or #err(msg)
+    try {
+      const result = await (actor as ActorAny).createStripeCheckoutSession?.(
+        priceId,
+        "",
+      );
+      if (!result) {
         toast.error("Payment setup failed. Please try again.");
         setCheckoutPhase("idle");
         return;
       }
-    }
-
-    // Fallback: use canister-based checkout if no price ID configured
-    try {
-      const result = await initUpgrade.mutateAsync({
-        tierId: selectedTierId,
-        discountCode: appliedCode || undefined,
-      });
-      setPaymentRecordId(result.paymentRecordId);
-      setFinalAmount(result.finalAmountUSD || displayPrice);
-      setTierDurationDays(result.tierDurationDays);
-
-      if (result.stripeClientSecret) {
-        setClientSecret(result.stripeClientSecret);
-        setCheckoutPhase("payment");
-      } else {
-        setCheckoutPhase("success");
+      if (result.__kind__ === "err") {
+        toast.error(
+          (result.err as string) || "Payment setup failed. Please try again.",
+        );
+        setCheckoutPhase("idle");
+        return;
       }
+      // Redirect to Stripe Checkout — do NOT set success state here
+      window.location.href = result.ok as string;
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to initiate upgrade";
-      setStripeError(msg);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Payment setup failed. Please try again.",
+      );
       setCheckoutPhase("idle");
     }
   }

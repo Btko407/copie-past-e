@@ -1231,6 +1231,24 @@ export interface backendInterface {
             name: string;
         }>;
     }>;
+    transformStripeBackupPaymentIntentResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
     transformStripeCheckoutResponse(raw: {
         context: Uint8Array;
         response: {
@@ -1250,6 +1268,24 @@ export interface backendInterface {
         }>;
     }>;
     transformStripeCustomerResponse(raw: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }>;
+    transformStripeGasPaymentIntentResponse(raw: {
         context: Uint8Array;
         response: {
             status: bigint;
@@ -4064,6 +4100,37 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async transformStripeBackupPaymentIntentResponse(arg0: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.transformStripeBackupPaymentIntentResponse(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.transformStripeBackupPaymentIntentResponse(arg0);
+            return result;
+        }
+    }
     async transformStripeCheckoutResponse(arg0: {
         context: Uint8Array;
         response: {
@@ -4123,6 +4190,37 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.transformStripeCustomerResponse(arg0);
+            return result;
+        }
+    }
+    async transformStripeGasPaymentIntentResponse(arg0: {
+        context: Uint8Array;
+        response: {
+            status: bigint;
+            body: Uint8Array;
+            headers: Array<{
+                value: string;
+                name: string;
+            }>;
+        };
+    }): Promise<{
+        status: bigint;
+        body: Uint8Array;
+        headers: Array<{
+            value: string;
+            name: string;
+        }>;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.transformStripeGasPaymentIntentResponse(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.transformStripeGasPaymentIntentResponse(arg0);
             return result;
         }
     }

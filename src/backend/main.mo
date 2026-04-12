@@ -55,6 +55,13 @@ actor {
   include MixinAuthorization(accessControlState);
   include MixinObjectStorage();
 
+  // STRIPE_SECRET_KEY_GAS was previously a module-level let in gas-wallet-api.mo mixin,
+  // which makes it implicitly stable in enhanced orthogonal persistence. After the fix that
+  // replaces it with a call-time appConfig read, the binding no longer exists in the mixin.
+  // Declared here as an explicit migration stub so the upgrade compatibility check passes.
+  // This value is never read or written by any live code path.
+  let STRIPE_SECRET_KEY_GAS : Text = "sk_live_CONFIGURE_IN_ADMIN";
+
   // ── Migration stubs ──────────────────────────────────────────────────────
   // These stable vars existed in a previous deployed version and must be
   // declared here so Motoko's compatibility check does not reject the upgrade.
@@ -96,6 +103,40 @@ actor {
   } = actor "aaaaa-aa";
 
   stable var IC_MANAGEMENT_STRIPE : actor {
+    http_request : shared {
+      url : Text;
+      max_response_bytes : ?Nat64;
+      method : { #get; #head; #post };
+      headers : [{ name : Text; value : Text }];
+      body : ?Blob;
+      is_replicated : ?Bool;
+    } -> async {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+  } = actor "aaaaa-aa";
+
+  // IC_MANAGEMENT_BACKUP and IC_MANAGEMENT_GAS were previously stored as stable actor
+  // references in backup-api.mo and gas-wallet-api.mo with the old http_request signature
+  // (no transform field). Redeclared here with the same old type so the upgrade
+  // compatibility check passes. Live code now uses local factory functions instead.
+  stable var IC_MANAGEMENT_BACKUP : actor {
+    http_request : shared {
+      url : Text;
+      max_response_bytes : ?Nat64;
+      method : { #get; #head; #post };
+      headers : [{ name : Text; value : Text }];
+      body : ?Blob;
+      is_replicated : ?Bool;
+    } -> async {
+      status : Nat;
+      headers : [{ name : Text; value : Text }];
+      body : Blob;
+    };
+  } = actor "aaaaa-aa";
+
+  stable var IC_MANAGEMENT_GAS : actor {
     http_request : shared {
       url : Text;
       max_response_bytes : ?Nat64;
@@ -373,6 +414,7 @@ actor {
   );
   include GasWalletApi(
     accessControlState,
+    appConfig,
     wallets,
     gasPurchases,
     gasPackages,

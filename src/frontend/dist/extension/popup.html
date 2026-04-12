@@ -161,7 +161,23 @@
 
     <!-- Footer -->
     <div class="footer">
-      <span class="version">v1.0.0</span>
+      <span class="version">v1.1.0</span>
+    </div>
+
+    <!-- Gemini OCR section -->
+    <div id="gemini-section" style="margin:0 18px 14px;border-top:1px solid #333;padding-top:12px;">
+      <div style="font-size:11px;color:#aaa;margin-bottom:6px;">SMART PHOTO OCR</div>
+      <input type="password" id="gemini-key-input"
+        placeholder="Paste Gemini API key"
+        style="width:100%;padding:6px;background:#1a1a2e;border:1px solid #1e90ff;color:#fff;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+      <button id="save-gemini-key"
+        style="margin-top:6px;width:100%;padding:6px;background:#1e90ff;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">
+        Save API Key
+      </button>
+      <div id="gemini-key-status" style="font-size:10px;color:#aaa;margin-top:4px;"></div>
+      <div style="font-size:10px;color:#555;margin-top:4px;">
+        Get a free key at aistudio.google.com
+      </div>
     </div>
 
     <script src="popup.js"></script>

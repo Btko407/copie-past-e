@@ -49,6 +49,8 @@ mixin (
   };
 
   /// Full system health status — called by the admin Debugger page.
+  // NOTE: The `stripe.lastWebhookAt` field is kept for DID compatibility only.
+  // Webhooks are architecturally impossible on ICP. This field will always be null.
   public query ({ caller }) func getSystemHealthStatus() : async {
     stripe     : { status : Text; hasPublishableKey : Bool; hasSecretKey : Bool; hasPriceIds : Bool; lastWebhookAt : ?Int };
     gemini     : { status : Text; hasApiKey : Bool };
@@ -131,7 +133,8 @@ mixin (
         hasPublishableKey = hasPubKey;
         hasSecretKey;
         hasPriceIds;
-        lastWebhookAt    = null; // webhook log not inspected here to keep this a query
+        // Webhooks are architecturally impossible on ICP. Kept for DID compatibility only.
+        lastWebhookAt    = null;
       };
       gemini   = { status = geminiStatus; hasApiKey = hasGemini };
       database = { status = dbStatus; canReadUsers; canReadConfig };

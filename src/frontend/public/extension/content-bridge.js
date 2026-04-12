@@ -13,7 +13,7 @@
   // Fires at document_start so the app can detect the extension as early as
   // possible. Also called in response to pings.
   function announce() {
-    window.postMessage({ type: "COPIE_PASTE_EXT_PRESENT" }, "*");
+    window.postMessage({ type: "COPIE_PASTE_EXT_PRESENT", hasOcr: true }, "*");
   }
 
   announce();
@@ -52,6 +52,25 @@
     } catch (err) {
       console.warn("[Copie Past-e] Failed to send SMART_POST to background:", err);
     }
+  });
+
+  // ── OCR intercept — forward page OCR requests to background via Gemini ────────
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== "COPIE_PASTE_OCR_REQUEST") return;
+
+    const { imageBase64, requestId } = event.data;
+
+    chrome.runtime.sendMessage(
+      { type: "GEMINI_OCR_SCAN", imageBase64 },
+      (response) => {
+        window.postMessage({
+          type: "COPIE_PASTE_OCR_RESPONSE",
+          requestId,
+          ...response
+        }, "*");
+      }
+    );
   });
 
   // ── localStorage fallback ───────────────────────────────────────────────────
