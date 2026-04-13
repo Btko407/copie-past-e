@@ -310,6 +310,13 @@ function GeminiOCRSection() {
           description:
             "Key stored permanently. Use Test OCR Connection to verify it works.",
         });
+        // Best-effort sync to extension storage (non-blocking)
+        try {
+          window.postMessage(
+            { type: "COPIE_PASTE_SET_GEMINI_KEY", apiKey: apiKey.trim() },
+            "*",
+          );
+        } catch (_) {}
         setApiKey("");
       } else {
         const errMsg = result.err as string;

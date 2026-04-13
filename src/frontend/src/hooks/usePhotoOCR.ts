@@ -299,41 +299,47 @@ function normaliseOcrFields(data: RawOcrFields): PhotoOCRResult | null {
 let extHasOcrGlobal = false;
 
 /**
- * Send an image to the extension for Gemini OCR.
- * Resolves with the response or rejects after 30s timeout.
+ * Send an image to the extension for Gemini OCR using the new message protocol.
+ * Posts COPIE_PASTE_OCR_SCAN, listens for COPIE_PASTE_OCR_RESULT with matching requestId.
+ * Rejects after timeoutMs (default 6s).
  */
-function ocrViaExtension(
+function requestExtensionOCR(
   imageBase64: string,
-): Promise<{ success?: boolean; data?: RawOcrFields; error?: string }> {
-  return new Promise((resolve) => {
-    const requestId = Date.now().toString();
+  timeoutMs = 6000,
+): Promise<RawOcrFields> {
+  return new Promise((resolve, reject) => {
+    const requestId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
     const timeout = setTimeout(() => {
       window.removeEventListener("message", handler);
-      resolve({ error: "Extension OCR timed out. Try again." });
-    }, 30000);
+      reject(new Error("Extension OCR timed out"));
+    }, timeoutMs);
 
     function handler(event: MessageEvent) {
-      if (
-        (event.data as { type?: string; requestId?: string })?.type !==
-        "COPIE_PASTE_OCR_RESPONSE"
-      )
-        return;
-      if ((event.data as { requestId?: string })?.requestId !== requestId)
-        return;
+      const d = event.data as {
+        type?: string;
+        requestId?: string;
+        success?: boolean;
+        data?: RawOcrFields;
+        error?: string;
+      };
+      if (d?.type !== "COPIE_PASTE_OCR_RESULT") return;
+      if (d?.requestId !== requestId) return;
       clearTimeout(timeout);
       window.removeEventListener("message", handler);
-      resolve(
-        event.data as {
-          success?: boolean;
-          data?: RawOcrFields;
-          error?: string;
-        },
-      );
+      if (d.success === true && d.data) {
+        resolve(d.data);
+      } else {
+        reject(new Error(d.error ?? "Extension OCR returned no data"));
+      }
     }
 
     window.addEventListener("message", handler);
     window.postMessage(
-      { type: "COPIE_PASTE_OCR_REQUEST", imageBase64, requestId },
+      { type: "COPIE_PASTE_OCR_SCAN", requestId, imageBase64 },
       "*",
     );
   });
@@ -381,24 +387,28 @@ export function usePhotoOCR(): UsePhotoOCRReturn {
 
       // Step 2: Use extension OCR if available (faster, no cycles cost)
       if (extOcrRef.current || extHasOcrGlobal) {
-        console.log("[OCR] Using extension Gemini OCR path");
-        const response = await ocrViaExtension(base64);
-
-        if (response.error) {
-          return fail(response.error);
-        }
-
-        if (!response.data) {
-          return fail("Extension OCR returned no data. Try again.");
-        }
-
-        const result = normaliseOcrFields(response.data);
-        if (!result) {
-          return fail(
-            "No listing text found in this image. Try a screenshot that shows the full listing.",
+        console.log("[OCR] Trying extension Gemini OCR path (new protocol)");
+        try {
+          const extData = await requestExtensionOCR(base64, 6000);
+          const result = normaliseOcrFields(extData);
+          if (result) {
+            console.log("[OCR] Extension OCR succeeded");
+            return result;
+          }
+          // Extension returned all-empty fields — fall through to canister
+          console.log(
+            "[OCR] Extension OCR returned empty fields, falling back to canister",
           );
+        } catch (extErr) {
+          const extMsg =
+            extErr instanceof Error ? extErr.message : String(extErr);
+          console.warn(
+            "[OCR] Extension OCR failed:",
+            extMsg,
+            "— falling back to canister",
+          );
+          // Fall through to canister OCR
         }
-        return result;
       }
 
       // Step 3: Fall back to canister backend OCR
