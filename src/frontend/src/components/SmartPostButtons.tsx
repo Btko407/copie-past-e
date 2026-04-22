@@ -135,10 +135,10 @@ export function SmartPostButtons({
     setTimeout(() => setLightning(false), 700);
   }
 
-  function sendSmartPost() {
+  function sendSmartPost(platform: "facebook" | "mercari") {
     const data = {
       action: "SMART_POST" as const,
-      platform: "facebook" as const,
+      platform,
       listing: {
         title,
         price: stripPrice(price),
@@ -159,12 +159,23 @@ export function SmartPostButtons({
 
   function handleAutoFill() {
     triggerLightning();
-    sendSmartPost();
+    sendSmartPost("facebook");
 
     if (!isInstalled) {
       setTimeout(() => setShowInstallModal(true), 400);
     } else {
       toast.success("📘 Sent to Facebook Auto-Fill", { duration: 2000 });
+    }
+  }
+
+  function handleMercariAutoFill() {
+    triggerLightning();
+    sendSmartPost("mercari");
+
+    if (!isInstalled) {
+      setTimeout(() => setShowInstallModal(true), 400);
+    } else {
+      toast.success("🟠 Sent to Mercari Auto-Fill", { duration: 2000 });
     }
   }
 
@@ -187,7 +198,7 @@ export function SmartPostButtons({
 
         <div className="space-y-2">
           {isMobile ? (
-            /* ── Mobile: disabled gray button + instruction text ── */
+            /* ── Mobile: disabled gray buttons + instruction text ── */
             <div className="space-y-2" data-ocid="smart-post-mobile-disabled">
               <Button
                 variant="outline"
@@ -198,6 +209,16 @@ export function SmartPostButtons({
               >
                 <span>📘</span>
                 <span>Auto-Fill Facebook (Desktop Only)</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                className="w-full font-mono text-xs border-border text-muted-foreground bg-muted/30 cursor-not-allowed h-9 gap-1.5"
+                data-ocid="autofill-mercari-desktop-only-btn"
+              >
+                <span>🟠</span>
+                <span>Auto-Fill Mercari (Desktop Only)</span>
               </Button>
               <p className="text-center font-mono text-[10px] text-muted-foreground leading-relaxed px-1">
                 Install Chrome on your desktop computer to use Smart Post. On
@@ -220,7 +241,7 @@ export function SmartPostButtons({
                 </div>
               )}
 
-              {/* Single Auto-Fill Facebook Marketplace button */}
+              {/* Auto-Fill Facebook Marketplace button */}
               <Button
                 variant="outline"
                 size="sm"
@@ -230,6 +251,23 @@ export function SmartPostButtons({
               >
                 <span>📘</span>
                 <span>Auto-Fill Facebook Marketplace</span>
+                {!isInstalled && (
+                  <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-accent text-accent-foreground rounded-full leading-none border border-accent/60 whitespace-nowrap">
+                    + Install Extension
+                  </span>
+                )}
+              </Button>
+
+              {/* Auto-Fill Mercari button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative w-full font-mono text-xs border-orange-500/40 text-foreground hover:border-orange-500 hover:bg-orange-500/10 transition-smooth gap-1.5 h-9"
+                onClick={handleMercariAutoFill}
+                data-ocid="autofill-mercari-btn"
+              >
+                <span>🟠</span>
+                <span>Auto-Fill Mercari</span>
                 {!isInstalled && (
                   <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-accent text-accent-foreground rounded-full leading-none border border-accent/60 whitespace-nowrap">
                     + Install Extension

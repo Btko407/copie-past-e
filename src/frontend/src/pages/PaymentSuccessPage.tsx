@@ -1,94 +1,170 @@
 import { createActor } from "@/backend";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ActorAny = any;
-
-type VerifyState = "loading" | "success" | "error";
+type VerifyState =
+  | "verifying"
+  | "success"
+  | "already_processed"
+  | "not_signed_in"
+  | "error";
 
 export function PaymentSuccessPage() {
   const navigate = useNavigate();
   const { actor, isFetching } = useActor(createActor);
   const queryClient = useQueryClient();
+  const { isAuthenticated, isInitializing, login } = useAuth();
 
-  const [state, setState] = useState<VerifyState>("loading");
-  const [message, setMessage] = useState<string>("");
+  const sessionId = new URLSearchParams(window.location.search).get(
+    "session_id",
+  );
+
+  const [state, setState] = useState<VerifyState>("verifying");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [successMessage, setSuccessMessage] = useState<string>("");
   const [countdown, setCountdown] = useState(5);
+
+  // Guard against double-invocation in React Strict Mode
   const hasVerified = useRef(false);
 
-  // ── Run verification once actor is ready ────────────────────────────────────
-  useEffect(() => {
-    if (isFetching || !actor || hasVerified.current) return;
-    hasVerified.current = true;
-
-    const sessionId = new URLSearchParams(window.location.search).get(
-      "session_id",
-    );
-
+  // ── Core verification function (callable on mount and on retry) ──────────────
+  const runVerification = useCallback(async () => {
     if (!sessionId) {
       setState("error");
-      setMessage("Invalid payment session. No session ID found in the URL.");
+      setErrorMessage(
+        "No payment session found. If you completed a payment, please check your subscription in the Gas Wallet.",
+      );
+      return;
+    }
+    if (!actor) return;
+
+    setState("verifying");
+    setErrorMessage("");
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (actor as any).verifyAndGrantPayment?.(sessionId);
+
+      if (!result) {
+        // Method not yet available in this build — degrade gracefully
+        setState("success");
+        setSuccessMessage(
+          "Payment received. Subscription days have been added.",
+        );
+        void queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+        void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        void queryClient.invalidateQueries({ queryKey: ["gasWallet"] });
+        return;
+      }
+
+      if (result.__kind__ === "ok") {
+        setState("success");
+        setSuccessMessage(
+          typeof result.ok === "string" && result.ok.length > 0
+            ? result.ok
+            : "Payment verified. Subscription days have been added.",
+        );
+        // Set refuel banner flags
+        const expiry = Date.now() + 24 * 60 * 60 * 1000;
+        localStorage.setItem("refuel_banner_expiry", String(expiry));
+        localStorage.setItem("refuel_banner_shown", "true");
+        localStorage.setItem("showRefuelBanner", "true");
+        // Refresh subscription-related queries
+        void queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+        void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        void queryClient.invalidateQueries({ queryKey: ["gasWallet"] });
+      } else if (result.__kind__ === "err") {
+        const errMsg: string =
+          typeof result.err === "string"
+            ? result.err
+            : "Payment verification failed.";
+
+        const isAlreadyProcessed =
+          errMsg.toLowerCase().includes("already") ||
+          errMsg.includes("No pending payment");
+
+        if (isAlreadyProcessed) {
+          setState("already_processed");
+          setErrorMessage(errMsg);
+        } else {
+          setState("error");
+          setErrorMessage(errMsg);
+        }
+      } else {
+        // Unknown shape — treat as success to avoid blocking the user
+        setState("success");
+        setSuccessMessage(
+          "Payment received. Subscription days have been added.",
+        );
+        void queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+        void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        void queryClient.invalidateQueries({ queryKey: ["gasWallet"] });
+      }
+    } catch (err) {
+      setState("error");
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred during payment verification.",
+      );
+    }
+  }, [actor, sessionId, queryClient]);
+
+  // ── Initial gate: no sessionId → immediate error ─────────────────────────────
+  useEffect(() => {
+    if (!sessionId) {
+      setState("error");
+      setErrorMessage(
+        "No payment session found. If you completed a payment, please check your subscription in the Gas Wallet.",
+      );
+    }
+  }, [sessionId]);
+
+  // ── Main verification trigger ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!sessionId) return; // already handled above
+    if (isInitializing || isFetching) return;
+    if (!actor) return;
+
+    if (!isAuthenticated) {
+      setState("not_signed_in");
       return;
     }
 
-    void (async () => {
-      try {
-        const result = await (actor as ActorAny).verifyAndGrantPayment?.(
-          sessionId,
-        );
+    if (hasVerified.current) return;
+    hasVerified.current = true;
 
-        if (!result) {
-          // Method not available on this actor build — fall back gracefully
-          setState("success");
-          setMessage("Payment received. Subscription days have been added.");
-          return;
-        }
+    void runVerification();
+  }, [
+    sessionId,
+    isInitializing,
+    isFetching,
+    actor,
+    isAuthenticated,
+    runVerification,
+  ]);
 
-        if (result.__kind__ === "ok") {
-          setState("success");
-          setMessage(
-            typeof result.ok === "string" && result.ok.length > 0
-              ? result.ok
-              : "Payment verified. Subscription days have been added.",
-          );
-          // Invalidate subscription-related caches so the UI reflects new expiry
-          void queryClient.invalidateQueries({ queryKey: ["subscription"] });
-          void queryClient.invalidateQueries({ queryKey: ["profile"] });
-          void queryClient.invalidateQueries({ queryKey: ["gasWallet"] });
-          // Mark banner for 24h
-          const expiry = Date.now() + 24 * 60 * 60 * 1000;
-          localStorage.setItem("refuel_banner_expiry", String(expiry));
-          localStorage.setItem("refuel_banner_shown", "true");
-        } else if (result.__kind__ === "err") {
-          setState("error");
-          setMessage(
-            typeof result.err === "string" && result.err.length > 0
-              ? result.err
-              : "Payment verification failed. Please contact support.",
-          );
-        } else {
-          // Unexpected shape
-          setState("success");
-          setMessage("Payment received. Subscription days have been added.");
-        }
-      } catch (err) {
-        setState("error");
-        setMessage(
-          err instanceof Error
-            ? err.message
-            : "An unexpected error occurred during payment verification.",
-        );
-      }
-    })();
-  }, [actor, isFetching, queryClient]);
+  // ── After sign-in: automatically retry verification ──────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!sessionId) return;
+    if (state !== "not_signed_in") return;
+    if (!actor || isFetching) return;
 
-  // ── Auto-redirect after success ─────────────────────────────────────────────
+    // Reset guard so runVerification will proceed
+    hasVerified.current = false;
+    void runVerification().then(() => {
+      hasVerified.current = true;
+    });
+  }, [isAuthenticated, sessionId, state, actor, isFetching, runVerification]);
+
+  // ── Countdown + auto-redirect (success only) ─────────────────────────────────
   useEffect(() => {
     if (state !== "success") return;
     if (countdown <= 0) {
@@ -98,6 +174,12 @@ export function PaymentSuccessPage() {
     const id = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(id);
   }, [state, countdown, navigate]);
+
+  // ── Retry handler ────────────────────────────────────────────────────────────
+  function handleRetry() {
+    hasVerified.current = false;
+    void runVerification();
+  }
 
   return (
     <Layout>
@@ -111,8 +193,8 @@ export function PaymentSuccessPage() {
         </div>
 
         <div className="relative z-10 max-w-lg w-full flex flex-col items-center gap-8 text-center">
-          {/* ── LOADING STATE ─────────────────────────────────────────────── */}
-          {state === "loading" && (
+          {/* ── VERIFYING STATE ───────────────────────────────────────────── */}
+          {state === "verifying" && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -133,9 +215,44 @@ export function PaymentSuccessPage() {
                   Verifying Payment
                 </p>
                 <p className="font-mono text-sm text-muted-foreground">
-                  Confirming your transaction with Stripe…
+                  Verifying your payment…
                 </p>
               </div>
+            </motion.div>
+          )}
+
+          {/* ── NOT SIGNED IN STATE ──────────────────────────────────────── */}
+          {state === "not_signed_in" && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center gap-6"
+              data-ocid="payment-not-signed-in"
+            >
+              <div className="w-24 h-24 rounded-full bg-accent/10 border-2 border-accent/40 flex items-center justify-center">
+                <span className="text-5xl">🔐</span>
+              </div>
+
+              <div className="space-y-2">
+                <h1 className="font-display text-3xl font-black tracking-widest uppercase text-accent text-glow-yellow">
+                  Almost There!
+                </h1>
+                <p className="font-mono text-sm text-foreground font-medium">
+                  Please sign in to confirm your payment.
+                </p>
+                <p className="font-mono text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                  Your payment was received by Stripe. Sign in with the same
+                  identity you used when purchasing to activate your plan.
+                </p>
+              </div>
+
+              <Button
+                onClick={login}
+                className="font-display font-bold tracking-widest uppercase text-xs bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow-sm min-w-[220px]"
+                data-ocid="payment-not-signed-in-login-btn"
+              >
+                🔑 Sign In to Activate
+              </Button>
             </motion.div>
           )}
 
@@ -181,7 +298,7 @@ export function PaymentSuccessPage() {
                   Subscription Time Added
                 </p>
                 <p className="font-mono text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  {message ||
+                  {successMessage ||
                     "Your subscription fuel has been added successfully. Your DeLorean is ready for another time jump."}
                 </p>
               </motion.div>
@@ -255,6 +372,43 @@ export function PaymentSuccessPage() {
             </>
           )}
 
+          {/* ── ALREADY PROCESSED STATE ──────────────────────────────────── */}
+          {state === "already_processed" && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center gap-6"
+              data-ocid="payment-already-processed"
+            >
+              <div className="w-24 h-24 rounded-full bg-accent/10 border-2 border-accent/40 flex items-center justify-center">
+                <span className="text-5xl">✅</span>
+              </div>
+
+              <div className="space-y-2">
+                <h1 className="font-display text-3xl font-black tracking-widest uppercase text-accent text-glow-yellow">
+                  Already Processed
+                </h1>
+                <p className="font-mono text-sm text-foreground font-medium max-w-sm mx-auto">
+                  This payment was already processed. Check your Gas Wallet to
+                  see your current subscription.
+                </p>
+                {errorMessage && (
+                  <p className="font-mono text-xs text-muted-foreground max-w-sm mx-auto">
+                    {errorMessage}
+                  </p>
+                )}
+              </div>
+
+              <Button
+                onClick={() => void navigate({ to: "/wallet" })}
+                className="font-display font-bold tracking-widest uppercase text-xs bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow-sm"
+                data-ocid="payment-already-processed-wallet-btn"
+              >
+                ⛽ Go to Gas Wallet
+              </Button>
+            </motion.div>
+          )}
+
           {/* ── ERROR STATE ───────────────────────────────────────────────── */}
           {state === "error" && (
             <motion.div
@@ -272,29 +426,33 @@ export function PaymentSuccessPage() {
                   Verification Failed
                 </h1>
                 <p className="font-mono text-sm text-muted-foreground max-w-sm mx-auto">
-                  {message}
+                  {errorMessage}
                 </p>
-                <p className="font-mono text-xs text-muted-foreground mt-3">
-                  If you were charged, please contact support with your Stripe
-                  receipt — your days will be added manually.
-                </p>
+                {sessionId && (
+                  <p className="font-mono text-xs text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed">
+                    If you were charged, contact support with your Stripe
+                    receipt — your days will be added manually.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3 flex-wrap justify-center">
+                {sessionId && (
+                  <Button
+                    onClick={handleRetry}
+                    className="font-display font-bold tracking-widest uppercase text-xs bg-primary text-primary-foreground hover:bg-primary/90 glow-blue-sm"
+                    data-ocid="payment-error-retry-btn"
+                  >
+                    ↺ Try Again
+                  </Button>
+                )}
                 <Button
                   variant="outline"
-                  onClick={() => void navigate({ to: "/upgrade" })}
+                  onClick={() => void navigate({ to: "/wallet" })}
                   className="font-mono text-xs uppercase tracking-widest border-border/60"
-                  data-ocid="payment-error-retry-btn"
+                  data-ocid="payment-error-wallet-btn"
                 >
-                  Try Again
-                </Button>
-                <Button
-                  onClick={() => void navigate({ to: "/dashboard" })}
-                  className="font-display font-bold tracking-widest uppercase text-xs bg-primary text-primary-foreground hover:bg-primary/90"
-                  data-ocid="payment-error-dashboard-btn"
-                >
-                  Go to Dashboard
+                  ⛽ Go to Gas Wallet
                 </Button>
               </div>
             </motion.div>

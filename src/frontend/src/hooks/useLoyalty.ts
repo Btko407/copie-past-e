@@ -2,6 +2,7 @@ import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createActor } from "../backend";
 import type { LoyaltyStatus, RefuelHistoryEntry } from "../types";
+import { useAuth } from "./useAuth";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActorAny = any;
@@ -10,9 +11,10 @@ type ActorAny = any;
 
 export function useGetLoyaltyStatus() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<LoyaltyStatus | null>({
-    queryKey: ["loyaltyStatus"],
+    queryKey: ["loyaltyStatus", principalId],
     queryFn: async (): Promise<LoyaltyStatus | null> => {
       if (!actor) return null;
       try {
@@ -30,7 +32,7 @@ export function useGetLoyaltyStatus() {
         return null;
       }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 30_000,
   });
 }
@@ -39,9 +41,10 @@ export function useGetLoyaltyStatus() {
 
 export function useGetRefuelHistory() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<RefuelHistoryEntry[]>({
-    queryKey: ["refuelHistory"],
+    queryKey: ["refuelHistory", principalId],
     queryFn: async (): Promise<RefuelHistoryEntry[]> => {
       if (!actor) return [];
       try {
@@ -56,7 +59,7 @@ export function useGetRefuelHistory() {
         return [];
       }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 60_000,
   });
 }
@@ -65,6 +68,7 @@ export function useGetRefuelHistory() {
 
 export function useClaimLoyaltyReward() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, void>({
@@ -74,8 +78,12 @@ export function useClaimLoyaltyReward() {
       if (result && "err" in result) throw new Error(result.err);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["loyaltyStatus"] });
-      queryClient.invalidateQueries({ queryKey: ["refuelHistory"] });
+      queryClient.invalidateQueries({
+        queryKey: ["loyaltyStatus", principalId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["refuelHistory", principalId],
+      });
       queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
     },
   });

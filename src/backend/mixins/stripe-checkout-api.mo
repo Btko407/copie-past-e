@@ -1,5 +1,6 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
@@ -24,6 +25,7 @@ mixin (
   notifications : Map.Map<Common.UserId, List.List<NotifTypes.InAppNotification>>,
   notifCounter : { var value : Nat },
   paymentBanners : Map.Map<Text, PaymentTypes.PaymentBannerState>,
+  verifiedStripeSessionIds : Set.Set<Text>,
 ) {
   // Management canister reference factory — instantiated locally per call to avoid
   // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
@@ -506,6 +508,12 @@ mixin (
       return #err("Session ID mismatch. Please do not modify the URL.");
     };
 
+    // Idempotency guard: if this session was already verified and days granted,
+    // return success immediately without re-granting.
+    if (verifiedStripeSessionIds.contains(sessionId)) {
+      return #ok("Payment already verified. Your subscription days have been applied.");
+    };
+
     // Call Stripe API to verify payment status
     try {
       let response = await (with cycles = 20_949_972_000) icManagementStripe().http_request({
@@ -570,6 +578,9 @@ mixin (
           "Your DeLorean has been refueled! " # pending.tierDays.toText() # " days added to your subscription.",
           now,
         );
+
+        // Record this session as verified — prevents double-grant on any future call.
+        verifiedStripeSessionIds.add(sessionId);
 
         #ok("Payment verified. " # pending.tierDays.toText() # " days added to your subscription.")
       } else {

@@ -767,4 +767,12 @@ export const mockBackend: backendInterface = {
   transformStripeVerifyResponse: async (raw: { context: Uint8Array; response: { status: bigint; body: Uint8Array; headers: Array<{ value: string; name: string }> } }) => raw.response,
   debugCheckStripeKeyLength: async () => 0n,
   getOcrFailureLog: async (_limit: bigint) => [],
+  exportVersionBackupAsJson: async (_backupId: string): Promise<string | null> => Promise.resolve(null),
+  restoreFromJsonBlob: async (_jsonBlob: string) => ({
+    success: false,
+    usersRestored: BigInt(0),
+    listingsRestored: BigInt(0),
+    preSaveBackupId: "",
+    errorMessage: "Mock: not implemented",
+  }),
 };

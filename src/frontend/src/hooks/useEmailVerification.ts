@@ -48,7 +48,7 @@ export interface EmailVerificationState {
 
 export function useEmailVerification(): EmailVerificationState {
   const { actor, isFetching } = useActor(createActor);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, principalId, authReady } = useAuth();
   const queryClient = useQueryClient();
 
   const [email, setEmail] = useState("");
@@ -60,12 +60,13 @@ export function useEmailVerification(): EmailVerificationState {
 
   // ── Poll existing verification status on mount ─────────────────────────────
   const { data: verificationRecord } = useQuery<VerificationRecord | null>({
-    queryKey: ["verificationStatus"],
+    queryKey: ["verificationStatus", principalId],
     queryFn: async (): Promise<VerificationRecord | null> => {
       if (!actor) return null;
       return actor.getVerificationStatus();
     },
-    enabled: !!actor && !isFetching && isAuthenticated,
+    enabled:
+      !!actor && !isFetching && isAuthenticated && authReady && !!principalId,
     staleTime: 30_000,
   });
 
@@ -130,7 +131,9 @@ export function useEmailVerification(): EmailVerificationState {
       }
       setStatus("sent");
       startCooldown(60);
-      queryClient.invalidateQueries({ queryKey: ["verificationStatus"] });
+      queryClient.invalidateQueries({
+        queryKey: ["verificationStatus", principalId],
+      });
     } catch (err) {
       setStatus("error");
       setErrorMessage(
@@ -164,8 +167,10 @@ export function useEmailVerification(): EmailVerificationState {
         return false;
       }
       setStatus("verified");
-      queryClient.invalidateQueries({ queryKey: ["verificationStatus"] });
-      queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+      queryClient.invalidateQueries({
+        queryKey: ["verificationStatus", principalId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["myProfile", principalId] });
       return true;
     } catch (err) {
       setStatus("error");
@@ -200,7 +205,9 @@ export function useEmailVerification(): EmailVerificationState {
       setResendCount(Number(result.ok.resendCount));
       startCooldown(Number(result.ok.cooldownSecondsRemaining) || 60);
       setStatus("sent");
-      queryClient.invalidateQueries({ queryKey: ["verificationStatus"] });
+      queryClient.invalidateQueries({
+        queryKey: ["verificationStatus", principalId],
+      });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to resend");
     }

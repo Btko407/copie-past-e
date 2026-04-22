@@ -6,6 +6,7 @@
   "permissions": ["storage", "tabs", "activeTab", "scripting"],
   "host_permissions": [
     "https://www.facebook.com/*",
+    "https://www.mercari.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],
   "background": { "service_worker": "background.js" },
@@ -13,6 +14,11 @@
     {
       "matches": ["https://www.facebook.com/marketplace/create/*"],
       "js": ["content-facebook.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.mercari.com/sell/*"],
+      "js": ["content-mercari.js"],
       "run_at": "document_idle"
     },
     {

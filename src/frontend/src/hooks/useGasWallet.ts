@@ -1,6 +1,7 @@
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createActor } from "../backend";
+import { useAuth } from "./useAuth";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActorAny = any;
@@ -49,9 +50,10 @@ export interface InitiateGasPurchaseResult {
 
 export function useGetMyGasWallet() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<GasWallet | null>({
-    queryKey: ["myGasWallet"],
+    queryKey: ["myGasWallet", principalId],
     queryFn: async (): Promise<GasWallet | null> => {
       if (!actor) return null;
       const result = await (actor as ActorAny).getMyGasWallet();
@@ -65,7 +67,7 @@ export function useGetMyGasWallet() {
         updatedAt: BigInt(w.updatedAt),
       };
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 20_000,
   });
 }
@@ -93,9 +95,10 @@ export function useGetGasPackages() {
 
 export function useGetMyGasPurchases() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<GasPurchase[]>({
-    queryKey: ["myGasPurchases"],
+    queryKey: ["myGasPurchases", principalId],
     queryFn: async (): Promise<GasPurchase[]> => {
       if (!actor) return [];
       const raw = await (actor as ActorAny).getMyGasPurchases();
@@ -109,7 +112,7 @@ export function useGetMyGasPurchases() {
         createdAt: BigInt(p.createdAt),
       }));
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 30_000,
   });
 }
@@ -118,6 +121,7 @@ export function useGetMyGasPurchases() {
 
 export function useInitiateGasPurchase() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<
@@ -141,13 +145,16 @@ export function useInitiateGasPurchase() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["myGasPurchases"] });
+      queryClient.invalidateQueries({
+        queryKey: ["myGasPurchases", principalId],
+      });
     },
   });
 }
 
 export function useConfirmGasPurchase() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<GasWallet, Error, { purchaseRecordId: number }>({
@@ -167,14 +174,17 @@ export function useConfirmGasPurchase() {
       };
     },
     onSuccess: (wallet) => {
-      queryClient.setQueryData(["myGasWallet"], wallet);
-      queryClient.invalidateQueries({ queryKey: ["myGasPurchases"] });
+      queryClient.setQueryData(["myGasWallet", principalId], wallet);
+      queryClient.invalidateQueries({
+        queryKey: ["myGasPurchases", principalId],
+      });
     },
   });
 }
 
 export function useFailGasPurchase() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, { purchaseRecordId: number }>({
@@ -183,13 +193,16 @@ export function useFailGasPurchase() {
       await (actor as ActorAny).failGasPurchase(BigInt(purchaseRecordId));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["myGasPurchases"] });
+      queryClient.invalidateQueries({
+        queryKey: ["myGasPurchases", principalId],
+      });
     },
   });
 }
 
 export function useSetAutoRenewal() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<GasWallet, Error, { enabled: boolean; tierId: number }>({
@@ -210,7 +223,7 @@ export function useSetAutoRenewal() {
       };
     },
     onSuccess: (wallet) => {
-      queryClient.setQueryData(["myGasWallet"], wallet);
+      queryClient.setQueryData(["myGasWallet", principalId], wallet);
     },
   });
 }

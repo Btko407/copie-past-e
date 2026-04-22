@@ -81,7 +81,7 @@ export interface ExtensionListingData {
 
 export interface SmartPostPayload {
   action: "SMART_POST";
-  platform: "facebook";
+  platform: "facebook" | "mercari";
   listing: {
     title: string;
     price: string; // numeric only, no $ symbol

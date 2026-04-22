@@ -465,6 +465,60 @@ mixin (
     BackupLib.listVersionBackupSummaries(versionBackups)
   };
 
+  /// Admin: export the full JSON blob for a specific version backup.
+  /// Returns null if the backup ID is not found.
+  /// The returned text is the complete JSON snapshot of all data
+  /// at the time the backup was created.
+  public query ({ caller }) func exportVersionBackupAsJson(
+    backupId : Text,
+  ) : async ?Text {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: admin only");
+    };
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool {
+      b.id == backupId
+    })) {
+      case null { null };
+      case (?b) { ?b.backupData };
+    };
+  };
+
+  /// Admin: restore the full canister state from a JSON blob
+  /// that was previously exported via exportVersionBackupAsJson.
+  /// Automatically creates a pre-restore snapshot before applying.
+  /// Never deletes records created after the backup.
+  public shared ({ caller }) func restoreFromJsonBlob(
+    jsonBlob : Text,
+  ) : async BackupTypes.RestoreResult {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return {
+        success          = false;
+        usersRestored    = 0;
+        listingsRestored = 0;
+        preSaveBackupId  = "";
+        errorMessage     = ?"Unauthorized: admin only";
+      };
+    };
+    let now = Time.now();
+    // Delegate to the existing backup lib restore logic,
+    // passing the raw JSON blob directly.
+    BackupLib.restoreFromJsonBlob(
+      versionBackups,
+      jsonBlob,
+      profiles,
+      usernameIndex,
+      listings,
+      listingCounter,
+      subscriptions,
+      notifications,
+      siteSettings,
+      appVersions,
+      false,
+      caller.toText(),
+      now,
+    )
+  };
+
   /// Restore all data from a version backup.
   /// Automatically saves current state before restoring.
   /// Step 0: auto-backup current state. If fails, abort.

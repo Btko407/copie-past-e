@@ -1065,7 +1065,67 @@ module {
     };
   };
 
-  /// Restore all state from a VersionBackup.
+  /// Core restore logic: applies a VersionBackup's JSON data to live state.
+  /// - Upserts users and listings that exist in the backup.
+  /// - Does NOT delete users/listings created after the backup.
+  /// - Does NOT overwrite Stripe keys or FB credentials.
+  /// Returns RestoreResult with counts.
+  private func applyRestore(
+    backup         : BackupTypes.VersionBackup,
+    profiles       : Map.Map<Common.UserId, ProfileTypes.UserProfile>,
+    usernameIndex  : Map.Map<Text, Common.UserId>,
+    listings       : Map.Map<Common.ListingId, ListingTypes.Listing>,
+    listingCounter : { var value : Nat },
+    subscriptions  : Map.Map<Common.UserId, TierTypes.UserTierSubscription>,
+    notifications  : Map.Map<Common.UserId, List.List<NotifTypes.InAppNotification>>,
+    siteSettings   : { var current : ?AdminTypes.SiteSettings },
+    appVersions    : List.List<AdminTypes.AppVersion>,
+    preSaveBackupId : Text,
+    nowNs          : Common.Timestamp,
+  ) : BackupTypes.RestoreResult {
+    let json = backup.backupData;
+
+    // Restore users
+    var usersRestored = 0;
+    let userJsons = extractJsonArray(json, "users");
+    for (userJson in userJsons.values()) {
+      if (restoreProfileFromJson(profiles, usernameIndex, userJson, nowNs)) {
+        usersRestored += 1;
+      };
+    };
+
+    // Restore listings
+    var listingsRestored = 0;
+    let listingJsons = extractJsonArray(json, "listings");
+    for (listingJson in listingJsons.values()) {
+      if (restoreListingFromJson(listings, listingCounter, listingJson, nowNs)) {
+        listingsRestored += 1;
+      };
+    };
+
+    // Restore app config (non-payment fields only)
+    let configMarker = "\"appConfig\":";
+    let configParts = json.split(#text configMarker);
+    ignore configParts.next();
+    switch (configParts.next()) {
+      case (?cfgJson) {
+        if (not cfgJson.startsWith(#text "null")) {
+          restoreSiteSettingsFromJson(siteSettings, cfgJson, nowNs);
+        };
+      };
+      case null {};
+    };
+
+    {
+      success          = true;
+      usersRestored;
+      listingsRestored;
+      preSaveBackupId;
+      errorMessage     = null;
+    }
+  };
+
+  /// Restore all state from a VersionBackup identified by backupId.
   /// - Upserts users and listings that exist in the backup.
   /// - Does NOT delete users/listings created after the backup.
   /// - Does NOT overwrite Stripe keys or FB credentials.
@@ -1115,47 +1175,60 @@ module {
           nowNs,
         );
 
-        let json = backup.backupData;
-
-        // Step 2: restore users
-        var usersRestored = 0;
-        let userJsons = extractJsonArray(json, "users");
-        for (userJson in userJsons.values()) {
-          if (restoreProfileFromJson(profiles, usernameIndex, userJson, nowNs)) {
-            usersRestored += 1;
-          };
-        };
-
-        // Step 3: restore listings
-        var listingsRestored = 0;
-        let listingJsons = extractJsonArray(json, "listings");
-        for (listingJson in listingJsons.values()) {
-          if (restoreListingFromJson(listings, listingCounter, listingJson, nowNs)) {
-            listingsRestored += 1;
-          };
-        };
-
-        // Step 4: restore app config (non-payment fields only)
-        let configMarker = "\"appConfig\":";
-        let configParts = json.split(#text configMarker);
-        ignore configParts.next();
-        switch (configParts.next()) {
-          case (?cfgJson) {
-            if (not cfgJson.startsWith(#text "null")) {
-              restoreSiteSettingsFromJson(siteSettings, cfgJson, nowNs);
-            };
-          };
-          case null {};
-        };
-
-        {
-          success          = true;
-          usersRestored;
-          listingsRestored;
-          preSaveBackupId  = preSave.id;
-          errorMessage     = null;
-        }
+        applyRestore(
+          backup,
+          profiles, usernameIndex, listings, listingCounter,
+          subscriptions, notifications, siteSettings, appVersions,
+          preSave.id,
+          nowNs,
+        )
       };
     }
+  };
+
+  /// Restore all state from a raw JSON blob (e.g. uploaded from a downloaded backup file).
+  /// Automatically creates a pre-restore snapshot before applying.
+  /// Never deletes records created after the backup.
+  /// Never overwrites Stripe keys or FB credentials.
+  public func restoreFromJsonBlob(
+    versionBackups   : List.List<BackupTypes.VersionBackup>,
+    jsonBlob         : Text,
+    profiles         : Map.Map<Common.UserId, ProfileTypes.UserProfile>,
+    usernameIndex    : Map.Map<Text, Common.UserId>,
+    listings         : Map.Map<Common.ListingId, ListingTypes.Listing>,
+    listingCounter   : { var value : Nat },
+    subscriptions    : Map.Map<Common.UserId, TierTypes.UserTierSubscription>,
+    notifications    : Map.Map<Common.UserId, List.List<NotifTypes.InAppNotification>>,
+    siteSettings     : { var current : ?AdminTypes.SiteSettings },
+    appVersions      : List.List<AdminTypes.AppVersion>,
+    isAutoBackup     : Bool,
+    createdBy        : Text,
+    nowNs            : Common.Timestamp,
+  ) : BackupTypes.RestoreResult {
+    // Step 0: auto-save current state before restoring
+    let preSave = createVersionBackup(
+      versionBackups, profiles, listings, subscriptions,
+      notifications, siteSettings, appVersions,
+      false, createdBy, ?"Auto-save before file restore", nowNs,
+    );
+    // Create a temporary backup record from the uploaded JSON blob
+    let tempBackup : BackupTypes.VersionBackup = {
+      id           = "file-restore-" # nowNs.toText();
+      versionLabel = "Uploaded file restore";
+      createdAt    = nowNs;
+      createdBy;
+      backupData   = jsonBlob;
+      backupType   = "file-upload";
+      notes        = ?"Restored from uploaded JSON file";
+      isStable     = false;
+    };
+    // Run the same restore logic used for database backups
+    applyRestore(
+      tempBackup,
+      profiles, usernameIndex, listings, listingCounter,
+      subscriptions, notifications, siteSettings, appVersions,
+      preSave.id,
+      nowNs,
+    )
   };
 };

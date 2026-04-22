@@ -49,6 +49,7 @@ import {
   Clock,
   Copy,
   Database,
+  Download,
   FileJson,
   History,
   Plus,
@@ -59,7 +60,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 function formatDate(ts: bigint | number | string) {
@@ -290,6 +291,29 @@ function SnapshotTypeBadge({ type }: { type: string }) {
   );
 }
 
+// ─── Snapshot file shape for import/export ────────────────────────────────────
+
+interface SnapshotExportFile {
+  schemaVersion: number;
+  exportedAt: string;
+  snapshotId: string;
+  version: string;
+  timestamp: string;
+  listingCount: number;
+  userCount: number;
+  backupCount: number;
+}
+
+function isValidSnapshotFile(obj: unknown): obj is SnapshotExportFile {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.snapshotId === "string" &&
+    typeof o.version === "string" &&
+    typeof o.timestamp === "string"
+  );
+}
+
 function DataSnapshotDashboard() {
   const { data: snapshots = [], isLoading } = useVersionSnapshotList();
   const createSnapshot = useCreateVersionSnapshot();
@@ -303,11 +327,106 @@ function DataSnapshotDashboard() {
     null,
   );
 
+  // File-based restore state
+  const [fileRestoreTarget, setFileRestoreTarget] =
+    useState<SnapshotExportFile | null>(null);
+  const [fileRestoring, setFileRestoring] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [downloadingSnapshot, setDownloadingSnapshot] = useState(false);
+
   const { dotColor, lastBackup } = snapshotFreshness(snapshots);
   const totalSizeKb = snapshots.reduce(
     (acc, b) => acc + Number(b.sizeKb ?? 0),
     0,
   );
+
+  // ── Download most-recent snapshot as structured JSON ──────────────────────
+  function handleDownloadSnapshot() {
+    const latest = snapshots[0];
+    if (!latest) {
+      toast.error("No snapshots available to download.");
+      return;
+    }
+    setDownloadingSnapshot(true);
+    try {
+      const createdAtMs = Number(latest.createdAt) / 1_000_000;
+      const exported: SnapshotExportFile = {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        snapshotId: latest.id,
+        version: latest.versionLabel || "unknown",
+        timestamp: new Date(createdAtMs).toISOString(),
+        listingCount: Number(latest.listingCount ?? 0),
+        userCount: Number(latest.userCount ?? 0),
+        backupCount: 1,
+      };
+      const blob = new Blob([JSON.stringify(exported, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `copie-paste-snapshot-${new Date(createdAtMs).toISOString().replace(/[:.]/g, "-")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Snapshot downloaded.");
+    } catch {
+      toast.error("Failed to prepare snapshot file.");
+    } finally {
+      setDownloadingSnapshot(false);
+    }
+  }
+
+  // ── Handle file selection for restore-from-snapshot ────────────────────────
+  function handleSnapshotFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // reset so the same file can be re-selected if dismissed
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed: unknown = JSON.parse(ev.target?.result as string);
+        if (!isValidSnapshotFile(parsed)) {
+          toast.error("Invalid snapshot file — missing required fields.", {
+            duration: 5000,
+          });
+          return;
+        }
+        setFileRestoreTarget(parsed);
+      } catch {
+        toast.error("Invalid snapshot file — could not parse JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ── Confirm and run the file-based restore ─────────────────────────────────
+  async function handleFileRestore() {
+    if (!fileRestoreTarget) return;
+    setFileRestoring(true);
+    try {
+      const result = await restore.mutateAsync(fileRestoreTarget.snapshotId);
+      setFileRestoreTarget(null);
+      if (result.success) {
+        setRestoreResult(result);
+        toast.success("Restore complete. Snapshot applied.");
+      } else {
+        toast.error(
+          result.errorMessage || result.message || "Restore failed.",
+          { duration: 6000 },
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.", {
+        duration: 6000,
+      });
+      setFileRestoreTarget(null);
+    } finally {
+      setFileRestoring(false);
+    }
+  }
 
   async function handleCreate() {
     try {
@@ -389,17 +508,32 @@ function DataSnapshotDashboard() {
         </div>
       )}
 
-      {/* Create button */}
-      <Button
-        size="sm"
-        onClick={handleCreate}
-        disabled={createSnapshot.isPending}
-        className="font-mono text-xs gap-1.5 neon-border-blue glow-blue-sm"
-        data-ocid="create-version-snapshot-btn"
-      >
-        <Plus className="w-3 h-3" />
-        {createSnapshot.isPending ? "Creating…" : "Create Version Snapshot Now"}
-      </Button>
+      {/* Action buttons row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          size="sm"
+          onClick={handleCreate}
+          disabled={createSnapshot.isPending}
+          className="font-mono text-xs gap-1.5 neon-border-blue glow-blue-sm"
+          data-ocid="create-version-snapshot-btn"
+        >
+          <Plus className="w-3 h-3" />
+          {createSnapshot.isPending
+            ? "Creating…"
+            : "Create Version Snapshot Now"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadSnapshot}
+          disabled={downloadingSnapshot || snapshots.length === 0}
+          className="font-mono text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+          data-ocid="download-snapshot-btn"
+        >
+          <Download className="w-3 h-3" />
+          {downloadingSnapshot ? "Preparing…" : "Download Snapshot"}
+        </Button>
+      </div>
 
       {/* Snapshot table */}
       {isLoading ? (
@@ -624,6 +758,117 @@ function DataSnapshotDashboard() {
               onClick={() => setRestoreResult(null)}
             >
               Done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Restore from Snapshot File ─────────────────────────────────────────── */}
+      <div className="rounded-xl bg-card neon-border-blue p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Archive className="w-4 h-4 text-primary" />
+          <h4 className="font-display text-xs font-bold tracking-widest uppercase text-primary">
+            Restore From Snapshot File
+          </h4>
+        </div>
+        <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+          Upload a previously downloaded snapshot .json file to restore to that
+          exact point. A safety backup is created automatically before
+          restoring.
+        </p>
+        <button
+          type="button"
+          className="w-full border-2 border-dashed border-primary/20 hover:border-primary/40 rounded-lg p-8 text-center transition-colors cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+          data-ocid="restore-from-snapshot-file-zone"
+        >
+          <Archive className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="font-mono text-xs text-muted-foreground">
+            Click to upload a snapshot .json file
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">
+            Only .json snapshot files are accepted
+          </p>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={handleSnapshotFileChange}
+          data-ocid="snapshot-file-input"
+        />
+      </div>
+
+      {/* File restore confirm dialog */}
+      <AlertDialog
+        open={!!fileRestoreTarget}
+        onOpenChange={(open) => !open && setFileRestoreTarget(null)}
+      >
+        <AlertDialogContent className="bg-card border-accent/30 font-body">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-sm uppercase tracking-wider text-accent text-glow-yellow">
+              Restore from snapshot file?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="font-mono text-xs text-muted-foreground leading-relaxed space-y-3">
+                <p>
+                  This will restore from snapshot{" "}
+                  <span className="font-bold text-foreground bg-secondary/40 px-1.5 py-0.5 rounded">
+                    {fileRestoreTarget?.snapshotId.slice(0, 8) ?? ""}
+                  </span>{" "}
+                  created on{" "}
+                  <span className="text-foreground">
+                    {fileRestoreTarget
+                      ? new Date(fileRestoreTarget.timestamp).toLocaleString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
+                      : ""}
+                  </span>
+                  .
+                </p>
+                <p>
+                  Contains{" "}
+                  <span className="text-primary font-bold">
+                    {fileRestoreTarget?.userCount ?? 0} users
+                  </span>{" "}
+                  and{" "}
+                  <span className="text-primary font-bold">
+                    {fileRestoreTarget?.listingCount ?? 0} listings
+                  </span>
+                  .
+                </p>
+                <p className="text-primary/80">
+                  A backup will be created before restoring. Continue?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="font-mono text-xs"
+              onClick={() => setFileRestoreTarget(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleFileRestore();
+              }}
+              disabled={fileRestoring}
+              className="font-mono text-xs bg-accent text-accent-foreground hover:bg-accent/80"
+              data-ocid="confirm-file-restore-btn"
+            >
+              <RefreshCw className="w-3 h-3 mr-1.5" />
+              {fileRestoring ? "Restoring…" : "Restore — I Understand"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

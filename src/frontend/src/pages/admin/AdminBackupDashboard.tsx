@@ -19,13 +19,13 @@ import {
   useMarkBackupStable,
   useRestoreFromBackup,
   useRollbackToStable,
+  useVersionSnapshotList,
 } from "@/hooks/useBackupDashboard";
 import type { RestoreResult, VersionBackupSummary } from "@/types";
 import {
   AlertTriangle,
   Archive,
   CheckCircle2,
-  Clock,
   Database,
   Download,
   FileJson,
@@ -120,8 +120,30 @@ function BackupTypeBadge({ type }: { type: string }) {
   );
 }
 
+// ─── Snapshot file shape ──────────────────────────────────────────────────────
+
+interface SnapshotImportFile {
+  snapshotId: string;
+  version: string;
+  timestamp: string;
+  listingCount?: number;
+  userCount?: number;
+  [key: string]: unknown;
+}
+
+function isValidSnapshotImport(obj: unknown): obj is SnapshotImportFile {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.snapshotId === "string" &&
+    typeof o.version === "string" &&
+    typeof o.timestamp === "string"
+  );
+}
+
 export function AdminBackupDashboard() {
   const { data: backups = [], isLoading } = useBackupList();
+  const { data: snapshots = [] } = useVersionSnapshotList();
   const createManual = useCreateManualBackup();
   const restore = useRestoreFromBackup();
   const markStable = useMarkBackupStable();
@@ -138,7 +160,13 @@ export function AdminBackupDashboard() {
   const [deleteTarget, setDeleteTarget] = useState<VersionBackupSummary | null>(
     null,
   );
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Snapshot-file restore state
+  const [snapshotFileTarget, setSnapshotFileTarget] =
+    useState<SnapshotImportFile | null>(null);
+  const [snapshotRestoring, setSnapshotRestoring] = useState(false);
+
+  const snapshotFileInputRef = useRef<HTMLInputElement>(null);
 
   const hasStable = backups.some((b) => b.isStable);
 
@@ -227,9 +255,48 @@ export function AdminBackupDashboard() {
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    toast.info(
-      `Import file "${file.name}" selected. Restore via the button below.`,
-    );
+    e.target.value = "";
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed: unknown = JSON.parse(ev.target?.result as string);
+        if (!isValidSnapshotImport(parsed)) {
+          toast.error("Invalid snapshot file — missing required fields.", {
+            duration: 5000,
+          });
+          return;
+        }
+        setSnapshotFileTarget(parsed);
+      } catch {
+        toast.error("Invalid snapshot file — could not parse JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleSnapshotFileRestore() {
+    if (!snapshotFileTarget) return;
+    setSnapshotRestoring(true);
+    try {
+      const result = await restore.mutateAsync(snapshotFileTarget.snapshotId);
+      setSnapshotFileTarget(null);
+      if (result.success) {
+        setRestoreResult(result);
+        toast.success("Restore complete. Snapshot applied.");
+      } else {
+        toast.error(
+          result.errorMessage || result.message || "Restore failed.",
+          { duration: 6000 },
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.", {
+        duration: 6000,
+      });
+      setSnapshotFileTarget(null);
+    } finally {
+      setSnapshotRestoring(false);
+    }
   }
 
   return (
@@ -263,17 +330,17 @@ export function AdminBackupDashboard() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => snapshotFileInputRef.current?.click()}
           className="font-mono text-xs gap-1.5 border-border/40"
           data-ocid="import-backup-file-btn"
         >
           <Archive className="w-3 h-3" />
-          Import Backup File
+          Restore from Snapshot File
         </Button>
         <input
-          ref={fileInputRef}
+          ref={snapshotFileInputRef}
           type="file"
-          accept=".json,.zip"
+          accept=".json"
           className="hidden"
           onChange={handleImportFile}
         />
@@ -433,32 +500,40 @@ export function AdminBackupDashboard() {
         </div>
       )}
 
-      {/* Restore from file */}
+      {/* ── Restore from Snapshot ── */}
       <div className="rounded-xl bg-card neon-border-blue p-5 space-y-3">
         <div className="flex items-center gap-2">
           <Archive className="w-4 h-4 text-primary" />
           <h4 className="font-display text-xs font-bold tracking-widest uppercase text-primary">
-            Restore From File
+            Restore From Snapshot
           </h4>
         </div>
         <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
-          Upload a previously downloaded backup .json or .zip file to restore
-          from a local backup — even if the database is unavailable.
+          Upload a .json snapshot file exported from this admin panel to restore
+          to that saved point. A safety backup is created automatically before
+          restoring.
         </p>
         <button
           type="button"
           className="w-full border-2 border-dashed border-primary/20 hover:border-primary/40 rounded-lg p-8 text-center transition-colors cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-          data-ocid="restore-from-file-zone"
+          onClick={() => snapshotFileInputRef.current?.click()}
+          data-ocid="restore-from-snapshot-zone"
         >
-          <Download className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+          <Archive className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
           <p className="font-mono text-xs text-muted-foreground">
-            Drag &amp; drop or click to upload a backup file
+            Click to upload a snapshot .json file
           </p>
           <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">
-            .json or .zip accepted
+            Only .json snapshot files are accepted
           </p>
         </button>
+        {snapshots.length > 0 && (
+          <p className="font-mono text-[10px] text-muted-foreground/70">
+            <span className="text-primary">{snapshots.length}</span> existing
+            snapshot{snapshots.length === 1 ? "" : "s"} available in the Version
+            Snapshots tab
+          </p>
+        )}
       </div>
 
       {/* ── Modals ── */}
@@ -642,6 +717,83 @@ export function AdminBackupDashboard() {
             >
               <Trash2 className="w-3 h-3 mr-1.5" />
               {deleteBackup.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Snapshot file restore confirm */}
+      <AlertDialog
+        open={!!snapshotFileTarget}
+        onOpenChange={(open) => !open && setSnapshotFileTarget(null)}
+      >
+        <AlertDialogContent className="bg-card border-accent/30 font-body">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-sm uppercase tracking-wider text-accent text-glow-yellow">
+              Restore from snapshot file?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="font-mono text-xs text-muted-foreground leading-relaxed space-y-3">
+                <p>
+                  This will restore from snapshot{" "}
+                  <span className="font-bold text-foreground bg-secondary/40 px-1.5 py-0.5 rounded">
+                    {snapshotFileTarget?.snapshotId.slice(0, 8) ?? ""}
+                  </span>{" "}
+                  created on{" "}
+                  <span className="text-foreground">
+                    {snapshotFileTarget
+                      ? new Date(snapshotFileTarget.timestamp).toLocaleString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
+                      : ""}
+                  </span>
+                  .
+                </p>
+                {(snapshotFileTarget?.userCount !== undefined ||
+                  snapshotFileTarget?.listingCount !== undefined) && (
+                  <p>
+                    Contains{" "}
+                    <span className="text-primary font-bold">
+                      {snapshotFileTarget?.userCount ?? 0} users
+                    </span>{" "}
+                    and{" "}
+                    <span className="text-primary font-bold">
+                      {snapshotFileTarget?.listingCount ?? 0} listings
+                    </span>
+                    .
+                  </p>
+                )}
+                <p className="text-primary/80">
+                  A backup will be created before restoring. Continue?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="font-mono text-xs"
+              onClick={() => setSnapshotFileTarget(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleSnapshotFileRestore();
+              }}
+              disabled={snapshotRestoring}
+              className="font-mono text-xs bg-accent text-accent-foreground hover:bg-accent/80"
+              data-ocid="confirm-snapshot-file-restore-btn"
+            >
+              <RefreshCw className="w-3 h-3 mr-1.5" />
+              {snapshotRestoring ? "Restoring…" : "Restore — I Understand"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

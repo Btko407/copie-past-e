@@ -2,6 +2,7 @@ import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createActor } from "../backend";
 import type { TierConfig, UserTierSubscription } from "../types";
+import { useAuth } from "./useAuth";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActorAny = any;
@@ -73,16 +74,17 @@ function normalizeSubscription(raw: ActorAny): UserTierSubscription {
 
 export function useGetMySubscription() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<UserTierSubscription | null>({
-    queryKey: ["mySubscription"],
+    queryKey: ["mySubscription", principalId],
     queryFn: async () => {
       if (!actor) return null;
       const raw = await (actor as ActorAny).getMySubscription();
       if (!raw) return null;
       return normalizeSubscription(raw);
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 30_000,
   });
 }

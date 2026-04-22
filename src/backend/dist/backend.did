@@ -784,6 +784,7 @@ service : {
           imageUrls: vec text;
           jsonData: text;
         }) query;
+  exportVersionBackupAsJson: (backupId: text) -> (opt text) query;
   failGasPurchase: (purchaseRecordId: nat) -> ();
   failStripePayment: (paymentRecordId: nat) -> ();
   generateBackupData: () -> (vec ListingSnapshot) query;
@@ -1002,6 +1003,7 @@ service : {
       err: text;
       ok: nat;
     });
+  restoreFromJsonBlob: (jsonBlob: text) -> (RestoreResult);
   restoreFromVersionBackup: (backupId: text) -> (RestoreResult);
   restoreFromZipBackup: (entries: vec BackupListingEntry) ->
    (ZipRestoreResult);

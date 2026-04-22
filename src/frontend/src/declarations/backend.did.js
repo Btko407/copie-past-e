@@ -779,6 +779,11 @@ export const idlService = IDL.Service({
       ],
       ['query'],
     ),
+  'exportVersionBackupAsJson' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(IDL.Text)],
+      ['query'],
+    ),
   'failGasPurchase' : IDL.Func([IDL.Nat], [], []),
   'failStripePayment' : IDL.Func([IDL.Nat], [], []),
   'generateBackupData' : IDL.Func([], [IDL.Vec(ListingSnapshot)], ['query']),
@@ -1102,6 +1107,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
       [],
     ),
+  'restoreFromJsonBlob' : IDL.Func([IDL.Text], [RestoreResult], []),
   'restoreFromVersionBackup' : IDL.Func([IDL.Text], [RestoreResult], []),
   'restoreFromZipBackup' : IDL.Func(
       [IDL.Vec(BackupListingEntry)],
@@ -2230,6 +2236,11 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'exportVersionBackupAsJson' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
     'failGasPurchase' : IDL.Func([IDL.Nat], [], []),
     'failStripePayment' : IDL.Func([IDL.Nat], [], []),
     'generateBackupData' : IDL.Func([], [IDL.Vec(ListingSnapshot)], ['query']),
@@ -2561,6 +2572,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
         [],
       ),
+    'restoreFromJsonBlob' : IDL.Func([IDL.Text], [RestoreResult], []),
     'restoreFromVersionBackup' : IDL.Func([IDL.Text], [RestoreResult], []),
     'restoreFromZipBackup' : IDL.Func(
         [IDL.Vec(BackupListingEntry)],

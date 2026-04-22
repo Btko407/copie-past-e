@@ -859,6 +859,7 @@ export interface backendInterface {
         imageUrls: Array<string>;
         jsonData: string;
     } | null>;
+    exportVersionBackupAsJson(backupId: string): Promise<string | null>;
     failGasPurchase(purchaseRecordId: bigint): Promise<void>;
     failStripePayment(paymentRecordId: bigint): Promise<void>;
     generateBackupData(): Promise<Array<ListingSnapshot>>;
@@ -1099,6 +1100,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    restoreFromJsonBlob(jsonBlob: string): Promise<RestoreResult>;
     restoreFromVersionBackup(backupId: string): Promise<RestoreResult>;
     restoreFromZipBackup(entries: Array<BackupListingEntry>): Promise<ZipRestoreResult>;
     restoreListing(listingId: ListingId): Promise<{
@@ -2454,6 +2456,20 @@ export class Backend implements backendInterface {
             return from_candid_opt_n75(this._uploadFile, this._downloadFile, result);
         }
     }
+    async exportVersionBackupAsJson(arg0: string): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.exportVersionBackupAsJson(arg0);
+                return from_candid_opt_n25(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.exportVersionBackupAsJson(arg0);
+            return from_candid_opt_n25(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async failGasPurchase(arg0: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -3719,6 +3735,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.restoreFromBackup(to_candid_vec_n155(this._uploadFile, this._downloadFile, arg0));
             return from_candid_variant_n69(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async restoreFromJsonBlob(arg0: string): Promise<RestoreResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.restoreFromJsonBlob(arg0);
+                return from_candid_RestoreResult_n158(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.restoreFromJsonBlob(arg0);
+            return from_candid_RestoreResult_n158(this._uploadFile, this._downloadFile, result);
         }
     }
     async restoreFromVersionBackup(arg0: string): Promise<RestoreResult> {

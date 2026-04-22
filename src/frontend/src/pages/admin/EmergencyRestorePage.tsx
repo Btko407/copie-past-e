@@ -15,6 +15,10 @@ import {
   useListVersionBackups,
   useRestoreFromVersionBackup,
 } from "@/hooks/useAdminVersions";
+import {
+  useExportVersionBackup,
+  useRestoreFromJsonFile,
+} from "@/hooks/useBackupDashboard";
 import type { RestoreResult, VersionBackupSummary } from "@/types";
 import {
   AlertTriangle,
@@ -22,6 +26,7 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
+  Download,
   FileJson,
   Loader2,
   Mail,
@@ -91,11 +96,15 @@ function SectionHeader({
 function BackupRow({
   backup,
   onRestore,
+  onExport,
   restoring,
+  exporting,
 }: {
   backup: VersionBackupSummary;
   onRestore: (b: VersionBackupSummary) => void;
+  onExport: (b: VersionBackupSummary) => void;
   restoring: boolean;
+  exporting: boolean;
 }) {
   return (
     <div
@@ -148,21 +157,40 @@ function BackupRow({
         </div>
       </div>
 
-      {/* BIG yellow restore button */}
-      <button
-        type="button"
-        onClick={() => onRestore(backup)}
-        disabled={restoring}
-        className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold text-lg px-6 py-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-3 glow-yellow"
-        data-ocid={`emergency-restore-btn-${backup.id}`}
-      >
-        {restoring ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <RotateCcw className="w-5 h-5" />
-        )}
-        {restoring ? "Restoring…" : "Restore to This Point"}
-      </button>
+      {/* Action buttons row */}
+      <div className="flex gap-2">
+        {/* Download .json button */}
+        <button
+          type="button"
+          onClick={() => onExport(backup)}
+          disabled={exporting}
+          className="flex-1 bg-secondary/40 hover:bg-secondary/60 disabled:opacity-50 disabled:cursor-not-allowed text-foreground font-semibold text-sm px-4 py-3 rounded-lg border border-border/40 transition-all duration-200 flex items-center justify-center gap-2"
+          data-ocid={`emergency-download-btn-${backup.id}`}
+        >
+          {exporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {exporting ? "Downloading…" : "Download .json"}
+        </button>
+
+        {/* BIG yellow restore button */}
+        <button
+          type="button"
+          onClick={() => onRestore(backup)}
+          disabled={restoring}
+          className="flex-[2] bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold text-lg px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-3 glow-yellow"
+          data-ocid={`emergency-restore-btn-${backup.id}`}
+        >
+          {restoring ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <RotateCcw className="w-5 h-5" />
+          )}
+          {restoring ? "Restoring…" : "Restore to This Point"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -172,6 +200,8 @@ function BackupRow({
 export function EmergencyRestorePage() {
   const { data: backups = [], isLoading } = useListVersionBackups();
   const restoreMutation = useRestoreFromVersionBackup();
+  const fileRestoreMutation = useRestoreFromJsonFile();
+  const exportMutation = useExportVersionBackup();
 
   const [confirmTarget, setConfirmTarget] =
     useState<VersionBackupSummary | null>(null);
@@ -240,37 +270,33 @@ export function EmergencyRestorePage() {
     setFileConfirmOpen(false);
 
     try {
-      // Read and parse the file
-      const text = await selectedFile.text();
-      let backupData: unknown;
-
-      if (selectedFile.name.endsWith(".zip")) {
-        toast.info(
-          "ZIP restore: extract listings.json from the ZIP and upload that file instead.",
+      const result = await fileRestoreMutation.mutateAsync(selectedFile);
+      if (result.success) {
+        toast.success(
+          `Restore complete. ${result.usersRestored} users and ${result.listingsRestored} listings restored.`,
         );
-        return;
+        setSelectedFile(null);
+      } else {
+        // errorMessage may be a Motoko optional ([] | [string]) or a plain string
+        const msg = Array.isArray(result.errorMessage)
+          ? ((result.errorMessage as string[])[0] ?? "Restore failed.")
+          : ((result.errorMessage as string | null | undefined) ??
+            "Restore failed.");
+        toast.error(msg);
       }
-
-      backupData = JSON.parse(text);
-
-      // Show what we found
-      const data = backupData as {
-        tables?: { users?: unknown[]; listings?: unknown[] };
-        listings?: unknown[];
-      };
-      const userCount = data?.tables?.users?.length ?? 0;
-      const listingCount =
-        data?.tables?.listings?.length ?? data?.listings?.length ?? 0;
-
-      toast.success(
-        `File parsed: ${userCount} users, ${listingCount} listings found. Contact support to apply this restore.`,
-        { duration: 8000 },
-      );
-    } catch {
-      toast.error(
-        "Could not read the file. Make sure it is a valid .json backup file.",
-      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.");
     }
+  }
+
+  // ── Export handler ─────────────────────────────────────────────────────────
+
+  function handleExport(backup: VersionBackupSummary) {
+    exportMutation.mutate(backup, {
+      onError: (err) => {
+        toast.error(err.message ?? "Download failed.");
+      },
+    });
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -324,9 +350,11 @@ export function EmergencyRestorePage() {
                   key={backup.id}
                   backup={backup}
                   onRestore={setConfirmTarget}
+                  onExport={handleExport}
                   restoring={
                     restoreMutation.isPending && confirmTarget?.id === backup.id
                   }
+                  exporting={exportMutation.isPending}
                 />
               ))}
             </div>
@@ -397,12 +425,18 @@ export function EmergencyRestorePage() {
           <button
             type="button"
             onClick={handleUploadAndRestore}
-            disabled={!selectedFile}
+            disabled={!selectedFile || fileRestoreMutation.isPending}
             className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold text-lg px-6 py-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-3 glow-yellow"
             data-ocid="emergency-upload-restore-btn"
           >
-            <Upload className="w-5 h-5" />
-            Upload and Restore
+            {fileRestoreMutation.isPending ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Upload className="w-5 h-5" />
+            )}
+            {fileRestoreMutation.isPending
+              ? "Restoring…"
+              : "Upload and Restore"}
           </button>
         </section>
 

@@ -233,3 +233,78 @@ export function useExportBackupAsJson() {
     },
   });
 }
+
+/** Downloads a full version backup snapshot (backupData JSON blob) as a .json file */
+export function useExportVersionBackup() {
+  const { actor } = useActor(createActor);
+
+  return useMutation<void, Error, VersionBackupSummary>({
+    mutationFn: async (backup: VersionBackupSummary) => {
+      if (!actor) throw new Error("Actor not ready");
+      const a = actor as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<unknown>
+      >;
+      if (typeof a.exportVersionBackupAsJson !== "function") {
+        throw new Error("Export not supported on this deployment.");
+      }
+      // Motoko ?Text is returned as [] | [string]
+      const result = (await a.exportVersionBackupAsJson(backup.id)) as
+        | []
+        | [string];
+      const json =
+        Array.isArray(result) && result.length > 0 ? result[0] : null;
+      if (!json) throw new Error("Backup data not available.");
+
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a2 = document.createElement("a");
+      a2.href = url;
+      const date = new Date(Number(backup.createdAt) / 1_000_000)
+        .toISOString()
+        .split("T")[0];
+      a2.download = `copie-paste-backup-${backup.id.slice(0, 8)}-${date}.json`;
+      document.body.appendChild(a2);
+      a2.click();
+      document.body.removeChild(a2);
+      URL.revokeObjectURL(url);
+    },
+  });
+}
+
+/** Restores canister state from an uploaded JSON backup file */
+export function useRestoreFromJsonFile() {
+  const { actor } = useActor(createActor);
+  const queryClient = useQueryClient();
+
+  return useMutation<RestoreResult, Error, File>({
+    mutationFn: async (file: File) => {
+      if (!actor) throw new Error("Actor not ready");
+      const text = await file.text();
+      // Validate it is parseable JSON before sending
+      try {
+        JSON.parse(text);
+      } catch {
+        throw new Error(
+          "Invalid JSON file. Please upload a valid backup file.",
+        );
+      }
+      const a = actor as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<unknown>
+      >;
+      if (typeof a.restoreFromJsonBlob !== "function") {
+        throw new Error(
+          "File restore not supported on this deployment. " +
+            "Please restore from a database backup instead.",
+        );
+      }
+      return a.restoreFromJsonBlob(text) as Promise<RestoreResult>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["versionBackups"] });
+      queryClient.invalidateQueries({ queryKey: ["versionHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["adminSettings"] });
+    },
+  });
+}

@@ -204,7 +204,7 @@ function GeminiOCRSection() {
       .then((cfg: { model: string; configured: boolean }) => {
         if (cfg.configured) {
           setStatus("connected");
-          setStatusMsg("Connected — OCR Active (gemini-2.5-flash-lite)");
+          setStatusMsg("Connected — OCR Active");
         } else {
           setStatus("unconfigured");
           setStatusMsg(null);
@@ -246,7 +246,7 @@ function GeminiOCRSection() {
 
       if (succeeded) {
         setStatus("connected");
-        setStatusMsg("Connected — OCR Active (gemini-2.5-flash-lite)");
+        setStatusMsg("Connected — OCR Active");
         toast.success("Gemini connected. Smart Photo OCR is active.");
       } else {
         // Always show the real message — never empty {}
@@ -305,18 +305,11 @@ function GeminiOCRSection() {
       );
       if (result.__kind__ === "ok") {
         setStatus("connected");
-        setStatusMsg("Connected — OCR Active (gemini-2.5-flash-lite)");
+        setStatusMsg("Connected — OCR Active");
         toast.success("Gemini API key saved.", {
           description:
             "Key stored permanently. Use Test OCR Connection to verify it works.",
         });
-        // Best-effort sync to extension storage (non-blocking)
-        try {
-          window.postMessage(
-            { type: "COPIE_PASTE_SET_GEMINI_KEY", apiKey: apiKey.trim() },
-            "*",
-          );
-        } catch (_) {}
         setApiKey("");
       } else {
         const errMsg = result.err as string;
@@ -337,7 +330,7 @@ function GeminiOCRSection() {
       return (
         <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-green-400">
           <CheckCircle2 className="w-3 h-3" />
-          {statusMsg ?? "Connected — OCR Active (gemini-2.5-flash-lite)"}
+          {statusMsg ?? "Connected — OCR Active"}
         </span>
       );
     }
@@ -379,9 +372,8 @@ function GeminiOCRSection() {
   return (
     <SettingSection icon={BrainCircuit} title="Smart Photo OCR">
       <p className="font-mono text-[10px] text-muted-foreground -mt-2 leading-relaxed">
-        Gemini 2.5 Flash-Lite powers the Smart Photo import. Paste a listing
-        screenshot and the AI extracts all fields automatically. Get your API
-        key from{" "}
+        Gemini Flash powers the Smart Photo import. Paste a listing screenshot
+        and the AI extracts all fields automatically. Get your API key from{" "}
         <a
           href="https://aistudio.google.com/app/apikey"
           target="_blank"
@@ -450,7 +442,7 @@ function GeminiOCRSection() {
           Model
         </Label>
         <div className="rounded-md border border-border/40 bg-secondary/20 px-3 py-2 font-mono text-xs text-muted-foreground">
-          gemini-2.5-flash-lite
+          gemini-1.5-flash
         </div>
       </div>
 

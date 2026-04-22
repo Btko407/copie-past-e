@@ -766,6 +766,7 @@ export interface backendInterface {
         imageUrls: Array<string>;
         jsonData: string;
     } | null>;
+    exportVersionBackupAsJson(backupId: string): Promise<string | null>;
     failGasPurchase(purchaseRecordId: bigint): Promise<void>;
     failStripePayment(paymentRecordId: bigint): Promise<void>;
     generateBackupData(): Promise<Array<ListingSnapshot>>;
@@ -1006,6 +1007,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    restoreFromJsonBlob(jsonBlob: string): Promise<RestoreResult>;
     restoreFromVersionBackup(backupId: string): Promise<RestoreResult>;
     restoreFromZipBackup(entries: Array<BackupListingEntry>): Promise<ZipRestoreResult>;
     restoreListing(listingId: ListingId): Promise<{

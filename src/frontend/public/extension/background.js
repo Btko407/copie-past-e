@@ -1,7 +1,7 @@
 // Copie Past-e Smart Post — Background Service Worker (Manifest V3)
 // Version: 1.2.0
 // Receives SMART_POST messages, saves listing data, opens marketplace tab.
-// Supports Gemini OCR scan via OCR_SCAN and SET_GEMINI_API_KEY handlers.
+// Supports Gemini OCR scan via GEMINI_OCR_SCAN handler.
 
 "use strict";
 
@@ -9,6 +9,7 @@
 
 const PLATFORM_URLS = {
   facebook: "https://www.facebook.com/marketplace/create/item",
+  mercari:  "https://www.mercari.com/sell/",
 };
 
 // ── onInstalled ─────────────────────────────────────────────────────────────
@@ -21,65 +22,65 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// ── Gemini API key storage (legacy + new handlers) ─────────────────────────
-// Kept for backward compat: SAVE_GEMINI_KEY / GET_GEMINI_KEY (old popup)
-// New handlers: SET_GEMINI_API_KEY / (key stored under "gemini_api_key")
+// ── Gemini API key storage ─────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // ── New: SET_GEMINI_API_KEY (from content-bridge page message) ────────────
-  if (msg.type === 'SET_GEMINI_API_KEY') {
-    const key = msg.apiKey;
-    if (!key || typeof key !== 'string') {
-      sendResponse({ success: false, error: 'Invalid API key provided.' });
-      return true;
-    }
-    chrome.storage.local.set({ gemini_api_key: key }, () => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        sendResponse({ success: true });
-      }
-    });
-    return true;
-  }
-
-  // ── Legacy: SAVE_GEMINI_KEY (old popup.js) ────────────────────────────────
   if (msg.type === 'SAVE_GEMINI_KEY') {
     chrome.storage.local.set({ geminiApiKey: msg.key }, () => {
       sendResponse({ success: true });
     });
     return true;
   }
-
-  // ── Legacy: GET_GEMINI_KEY (old popup.js) ─────────────────────────────────
   if (msg.type === 'GET_GEMINI_KEY') {
     chrome.storage.local.get('geminiApiKey', (result) => {
       sendResponse({ key: result.geminiApiKey || null });
     });
     return true;
   }
+  // Also support SET_GEMINI_API_KEY variant (from admin settings page sync)
+  if (msg.type === 'SET_GEMINI_API_KEY') {
+    chrome.storage.local.set({ geminiApiKey: msg.key }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
 });
 
-// ── Gemini OCR scan handler (new: OCR_SCAN) ─────────────────────────────────
+// ── Gemini OCR scan handler (GEMINI_OCR_SCAN) ───────────────────────────────
 
-const GEMINI_OCR_PROMPT = `You are a marketplace listing data extractor. Extract the following fields from this listing image and return ONLY a valid JSON object with no markdown or explanation: { "title": "item name", "price": "numeric only, no currency symbols", "description": "full item description", "category": "exactly one of: Appliances, Automotive, Baby & Kids, Books & Magazines, Clothing & Shoes, Collectibles, Electronics & Media, Furniture, Home & Garden, Jewelry & Accessories, Tools & Machinery, Office Supplies, Services", "condition": "exactly one of: New, Used -- Good, Used -- Fair, Used -- Normal Wear, or empty string", "brand": "brand name or empty string" }. Use empty string for any field not visible. Never invent data.`;
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== 'GEMINI_OCR_SCAN') return false;
 
-async function runGeminiOcr(imageBase64, sendResponse) {
-  if (!imageBase64) {
-    sendResponse({ success: false, error: 'No image data provided.' });
-    return;
-  }
-
-  // Load key from new storage location first, fall back to legacy location
-  chrome.storage.local.get(['gemini_api_key', 'geminiApiKey'], async (result) => {
-    const apiKey = result.gemini_api_key || result.geminiApiKey || null;
+  chrome.storage.local.get('geminiApiKey', async (result) => {
+    const apiKey = result.geminiApiKey;
     if (!apiKey) {
-      sendResponse({
-        success: false,
-        error: 'Gemini API key not configured. Open the extension popup and paste your key.',
-      });
+      sendResponse({ error: 'Gemini API key not configured in extension.' });
       return;
     }
+
+    if (!msg.imageBase64) {
+      sendResponse({ error: 'No image data provided.' });
+      return;
+    }
+
+    const prompt = `You are a marketplace listing data extractor.
+      Analyze this listing image and extract the following fields.
+      Return ONLY a valid JSON object with no markdown, no explanation:
+      {
+        "title": "the item name or listing title",
+        "price": "numeric price only, no currency symbols",
+        "description": "the full item description",
+        "category": "exactly one of: Appliances, Automotive, Baby & Kids,
+          Books & Magazines, Clothing & Shoes, Collectibles,
+          Electronics & Media, Furniture, Home & Garden,
+          Jewelry & Accessories, Tools & Machinery,
+          Office Supplies, Services",
+        "condition": "exactly one of: New, Used -- Good, Used -- Fair,
+          Used -- Normal Wear, or empty string if not visible",
+        "brand": "brand name if visible, or empty string"
+      }
+      Use empty string for any field not visible in the image.
+      Never invent data not present in the image.`;
 
     try {
       const response = await fetch(
@@ -90,59 +91,82 @@ async function runGeminiOcr(imageBase64, sendResponse) {
           body: JSON.stringify({
             contents: [{
               parts: [
-                { text: GEMINI_OCR_PROMPT },
-                { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-              ],
+                { text: prompt },
+                { inlineData: { mimeType: 'image/jpeg', data: msg.imageBase64 } }
+              ]
             }],
-            generationConfig: { responseMimeType: 'application/json' },
-          }),
+            generationConfig: { responseMimeType: 'application/json' }
+          })
         }
       );
 
       if (response.status === 429) {
-        sendResponse({ success: false, error: 'Rate limit reached. Try again in 60 seconds.' });
+        sendResponse({ error: 'Rate limit reached. Try again in 60 seconds.' });
         return;
       }
       if (response.status === 403) {
-        sendResponse({ success: false, error: 'API key invalid or quota exceeded.' });
+        sendResponse({ error: 'API key invalid or quota exceeded.' });
         return;
       }
       if (!response.ok) {
-        sendResponse({ success: false, error: 'Gemini error: HTTP ' + response.status });
+        sendResponse({ error: 'Gemini error: HTTP ' + response.status });
         return;
       }
 
       const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const cleaned = text.replace(/```json|```/g, '').trim();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-      let parsed;
+      // ── Robust JSON parsing with retry ─────────────────────────────────────
+      function stripFences(text) {
+        return text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      }
+
+      let parsed = null;
+      let parseError = null;
+
+      // Attempt 1: strip fences and parse
       try {
-        parsed = JSON.parse(cleaned);
-      } catch (_) {
-        sendResponse({ success: false, error: 'OCR response could not be parsed as JSON.' });
+        parsed = JSON.parse(stripFences(rawText));
+      } catch (e1) {
+        parseError = e1;
+        // Attempt 2: additional whitespace trim and retry
+        try {
+          parsed = JSON.parse(stripFences(rawText).replace(/\n/g, ' ').replace(/\r/g, ''));
+        } catch (e2) {
+          parseError = e2;
+        }
+      }
+
+      if (!parsed) {
+        console.warn('[Copie Past-e OCR] JSON parse failed:', parseError?.message, '| Raw:', rawText.slice(0, 200));
+        sendResponse({ error: 'OCR failed: Could not parse response as JSON' });
         return;
       }
 
-      sendResponse({ success: true, data: parsed });
+      // ── Normalize output — always emit all 6 fields ──────────────────────
+      const normalized = {
+        title:       String(parsed.title       || '').trim(),
+        price:       String(parsed.price       || '').trim(),
+        description: String(parsed.description || '').trim(),
+        category:    String(parsed.category    || '').trim(),
+        condition:   String(parsed.condition   || '').trim(),
+        brand:       String(parsed.brand       || '').trim(),
+      };
+
+      // Validate at least one useful field was extracted
+      const hasData = Object.values(normalized).some((v) => v.length > 0);
+      if (!hasData) {
+        sendResponse({ error: 'OCR returned no usable field data.' });
+        return;
+      }
+
+      sendResponse({ success: true, data: normalized });
+
     } catch (err) {
-      sendResponse({ success: false, error: 'OCR failed: ' + (err.message || String(err)) });
+      sendResponse({ error: 'OCR failed: ' + err.message });
     }
   });
-}
 
-// New OCR_SCAN handler (from content-bridge COPIE_PASTE_OCR_SCAN)
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== 'OCR_SCAN') return false;
-  runGeminiOcr(msg.imageBase64, sendResponse);
-  return true; // keep channel open for async response
-});
-
-// ── Legacy: GEMINI_OCR_SCAN handler (old content-bridge / popup) ─────────────
-
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== 'GEMINI_OCR_SCAN') return false;
-  runGeminiOcr(msg.imageBase64, sendResponse);
   return true;
 });
 
@@ -166,31 +190,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
 
-  // Defensive logging for missing images
-  if (!listing.images && !listing.photos) {
-    console.warn('[CP-Extension]', 'SMART_POST received with no images:', listing.title);
-  } else {
-    const imgArr = listing.images || listing.photos;
-    if (!imgArr || imgArr.length === 0) {
-      console.warn('[CP-Extension]', 'SMART_POST received with no images:', listing.title);
-    }
-  }
-
   // Normalize: always use "images" key for Facebook content script
   const normalizedListing = { ...listing };
   if (!normalizedListing.images && normalizedListing.photos) {
     normalizedListing.images = normalizedListing.photos;
   }
 
+  if (!normalizedListing.images || normalizedListing.images.length === 0) {
+    console.warn("[Copie Past-e] SMART_POST: no images in payload — continuing without images.");
+  }
+
   // Ensure all expected fields are present
   const payload = {
-    title: normalizedListing.title || '',
+    title:       normalizedListing.title       || '',
     description: normalizedListing.description || '',
-    price: normalizedListing.price || '',
-    category: normalizedListing.category || '',
-    condition: normalizedListing.condition || '',
-    brand: normalizedListing.brand || '',
-    images: normalizedListing.images || [],
+    price:       normalizedListing.price       || '',
+    category:    normalizedListing.category    || '',
+    condition:   normalizedListing.condition   || '',
+    brand:       normalizedListing.brand       || '',
+    images:      normalizedListing.images      || [],
   };
 
   // Save listing to storage for content script to pick up

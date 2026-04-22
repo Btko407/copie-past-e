@@ -9,10 +9,11 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isInitializing } = useAuth();
+  const { isAuthenticated, isInitializing, authReady } = useAuth();
   const { profile, isLoading: isProfileLoading } = useProfile();
 
-  if (isInitializing) {
+  // Block rendering until the identity provider has fully resolved.
+  if (isInitializing || !authReady) {
     return <PageLoader />;
   }
 

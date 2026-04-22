@@ -19,17 +19,18 @@ export interface NotificationsState {
 
 export function useNotifications(): NotificationsState {
   const { actor, isFetching } = useActor(createActor);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, principalId, authReady } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: notifications = [], isLoading } = useQuery<InAppNotification[]>(
     {
-      queryKey: ["userNotifications"],
+      queryKey: ["userNotifications", principalId],
       queryFn: async (): Promise<InAppNotification[]> => {
         if (!actor) return [];
         return actor.getUserNotifications();
       },
-      enabled: !!actor && !isFetching && isAuthenticated,
+      enabled:
+        !!actor && !isFetching && isAuthenticated && authReady && !!principalId,
       staleTime: 60_000,
       refetchInterval: 60_000,
     },
@@ -45,13 +46,15 @@ export function useNotifications(): NotificationsState {
     },
     onMutate: (id) => {
       queryClient.setQueryData<InAppNotification[]>(
-        ["userNotifications"],
+        ["userNotifications", principalId],
         (prev = []) =>
           prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["userNotifications", principalId],
+      });
     },
   });
 
@@ -63,12 +66,14 @@ export function useNotifications(): NotificationsState {
     },
     onMutate: () => {
       queryClient.setQueryData<InAppNotification[]>(
-        ["userNotifications"],
+        ["userNotifications", principalId],
         (prev = []) => prev.map((n) => ({ ...n, isRead: true })),
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["userNotifications", principalId],
+      });
     },
   });
 
@@ -95,7 +100,7 @@ export interface CheckLowFuelArgs {
  */
 export function useCheckLowFuelNotification() {
   const { actor, isFetching } = useActor(createActor);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, CheckLowFuelArgs>({
@@ -114,7 +119,9 @@ export function useCheckLowFuelNotification() {
     },
     onSuccess: () => {
       // Refresh notifications so the new one appears
-      queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["userNotifications", principalId],
+      });
     },
   });
 }

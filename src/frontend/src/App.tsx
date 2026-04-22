@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   RouterProvider,
@@ -6,7 +7,7 @@ import {
   createRouter,
   useNavigate,
 } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 import { AdminRoute } from "./components/AdminRoute";
 import { FloatingHelpButton } from "./components/FloatingHelpButton";
 import { PageLoader } from "./components/LoadingSpinner";
@@ -14,6 +15,7 @@ import { MaintenanceBanner } from "./components/MaintenanceBanner";
 import { PostDeployVerificationBanner } from "./components/PostDeployVerificationBanner";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminSettingsProvider } from "./hooks/useAdminSettings";
+import { useAuth } from "./hooks/useAuth";
 import { useMaintenanceMode } from "./hooks/useMaintenanceMode";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -151,6 +153,31 @@ function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// ─── Principal-change cache invalidation ─────────────────────────────────────
+
+/**
+ * Watches principalId. When the active identity changes (login, logout, or
+ * account switch), ALL React Query caches are invalidated so no stale data
+ * from the previous user can leak to the new session.
+ */
+function PrincipalCacheGuard() {
+  const { principalId, authReady } = useAuth();
+  const queryClient = useQueryClient();
+  // Track the previous principalId so we only invalidate on actual changes.
+  const prevPrincipalRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (prevPrincipalRef.current !== principalId) {
+      // Principal changed — wipe all cached query data.
+      queryClient.invalidateQueries();
+      prevPrincipalRef.current = principalId;
+    }
+  }, [principalId, authReady, queryClient]);
+
+  return null;
+}
+
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
 const rootRoute = createRootRoute({
@@ -175,6 +202,7 @@ const rootRoute = createRootRoute({
 
     return (
       <AdminSettingsProvider>
+        <PrincipalCacheGuard />
         <PostDeployVerificationBanner />
         <MaintenanceBanner />
         <Outlet />

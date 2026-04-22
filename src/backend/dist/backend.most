@@ -69,6 +69,7 @@ type ConfigEntry__967475232 =
     updatedBy : Text;
     value : Text
   };
+type Data__159895909<T> = {var count : Nat__490723111; elements : [var ?T]};
 type Data__791452850<K, V> =
   {var count : Nat__490723111; kvs : [var ?(K, V)]};
 type DiscountCode__1005510210 =
@@ -142,8 +143,11 @@ type InAppNotification__120803294 =
     title : Text;
     userId : UserId__158757552
   };
+type Internal__667636161<T> =
+  {children : [var ?Node__92254746<T>]; data : Data__159895909<T>};
 type Internal__8484328<K, V> =
   {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__520550824<T> = {data : Data__159895909<T>};
 type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
 type List__415060402<T> = List__790383201<T>;
 type List__790383201<T> =
@@ -182,6 +186,8 @@ type Nat__490723111 = Nat__920180692;
 type Nat__920180692 = Nat;
 type Node__46230540<K, V> =
   {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type Node__92254746<T> =
+  {#internal : Internal__667636161<T>; #leaf : Leaf__520550824<T>};
 type NotificationType__908192046 =
   {
     #adminAnnouncement;
@@ -679,6 +685,8 @@ actor {
         Node__46230540<UserId__158757552, VerificationRecord__485329711>;
       var size : Nat__490723111
     };
+  stable verifiedStripeSessionIds :
+    {var root : Node__92254746<Text>; var size : Nat__490723111};
   stable versionBackups :
     {
       var blockIndex : Nat__490723111;

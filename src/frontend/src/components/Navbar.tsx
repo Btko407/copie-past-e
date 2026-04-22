@@ -12,6 +12,7 @@ import {
   Fuel,
   LayoutGrid,
   LogOut,
+  Puzzle,
   Settings,
   Shield,
   User,
@@ -22,7 +23,7 @@ import { createActor } from "../backend";
 import { NotificationCenter } from "./NotificationCenter";
 
 export function Navbar() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, principalId } = useAuth();
   const { actor, isFetching } = useActor(createActor);
   const { username, isLoading: profileLoading } = useProfile();
   const { notifications, unreadCount, markRead, markAllRead } =
@@ -44,13 +45,13 @@ export function Navbar() {
   }, [bellOpen]);
 
   const { data: isAdmin } = useQuery<boolean>({
-    queryKey: ["isCallerAdmin"],
+    queryKey: ["isCallerAdmin", principalId ?? ""],
     queryFn: async () => {
       if (!actor) return false;
       return actor.isCallerAdmin();
     },
-    enabled: !!actor && !isFetching && isAuthenticated,
-    staleTime: 300_000,
+    enabled: !!actor && !isFetching && isAuthenticated && !!principalId,
+    staleTime: 0,
   });
 
   const { data: gasWallet, isLoading: gasLoading } = useGetMyGasWallet();
@@ -171,6 +172,20 @@ export function Navbar() {
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
                 <span>Listings</span>
+              </Button>
+            </Link>
+
+            {/* Extension button */}
+            <Link to="/extension" data-ocid="navbar-extension-link">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-foreground hover:text-primary hover:bg-primary/10 transition-smooth"
+                aria-label="Browser Extension"
+                data-ocid="navbar-extension-btn"
+              >
+                <Puzzle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Extension</span>
               </Button>
             </Link>
 

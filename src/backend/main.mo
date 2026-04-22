@@ -1,5 +1,6 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import AccessControl "mo:caffeineai-authorization/access-control";
@@ -489,6 +490,9 @@ actor {
   let processedStripeEvents = Map.empty<Text, Int>();
   // failedWebhookEvents: kept for upgrade compatibility (webhooks removed, no longer written)
   let failedWebhookEvents = Map.empty<Text, PaymentTypes.FailedWebhookEvent>();
+  // verifiedStripeSessionIds: append-only set of session IDs that have already been granted.
+  // Prevents double-granting subscription days if verifyAndGrantPayment is called twice.
+  let verifiedStripeSessionIds = Set.empty<Text>();
 
   include StripeCheckoutApi(
     accessControlState,
@@ -501,6 +505,7 @@ actor {
     notifications,
     notifCounter,
     paymentBanners,
+    verifiedStripeSessionIds,
   );
 
   // ── Gemini OCR ────────────────────────────────────────────────────────────

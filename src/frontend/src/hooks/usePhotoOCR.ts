@@ -4,7 +4,7 @@
  * Flow:
  *  1. Accept an image File
  *  2. Resize to max 1024px via Canvas API, convert to JPEG, base64 encode
- *  3. If the Copie Past-e extension with OCR capability is present:
+ *  3. If the Copie Past-e extension is present:
  *       - Post COPIE_PASTE_OCR_REQUEST to window (extension intercepts → Gemini)
  *       - Listen for COPIE_PASTE_OCR_RESPONSE with the matching requestId
  *     Otherwise fall back to calling backend.ocrScanImage(base64String)
@@ -295,12 +295,9 @@ function normaliseOcrFields(data: RawOcrFields): PhotoOCRResult | null {
 
 // ── Extension OCR via postMessage ─────────────────────────────────────────────
 
-/** Module-level flag — set when the extension announces hasOcr: true */
-let extHasOcrGlobal = false;
-
 /**
- * Send an image to the extension for Gemini OCR using the new message protocol.
- * Posts COPIE_PASTE_OCR_SCAN, listens for COPIE_PASTE_OCR_RESULT with matching requestId.
+ * Send an image to the extension for Gemini OCR.
+ * Posts COPIE_PASTE_OCR_REQUEST, listens for COPIE_PASTE_OCR_RESPONSE with matching requestId.
  * Rejects after timeoutMs (default 6s).
  */
 function requestExtensionOCR(
@@ -326,7 +323,7 @@ function requestExtensionOCR(
         data?: RawOcrFields;
         error?: string;
       };
-      if (d?.type !== "COPIE_PASTE_OCR_RESULT") return;
+      if (d?.type !== "COPIE_PASTE_OCR_RESPONSE") return;
       if (d?.requestId !== requestId) return;
       clearTimeout(timeout);
       window.removeEventListener("message", handler);
@@ -339,7 +336,7 @@ function requestExtensionOCR(
 
     window.addEventListener("message", handler);
     window.postMessage(
-      { type: "COPIE_PASTE_OCR_SCAN", requestId, imageBase64 },
+      { type: "COPIE_PASTE_OCR_REQUEST", requestId, imageBase64 },
       "*",
     );
   });
@@ -351,18 +348,15 @@ export function usePhotoOCR(): UsePhotoOCRReturn {
   const { actor, isFetching } = useActor(createActor);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Track whether extension OCR was detected after mount
-  const extOcrRef = useRef(extHasOcrGlobal);
+  const extPresentRef = useRef(false);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (
         (event.data as { type?: string; hasOcr?: boolean })?.type ===
-          "COPIE_PASTE_EXT_PRESENT" &&
-        (event.data as { hasOcr?: boolean })?.hasOcr
+        "COPIE_PASTE_EXT_PRESENT"
       ) {
-        extHasOcrGlobal = true;
-        extOcrRef.current = true;
+        extPresentRef.current = true;
       }
     }
     window.addEventListener("message", handleMessage);
@@ -385,9 +379,9 @@ export function usePhotoOCR(): UsePhotoOCRReturn {
       // Step 1: Resize and encode to base64 (strip data-URL prefix)
       const base64 = await resizeImageToBase64(file, 1024);
 
-      // Step 2: Use extension OCR if available (faster, no cycles cost)
-      if (extOcrRef.current || extHasOcrGlobal) {
-        console.log("[OCR] Trying extension Gemini OCR path (new protocol)");
+      // Step 2: Try extension OCR path if extension is present
+      if (extPresentRef.current) {
+        console.log("[OCR] Trying extension Gemini OCR path");
         try {
           const extData = await requestExtensionOCR(base64, 6000);
           const result = normaliseOcrFields(extData);

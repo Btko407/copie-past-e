@@ -57,7 +57,7 @@ const INSTALL_STEPS = [
   },
   {
     label: "Return to any listing and click Auto-Fill",
-    note: "Your listings will be auto-filled directly into Facebook Marketplace",
+    note: "Your listings will be auto-filled directly into Facebook Marketplace or Mercari with one click.",
   },
   {
     label: "Set up Smart Photo OCR",
@@ -78,6 +78,11 @@ const EXTENSION_FILES = [
   {
     name: "content-facebook.js",
     path: "/extension/content-facebook.js",
+    binary: false,
+  },
+  {
+    name: "content-mercari.js",
+    path: "/extension/content-mercari.js",
     binary: false,
   },
   { name: "popup.html", path: "/extension/popup.html", binary: false },
@@ -215,53 +220,98 @@ function buildZip(
   return result;
 }
 
+// ─── Shared download handler ──────────────────────────────────────────────────
+
+async function downloadExtension(
+  setDownloading: (v: boolean) => void,
+): Promise<void> {
+  setDownloading(true);
+  try {
+    const enc = new TextEncoder();
+    const fileData: Array<{ name: string; data: Uint8Array }> = [];
+
+    for (const file of EXTENSION_FILES) {
+      const resp = await fetch(file.path);
+      if (!resp.ok) {
+        console.warn(
+          `[Extension Download] Failed to fetch ${file.path}: ${resp.status}`,
+        );
+        continue;
+      }
+      if (file.binary) {
+        const ab = await resp.arrayBuffer();
+        fileData.push({ name: file.name, data: new Uint8Array(ab) });
+      } else {
+        const text = await resp.text();
+        fileData.push({ name: file.name, data: enc.encode(text) });
+      }
+    }
+
+    const zipBytes = buildZip(fileData);
+    const blob = new Blob([zipBytes.buffer as ArrayBuffer], {
+      type: "application/zip",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "copie-paste-extension-v1.2.zip";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast.success("Extension downloaded! Follow the install steps below.");
+  } catch (err) {
+    toast.error("Download failed. Please try again.");
+    console.error("[Extension Download]", err);
+  } finally {
+    setDownloading(false);
+  }
+}
+
+// ─── Prominent Download Hero Card ─────────────────────────────────────────────
+
+function DownloadHeroCard() {
+  const [downloading, setDownloading] = useState(false);
+
+  return (
+    <div
+      className="rounded-xl border border-primary/60 bg-card p-6 neon-border-blue space-y-4 text-center"
+      data-ocid="extension-download-hero"
+    >
+      <div className="space-y-1">
+        <h2 className="font-display text-xl sm:text-2xl text-primary text-glow-blue tracking-wider">
+          COPIE PAST-E EXTENSION v1.2.0
+        </h2>
+        <p className="font-mono text-xs text-muted-foreground">
+          Facebook Marketplace + Mercari autofill · Smart Photo OCR
+        </p>
+      </div>
+
+      <Button
+        onClick={() => downloadExtension(setDownloading)}
+        disabled={downloading}
+        size="lg"
+        className="w-full sm:w-auto font-display tracking-wider text-sm h-12 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 glow-blue-sm px-8"
+        data-ocid="extension-download-hero-btn"
+      >
+        <Download className="w-5 h-5" />
+        {downloading ? "Generating zip..." : "⬇ Download Extension v1.2.0"}
+      </Button>
+
+      <p className="font-mono text-[11px] text-muted-foreground">
+        Chrome only · Requires a free Gemini API key for Smart Photo OCR
+      </p>
+    </div>
+  );
+}
+
 // ─── Install Guide Section ────────────────────────────────────────────────────
 
 function InstallGuideSection() {
   const [downloading, setDownloading] = useState(false);
 
-  async function handleDownload() {
-    setDownloading(true);
-    try {
-      const enc = new TextEncoder();
-      const fileData: Array<{ name: string; data: Uint8Array }> = [];
-
-      for (const file of EXTENSION_FILES) {
-        const resp = await fetch(file.path);
-        if (!resp.ok) {
-          console.warn(
-            `[Extension Download] Failed to fetch ${file.path}: ${resp.status}`,
-          );
-          continue;
-        }
-        if (file.binary) {
-          const ab = await resp.arrayBuffer();
-          fileData.push({ name: file.name, data: new Uint8Array(ab) });
-        } else {
-          const text = await resp.text();
-          fileData.push({ name: file.name, data: enc.encode(text) });
-        }
-      }
-
-      const zipBytes = buildZip(fileData);
-      const blob = new Blob([zipBytes.buffer as ArrayBuffer], {
-        type: "application/zip",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "copie-paste-extension-v1.1.zip";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast.success("Extension downloaded! Follow the install steps below.");
-    } catch (err) {
-      toast.error("Download failed. Please try again.");
-      console.error("[Extension Download]", err);
-    } finally {
-      setDownloading(false);
-    }
+  function handleDownload() {
+    void downloadExtension(setDownloading);
   }
 
   return (
@@ -280,7 +330,7 @@ function InstallGuideSection() {
               INSTALL COPIE PAST-E EXTENSION
             </h1>
             <p className="font-mono text-[11px] text-muted-foreground mt-0.5">
-              Chrome Extension · Manifest V3 · v1.1.0
+              Chrome Extension · Manifest V3 · v1.2.0
             </p>
           </div>
         </div>
@@ -303,12 +353,12 @@ function InstallGuideSection() {
           data-ocid="extension-download-btn"
         >
           <Download className="w-4 h-4" />
-          {downloading ? "Generating zip..." : "⬇ Download Extension v1.1"}
+          {downloading ? "Generating zip..." : "⬇ Download Extension v1.2"}
         </Button>
         <p className="text-[11px] text-muted-foreground font-mono mt-2">
           Downloads as{" "}
           <code className="bg-muted px-1 rounded">
-            copie-paste-extension-v1.1.zip
+            copie-paste-extension-v1.2.zip
           </code>{" "}
           — extract and load in Chrome
         </p>
@@ -813,12 +863,14 @@ export function ExtensionPage() {
             </h1>
             <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
               Auto-fill listings directly into{" "}
-              <span className="text-primary">Facebook Marketplace</span> with
-              one click.
+              <span className="text-primary">Facebook Marketplace</span> or{" "}
+              <span className="text-primary">Mercari</span> with one click.
             </p>
           </div>
 
           {/* Install guide — PRIMARY, first and most prominent */}
+          <DownloadHeroCard />
+
           <InstallGuideSection />
 
           {/* How it works */}

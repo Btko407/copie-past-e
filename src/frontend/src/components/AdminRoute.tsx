@@ -10,19 +10,22 @@ interface AdminRouteProps {
 }
 
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { isAuthenticated, isInitializing } = useAuth();
+  const { isAuthenticated, isInitializing, authReady, principalId } = useAuth();
   const { actor, isFetching } = useActor(createActor);
 
+  // Query key is scoped to the principalId — ensures admin status is
+  // re-evaluated whenever the active principal changes.
   const { data: isAdmin, isLoading: isAdminLoading } = useQuery<boolean>({
-    queryKey: ["isCallerAdmin"],
+    queryKey: ["isCallerAdmin", principalId ?? ""],
     queryFn: async () => {
       if (!actor) return false;
       return actor.isCallerAdmin();
     },
-    enabled: !!actor && !isFetching && isAuthenticated,
+    enabled: !!actor && !isFetching && isAuthenticated && !!principalId,
+    staleTime: 0,
   });
 
-  if (isInitializing || isAdminLoading || isFetching) {
+  if (isInitializing || !authReady || isAdminLoading || isFetching) {
     return <PageLoader />;
   }
 

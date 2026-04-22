@@ -2,37 +2,41 @@ import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createActor } from "../backend";
 import type { Image, Listing } from "../backend";
+import { useAuth } from "./useAuth";
 
 export function useListings() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<Listing[]>({
-    queryKey: ["listings"],
+    queryKey: ["listings", principalId],
     queryFn: async () => {
       if (!actor) return [];
       return actor.listListings();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 30_000,
   });
 }
 
 export function useFavoritedListings() {
   const { actor, isFetching } = useActor(createActor);
+  const { principalId, authReady } = useAuth();
 
   return useQuery<Listing[]>({
-    queryKey: ["favorited-listings"],
+    queryKey: ["favorited-listings", principalId],
     queryFn: async () => {
       if (!actor) return [];
       return actor.listFavoritedListings();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && authReady && !!principalId,
     staleTime: 30_000,
   });
 }
 
 export function useArchiveListing() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -41,8 +45,10 @@ export function useArchiveListing() {
       return actor.archiveListing(listingId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      queryClient.invalidateQueries({ queryKey: ["favorited-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", principalId] });
+      queryClient.invalidateQueries({
+        queryKey: ["favorited-listings", principalId],
+      });
     },
   });
 }
@@ -53,6 +59,7 @@ export function useArchiveListing() {
  */
 export function useRestoreListing() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -68,8 +75,10 @@ export function useRestoreListing() {
       return actorWithRestore.restoreListing(listingId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      queryClient.invalidateQueries({ queryKey: ["favorited-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", principalId] });
+      queryClient.invalidateQueries({
+        queryKey: ["favorited-listings", principalId],
+      });
     },
   });
 }
@@ -79,6 +88,7 @@ export function useRestoreListing() {
  */
 export function usePermanentDeleteListing() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -87,8 +97,10 @@ export function usePermanentDeleteListing() {
       return actor.deleteListing(listingId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      queryClient.invalidateQueries({ queryKey: ["favorited-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", principalId] });
+      queryClient.invalidateQueries({
+        queryKey: ["favorited-listings", principalId],
+      });
     },
   });
 }
@@ -111,6 +123,7 @@ export function useListingImages(listingId: bigint, enabled = true) {
 
 export function useTogglePin() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -121,13 +134,14 @@ export function useTogglePin() {
       return result.ok; // true = now pinned, false = now unpinned
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", principalId] });
     },
   });
 }
 
 export function useToggleFavorite() {
   const { actor } = useActor(createActor);
+  const { principalId } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -138,8 +152,10 @@ export function useToggleFavorite() {
       return result.ok; // true = now favorited, false = now unfavorited
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      queryClient.invalidateQueries({ queryKey: ["favorited-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listings", principalId] });
+      queryClient.invalidateQueries({
+        queryKey: ["favorited-listings", principalId],
+      });
     },
   });
 }

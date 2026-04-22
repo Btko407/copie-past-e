@@ -704,6 +704,7 @@ export interface _SERVICE {
     [string],
     [] | [{ 'imageUrls' : Array<string>, 'jsonData' : string }]
   >,
+  'exportVersionBackupAsJson' : ActorMethod<[string], [] | [string]>,
   'failGasPurchase' : ActorMethod<[bigint], undefined>,
   'failStripePayment' : ActorMethod<[bigint], undefined>,
   'generateBackupData' : ActorMethod<[], Array<ListingSnapshot>>,
@@ -917,6 +918,7 @@ export interface _SERVICE {
     { 'ok' : bigint } |
       { 'err' : string }
   >,
+  'restoreFromJsonBlob' : ActorMethod<[string], RestoreResult>,
   'restoreFromVersionBackup' : ActorMethod<[string], RestoreResult>,
   'restoreFromZipBackup' : ActorMethod<
     [Array<BackupListingEntry>],

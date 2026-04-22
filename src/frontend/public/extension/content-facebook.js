@@ -1,13 +1,15 @@
 // Copie Past-e Smart Post — Facebook Marketplace Content Script v1.2.0
 // Runs on: https://www.facebook.com/marketplace/create/*
 // Reads pending listing from storage and auto-fills the React-controlled form.
-// Fill order: Photos → Title → Price → Category → Description → Condition → Brand
-// Waits 500ms between each field fill.
+// Fill order: Category → Title → Price → Condition → Description → Brand → Images
+// Uses pollForElementPromise for every field; per-field try/catch prevents one
+// failure from blocking remaining fields or the image upload.
 
 (() => {
   const LOG = "[Copie Past-e FB]";
   const POLL_INTERVAL = 500;
   const POLL_TIMEOUT = 15000;
+  const FIELD_TIMEOUT = 6000;
 
   // ── Sleep helper ─────────────────────────────────────────────────────────────
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -101,8 +103,6 @@
     }, POLL_INTERVAL);
   }
 
-  // ── Poll for element (promise-based) ─────────────────────────────────────────
-
   function pollForElementPromise(selectors, timeoutMs = POLL_TIMEOUT) {
     return new Promise((resolve) => {
       const start = Date.now();
@@ -180,46 +180,11 @@
     document.body.style.marginTop = `${banner.offsetHeight}px`;
   }
 
-  // ── Convert a single image source (URL / data URL / blob URL) to a File ──────
-
-  async function imageSourceToFile(src, index) {
-    const filename = `listing-photo-${index + 1}.jpg`;
-
-    // data URL: convert base64 to Uint8Array → Blob → File
-    if (src.startsWith("data:")) {
-      try {
-        const [header, b64] = src.split(",");
-        const mimeMatch = header.match(/:(.*?);/);
-        const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
-        const binary = atob(b64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: mime });
-        return new File([blob], filename, { type: "image/jpeg" });
-      } catch (err) {
-        console.error(LOG, `Failed to fetch/convert image ${index}: ${err.message}`);
-        return null;
-      }
-    }
-
-    // http / https / blob URL: fetch → blob → File
-    try {
-      const resp = await fetch(src);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      return new File([blob], filename, { type: "image/jpeg" });
-    } catch (err) {
-      console.error(LOG, `Failed to fetch/convert image ${index}: ${err.message}`);
-      return null;
-    }
-  }
-
   // ── Image upload ──────────────────────────────────────────────────────────────
 
   async function uploadImages(images) {
-    if (!images || images.length === 0) return [];
+    if (!images || images.length === 0) return;
 
-    // 1. Find file input (poll up to 10s)
     const fileInputSelectors = [
       'input[type="file"][accept*="image"]',
       'input[type="file"]',
@@ -234,77 +199,42 @@
     }
 
     if (!fileInput) {
-      console.error(LOG, "Could not locate file upload input on this Facebook page.");
-      console.error(LOG, "Facebook autofill blocked: missing file input");
-      return [];
-    }
-
-    // 2. Convert each image source to a File object (skip failures, don't crash)
-    const files = [];
-    for (let i = 0; i < Math.min(images.length, 5); i++) {
-      const file = await imageSourceToFile(images[i], i);
-      if (file) files.push(file);
-    }
-
-    if (files.length === 0) {
-      console.warn(LOG, "No images could be converted — skipping upload.");
-      return [];
-    }
-
-    // 3. Assign via DataTransfer and dispatch required events
-    const dt = new DataTransfer();
-    for (const file of files) dt.items.add(file);
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event("input", { bubbles: true }));
-    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-    // 4. Poll for upload indicators (up to 15s)
-    const uploadIndicatorSelectors = [
-      '[role="img"][src*="blob:"]',
-      'img[src^="blob:"]',
-      '[data-testid*="photo-preview"]',
-      '.photo-preview',
-    ];
-
-    const indicatorFound = await new Promise((resolve) => {
-      const start = Date.now();
-      const interval = setInterval(() => {
-        // Check standard selectors
-        if (findFirst(uploadIndicatorSelectors)) {
-          clearInterval(interval);
-          resolve(true);
-          return;
-        }
-        if (Date.now() - start > 15000) {
-          clearInterval(interval);
-          resolve(false);
-        }
-      }, 500);
-    });
-
-    if (!indicatorFound) {
-      console.warn(LOG, "Upload indicators not detected — photos may not have uploaded.");
-    }
-
-    return files;
-  }
-
-  // ── Fill with retry (handles React remounts) ─────────────────────────────────
-
-  async function fillWithRetry(selectors, fillFn, fieldName, failedFields) {
-    const el = await pollForElementPromise(selectors);
-    if (!el) {
-      failedFields.push(fieldName);
+      console.warn(LOG, "Could not locate file upload input.");
       return;
     }
-    fillFn(el);
 
-    // Check if value stuck after 800ms; retry once if React remounted the element
-    await sleep(800);
-    const checkEl = findFirst(selectors);
-    if (checkEl && !checkEl.value && !checkEl.textContent.trim()) {
-      console.log(LOG, `${fieldName} may have remounted — retrying fill.`);
-      fillFn(checkEl);
+    // Convert image URLs/base64 to File objects via DataTransfer
+    const dt = new DataTransfer();
+    for (let i = 0; i < Math.min(images.length, 5); i++) {
+      try {
+        const src = images[i];
+        let blob;
+        if (src.startsWith("data:")) {
+          const [header, b64] = src.split(",");
+          const mimeMatch = header.match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
+          blob = new Blob([bytes], { type: mime });
+        } else {
+          const resp = await fetch(src);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${src}`);
+          blob = await resp.blob();
+        }
+        dt.items.add(new File([blob], `listing-photo-${i + 1}.jpg`, { type: "image/jpeg" }));
+      } catch (err) {
+        // Log and continue — one failed image must not block the rest
+        console.warn(LOG, `Failed to convert image ${i}:`, err.message);
+      }
+    }
+
+    if (dt.files.length > 0) {
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+    } else {
+      console.warn(LOG, "No images could be converted for upload.");
     }
   }
 
@@ -313,20 +243,20 @@
   async function fillCategory(rawCategory) {
     if (!rawCategory) return false;
 
-    // Map to Facebook category name; null means skip
     const fbCategory = CATEGORY_MAP[rawCategory];
     if (fbCategory === null) {
       console.log(LOG, "Category 'Services' — skipping category fill.");
-      return true; // treated as success (intentional skip)
+      return true;
     }
     const target = fbCategory || rawCategory;
 
-    const catTrigger = findFirst([
+    const catTrigger = await pollForElementPromise([
       '[aria-label*="category" i]',
       '[placeholder*="category" i]',
       'select[name*="category" i]',
       'div[role="combobox"][aria-label*="category" i]',
-    ]);
+    ], FIELD_TIMEOUT);
+
     if (!catTrigger) {
       console.warn(LOG, "Category trigger not found");
       return false;
@@ -347,7 +277,6 @@
       return false;
     }
 
-    // Click to open dropdown
     catTrigger.click();
     await sleep(600);
 
@@ -374,12 +303,13 @@
 
     const fbCondition = CONDITION_MAP[rawCondition] || rawCondition;
 
-    const condTrigger = findFirst([
+    const condTrigger = await pollForElementPromise([
       '[aria-label*="condition" i]',
       'select[name*="condition" i]',
       'div[role="combobox"][aria-label*="condition" i]',
       '[placeholder*="condition" i]',
-    ]);
+    ], FIELD_TIMEOUT);
+
     if (!condTrigger) {
       console.warn(LOG, "Condition trigger not found");
       return false;
@@ -424,109 +354,124 @@
   async function fillForm(listing) {
     const failedFields = [];
 
-    // ── 1. Photos — upload FIRST ───────────────────────────────────────────────
-    if (listing.images && listing.images.length > 0) {
-      await uploadImages(listing.images).catch((err) =>
-        console.error(LOG, "Image upload error:", err)
-      );
-    } else {
-      console.log(LOG, "No images in listing payload — skipping photo upload.");
+    // ── 1. Category ────────────────────────────────────────────────────────────
+    try {
+      if (listing.category) {
+        const ok = await fillCategory(listing.category);
+        if (!ok && listing.category !== "Services") failedFields.push("Category");
+      }
+    } catch (err) {
+      console.warn(LOG, "Error filling Category:", err.message);
+      failedFields.push("Category");
     }
     await sleep(500);
 
     // ── 2. Title ───────────────────────────────────────────────────────────────
-    if (listing.title) {
-      await fillWithRetry(
-        [
-          'input[aria-label="Title"]',
-          'input[aria-label*="title" i]',
-          'input[placeholder*="title" i]',
-          'input[name="title"]',
-          'input[type="text"]:first-of-type',
-        ],
-        (el) => fillReactInput(el, listing.title),
-        "Title",
-        failedFields
-      );
+    try {
+      const titleEl = await pollForElementPromise([
+        'input[aria-label="Title"]',
+        'input[aria-label*="title" i]',
+        'input[placeholder*="title" i]',
+        'input[name="title"]',
+        'input[type="text"]:first-of-type',
+      ], FIELD_TIMEOUT);
+      if (titleEl && listing.title) {
+        fillReactInput(titleEl, listing.title);
+      } else if (listing.title) {
+        failedFields.push("Title");
+      }
+    } catch (err) {
+      console.warn(LOG, "Error filling Title:", err.message);
+      failedFields.push("Title");
     }
     await sleep(500);
 
     // ── 3. Price ───────────────────────────────────────────────────────────────
-    if (listing.price) {
-      const numericPrice = String(listing.price).replace(/[^0-9.]/g, "");
-      await fillWithRetry(
-        [
-          'input[aria-label="Price"]',
-          'input[aria-label*="price" i]',
-          'input[placeholder*="price" i]',
-          'input[name="price"]',
-          'input[type="number"]',
-        ],
-        (el) => fillReactInput(el, numericPrice),
-        "Price",
-        failedFields
-      );
+    try {
+      const priceEl = await pollForElementPromise([
+        'input[aria-label="Price"]',
+        'input[aria-label*="price" i]',
+        'input[placeholder*="price" i]',
+        'input[name="price"]',
+        'input[type="number"]',
+      ], FIELD_TIMEOUT);
+      if (priceEl && listing.price) {
+        const numericPrice = String(listing.price).replace(/[^0-9.]/g, "");
+        fillReactInput(priceEl, numericPrice);
+      } else if (listing.price) {
+        failedFields.push("Price");
+      }
+    } catch (err) {
+      console.warn(LOG, "Error filling Price:", err.message);
+      failedFields.push("Price");
     }
     await sleep(500);
 
-    // ── 4. Category ────────────────────────────────────────────────────────────
-    if (listing.category) {
-      const ok = await fillCategory(listing.category);
-      if (!ok && listing.category !== "Services") failedFields.push("Category");
+    // ── 4. Condition ───────────────────────────────────────────────────────────
+    try {
+      if (listing.condition) {
+        const ok = await fillCondition(listing.condition);
+        if (!ok) failedFields.push("Condition");
+      }
+    } catch (err) {
+      console.warn(LOG, "Error filling Condition:", err.message);
+      failedFields.push("Condition");
     }
     await sleep(500);
 
     // ── 5. Description ─────────────────────────────────────────────────────────
-    if (listing.description) {
+    try {
       const descEl = await pollForElementPromise([
         'textarea[aria-label="Description"]',
         'textarea[aria-label*="description" i]',
         'textarea[placeholder*="description" i]',
         'textarea[name="description"]',
         'div[contenteditable="true"]',
-      ]);
-      if (descEl) {
+      ], FIELD_TIMEOUT);
+      if (descEl && listing.description) {
         if (descEl.tagName === "TEXTAREA") {
           fillReactTextarea(descEl, listing.description);
-          // Retry once if React remounted
-          await sleep(800);
-          const checkDesc = findFirst([
-            'textarea[aria-label="Description"]',
-            'textarea[aria-label*="description" i]',
-            'textarea[placeholder*="description" i]',
-            'textarea[name="description"]',
-          ]);
-          if (checkDesc && !checkDesc.value) fillReactTextarea(checkDesc, listing.description);
         } else {
           fillContentEditable(descEl, listing.description);
         }
-      } else {
+      } else if (listing.description) {
         failedFields.push("Description");
       }
+    } catch (err) {
+      console.warn(LOG, "Error filling Description:", err.message);
+      failedFields.push("Description");
     }
     await sleep(500);
 
-    // ── 6. Condition (best-effort, after description) ──────────────────────────
-    if (listing.condition) {
-      const ok = await fillCondition(listing.condition);
-      if (!ok) failedFields.push("Condition");
-    }
-    await sleep(500);
-
-    // ── 7. Brand (best-effort — never adds to failedFields) ───────────────────
-    if (listing.brand) {
-      const brandEl = await pollForElementPromise([
-        'input[aria-label*="brand" i]',
-        'input[placeholder*="brand" i]',
-        'input[name*="brand" i]',
-      ], 6000);
-      if (brandEl) {
-        fillReactInput(brandEl, listing.brand);
+    // ── 6. Brand (best effort) ────────────────────────────────────────────────
+    try {
+      if (listing.brand) {
+        const brandEl = await pollForElementPromise([
+          'input[aria-label*="brand" i]',
+          'input[placeholder*="brand" i]',
+          'input[name*="brand" i]',
+        ], FIELD_TIMEOUT);
+        if (brandEl) {
+          fillReactInput(brandEl, listing.brand);
+        }
+        // Brand is best-effort — no failedFields push on miss
       }
-      // best-effort: intentionally NOT pushed to failedFields
+    } catch (err) {
+      console.warn(LOG, "Error filling Brand (best effort):", err.message);
+    }
+    await sleep(500);
+
+    // ── 7. Images ──────────────────────────────────────────────────────────────
+    // Image upload failures do NOT block the banner — always continue.
+    if (listing.images && listing.images.length > 0) {
+      try {
+        await uploadImages(listing.images);
+      } catch (err) {
+        console.warn(LOG, "Image upload error:", err.message);
+      }
     }
 
-    // Clear storage and show banner
+    // Clear storage and show banner (always show even if some fields failed)
     chrome.storage.local.remove("pendingPost");
     showBanner(failedFields);
   }
@@ -541,11 +486,8 @@
     }
 
     console.log(LOG, "Pending post found:", listing.title);
-    if (!listing.images || listing.images.length === 0) {
-      console.warn(LOG, "Pending post has no images in payload.");
-    }
 
-    // Wait for form to load (poll for title input)
+    // Wait for form to load (poll for title input) then fill
     pollForElement(
       [
         'input[aria-label="Title"]',

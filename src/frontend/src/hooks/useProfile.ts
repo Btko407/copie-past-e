@@ -38,12 +38,13 @@ export interface ProfileState {
 
 export function useProfile(): ProfileState {
   const { actor, isFetching } = useActor(createActor);
-  const { isAuthenticated, principalId } = useAuth();
+  const { isAuthenticated, principalId, authReady } = useAuth();
   const queryClient = useQueryClient();
 
   // ── Fetch profile; auto-register if none exists ────────────────────────────
+  // Query key is scoped to the principalId — prevents cross-user cache leaks.
   const { data: profile, isLoading } = useQuery<UserProfile | null>({
-    queryKey: ["myProfile"],
+    queryKey: ["myProfile", principalId],
     queryFn: async (): Promise<UserProfile | null> => {
       if (!actor) return null;
 
@@ -70,7 +71,8 @@ export function useProfile(): ProfileState {
       // Registration failed (e.g. duplicate default) — return null gracefully
       return null;
     },
-    enabled: !!actor && !isFetching && isAuthenticated,
+    enabled:
+      !!actor && !isFetching && isAuthenticated && authReady && !!principalId,
     staleTime: 60_000,
     retry: 1,
   });
@@ -88,8 +90,11 @@ export function useProfile(): ProfileState {
       return result.ok;
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData<UserProfile | null>(["myProfile"], updated);
-      queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+      queryClient.setQueryData<UserProfile | null>(
+        ["myProfile", principalId],
+        updated,
+      );
+      queryClient.invalidateQueries({ queryKey: ["myProfile", principalId] });
     },
   });
 
@@ -106,7 +111,7 @@ export function useProfile(): ProfileState {
         if (result.__kind__ === "err") throw new Error(result.err);
       },
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["myProfile"] });
+        queryClient.invalidateQueries({ queryKey: ["myProfile", principalId] });
       },
     });
 
