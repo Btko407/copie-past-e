@@ -487,6 +487,7 @@ mixin (
   /// Verify a completed Stripe checkout session and grant subscription days ADDITIVELY.
   /// Called by the frontend after the user returns from the Stripe-hosted payment page.
   /// The session must match the pending session stored during createStripeCheckoutSession.
+  /// Automatically retries up to 3 times on network or non-2xx errors.
   public shared ({ caller }) func verifyAndGrantPayment(
     sessionId : Text,
   ) : async { #ok : Text; #err : Text } {
@@ -511,83 +512,104 @@ mixin (
     // Idempotency guard: if this session was already verified and days granted,
     // return success immediately without re-granting.
     if (verifiedStripeSessionIds.contains(sessionId)) {
-      return #ok("Payment already verified. Your subscription days have been applied.");
+      return #ok("Payment already verified. Your subscription days have been applied. You can close this window.");
     };
 
-    // Call Stripe API to verify payment status
-    try {
-      let response = await (with cycles = 20_949_972_000) icManagementStripe().http_request({
-        url = "https://api.stripe.com/v1/checkout/sessions/" # sessionId;
-        method = #get;
-        body = null;
-        headers = [
-          { name = "Authorization"; value = "Bearer " # secretKey },
-          { name = "Stripe-Version"; value = "2023-10-16" },
-        ];
-        max_response_bytes = ?5_000;
-        is_replicated = ?false;
-        transform = ?{
-          function = transformStripeVerifyResponse;
-          context = Blob.fromArray([]);
-        };
-      });
+    // Call Stripe API to verify payment status — retry up to 3 times
+    var attempt : Nat = 0;
+    var verified : Bool = false;
+    var responseText : Text = "";
+    var lastError : Text = "Unknown error";
 
-      let responseText = switch (response.body.decodeUtf8()) {
-        case null { return #err("Could not read Stripe verification response.") };
-        case (?t) { t };
-      };
+    label retryLoop loop {
+      if (attempt >= 3) break retryLoop;
+      attempt += 1;
 
-      if (response.status < 200 or response.status >= 300) {
-        return #err("Stripe verification failed: status " # response.status.toText());
-      };
-
-      let paymentStatus = extractJsonStringField(responseText, "payment_status");
-
-      if (paymentStatus == "paid") {
-        let now = Time.now();
-        let DAY_NS : Int = 86_400_000_000_000;
-        let daysNs : Int = pending.tierDays.toInt() * DAY_NS;
-
-        // ADDITIVE: add new days on top of existing subscription time (never replace)
-        let currentSub = subscriptions.get(caller);
-        let base : Int = switch (currentSub) {
-          case (?sub) { if (sub.expirationDate > now) { sub.expirationDate } else { now } };
-          case null { now };
-        };
-        let newExpiration = base + daysNs;
-
-        // Delete the pending session BEFORE granting days.
-        // This prevents double-grant even if verifyAndGrantPayment is called concurrently:
-        // a second call will find no pending session and return #err("No pending payment found").
-        pendingSessions.remove(userId);
-
-        subscriptions.add(caller, {
-          userId = caller;
-          tier = pending.tierId;
-          expirationDate = newExpiration;
-          autoRenewal = switch (currentSub) { case (?s) s.autoRenewal; case null false };
-          stripeSubscriptionId = null;
-          updatedAt = now;
+      try {
+        let response = await (with cycles = 20_949_972_000) icManagementStripe().http_request({
+          url = "https://api.stripe.com/v1/checkout/sessions/" # sessionId;
+          method = #get;
+          body = null;
+          headers = [
+            { name = "Authorization"; value = "Bearer " # secretKey },
+            { name = "Stripe-Version"; value = "2023-10-16" },
+          ];
+          max_response_bytes = ?5_000;
+          is_replicated = ?false;
+          transform = ?{
+            function = transformStripeVerifyResponse;
+            context = Blob.fromArray([]);
+          };
         });
 
-        // Send success notification
-        ignore NotifLib.createNotification(
-          notifications, notifCounter, caller,
-          #refuelSuccess,
-          "DeLorean Refueled! ⚡",
-          "Your DeLorean has been refueled! " # pending.tierDays.toText() # " days added to your subscription.",
-          now,
-        );
+        let bodyText = switch (response.body.decodeUtf8()) {
+          case null {
+            lastError := "Could not read Stripe response (attempt " # attempt.toText() # "/3)";
+            continue retryLoop;
+          };
+          case (?t) { t };
+        };
 
-        // Record this session as verified — prevents double-grant on any future call.
-        verifiedStripeSessionIds.add(sessionId);
-
-        #ok("Payment verified. " # pending.tierDays.toText() # " days added to your subscription.")
-      } else {
-        #err("Payment not completed. Status: " # paymentStatus # ". Please complete payment on Stripe.")
+        if (response.status >= 200 and response.status < 300) {
+          responseText := bodyText;
+          verified := true;
+          break retryLoop;
+        } else {
+          lastError := "Stripe error: status " # response.status.toText() # " (attempt " # attempt.toText() # "/3)";
+        };
+      } catch (e) {
+        lastError := "Network error (attempt " # attempt.toText() # "/3): " # e.message();
       };
-    } catch (e) {
-      #err("Verification failed: " # e.message());
+    };
+
+    if (not verified) {
+      return #err("Payment verification failed after 3 attempts: " # lastError);
+    };
+
+    let paymentStatus = extractJsonStringField(responseText, "payment_status");
+
+    if (paymentStatus == "paid") {
+      let now = Time.now();
+      let DAY_NS : Int = 86_400_000_000_000;
+      let daysNs : Int = pending.tierDays.toInt() * DAY_NS;
+
+      // ADDITIVE: add new days on top of existing subscription time (never replace)
+      let currentSub = subscriptions.get(caller);
+      let base : Int = switch (currentSub) {
+        case (?sub) { if (sub.expirationDate > now) { sub.expirationDate } else { now } };
+        case null { now };
+      };
+      let newExpiration = base + daysNs;
+
+      // Delete the pending session BEFORE granting days.
+      // This prevents double-grant even if verifyAndGrantPayment is called concurrently:
+      // a second call will find no pending session and return #err("No pending payment found").
+      pendingSessions.remove(userId);
+
+      subscriptions.add(caller, {
+        userId = caller;
+        tier = pending.tierId;
+        expirationDate = newExpiration;
+        autoRenewal = switch (currentSub) { case (?s) s.autoRenewal; case null false };
+        stripeSubscriptionId = null;
+        updatedAt = now;
+      });
+
+      // Send success notification
+      ignore NotifLib.createNotification(
+        notifications, notifCounter, caller,
+        #refuelSuccess,
+        "DeLorean Refueled! ⚡",
+        "Your DeLorean has been refueled! " # pending.tierDays.toText() # " days added to your subscription.",
+        now,
+      );
+
+      // Record this session as verified — prevents double-grant on any future call.
+      verifiedStripeSessionIds.add(sessionId);
+
+      #ok("Payment verified successfully! " # pending.tierDays.toText() # " days added to your subscription. Your DeLorean is fueled!")
+    } else {
+      #err("Payment not completed on Stripe. Status: " # paymentStatus # ". Please complete payment to activate your subscription.")
     };
   };
 

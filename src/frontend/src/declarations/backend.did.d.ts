@@ -135,11 +135,33 @@ export type DiscountType = { 'fixedUSD' : null } |
 export type DraftListingId = bigint;
 export interface ExtensionListingData {
   'title' : string,
+  'localPickupAvailable' : [] | [boolean],
   'imageUrls' : Array<string>,
+  'deliveryDays' : [] | [bigint],
   'description' : [] | [string],
+  'platform' : [] | [string],
   'sourceUrl' : [] | [string],
   'category' : [] | [string],
+  'brand' : [] | [string],
   'price' : [] | [string],
+  'condition' : [] | [string],
+}
+export interface ExtensionUpdateCheck {
+  'needsUpdate' : boolean,
+  'downloadUrl' : string,
+  'releaseNotes' : string,
+  'currentVersion' : string,
+  'latestVersion' : string,
+  'buildNumber' : bigint,
+  'isForceUpdate' : boolean,
+}
+export interface ExtensionVersion {
+  'downloadUrl' : string,
+  'releaseNotes' : string,
+  'version' : string,
+  'releasedAt' : Timestamp,
+  'buildNumber' : bigint,
+  'isForceUpdate' : boolean,
 }
 export type ExternalBlob = Uint8Array;
 export interface FbCredentials { 'appId' : string, 'accessToken' : string }
@@ -552,6 +574,11 @@ export interface _SERVICE {
     { 'ok' : UserTierSubscription } |
       { 'err' : string }
   >,
+  'adminForceResaveStripeConfig' : ActorMethod<
+    [],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'adminGetGeminiConfig' : ActorMethod<
     [],
     { 'model' : string, 'configured' : boolean }
@@ -567,10 +594,16 @@ export interface _SERVICE {
     [] | [UserTierSubscription]
   >,
   'adminListDiscountCodes' : ActorMethod<[], Array<DiscountCode>>,
+  'adminListExtensionVersions' : ActorMethod<[], Array<ExtensionVersion>>,
   'adminListPayments' : ActorMethod<[], Array<PaymentRecord>>,
   'adminListProfiles' : ActorMethod<[], Array<UserProfile>>,
   'adminListSubscriptions' : ActorMethod<[], Array<UserTierSubscription>>,
   'adminListTierActions' : ActorMethod<[], Array<AdminTierAction>>,
+  'adminLockBackupPermanent' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
   'adminResetAllUserSubscriptions' : ActorMethod<
     [],
     { 'ok' : string } |
@@ -596,6 +629,11 @@ export interface _SERVICE {
     { 'ok' : null } |
       { 'err' : string }
   >,
+  'adminSetExtensionVersion' : ActorMethod<
+    [string, bigint, string, string, boolean],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'adminSetGeminiKey' : ActorMethod<[string], undefined>,
   'adminSetMaintenanceMode' : ActorMethod<[boolean, string], undefined>,
   'adminSetSiteBaseUrl' : ActorMethod<
@@ -607,6 +645,17 @@ export interface _SERVICE {
   'adminSetStripePrices' : ActorMethod<
     [string, string, string, string],
     undefined
+  >,
+  'adminTestAndVerifyStripeConfig' : ActorMethod<
+    [],
+    {
+      'testPassed' : boolean,
+      'modeCorrect' : boolean,
+      'pubKeyPresent' : boolean,
+      'secretKeyPresent' : boolean,
+      'message' : string,
+      'configValid' : boolean,
+    }
   >,
   'adminTestGeminiConnection' : ActorMethod<
     [],
@@ -629,6 +678,7 @@ export interface _SERVICE {
     [number, Timestamp],
     [] | [InAppNotification]
   >,
+  'checkExtensionUpdateStatus' : ActorMethod<[string], ExtensionUpdateCheck>,
   'claimLoyaltyReward' : ActorMethod<
     [TierName],
     { 'ok' : null } |
@@ -686,7 +736,19 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'debugCheckStripeKeyLength' : ActorMethod<[], bigint>,
-  'deleteBackup' : ActorMethod<[string], boolean>,
+  'debugConfigHealthReport' : ActorMethod<
+    [],
+    {
+      'status' : string,
+      'allCriticalKeysPresent' : boolean,
+      'siteBaseUrlSet' : string,
+      'stripePublishableKeyLength' : bigint,
+      'geminiKeyLength' : bigint,
+      'stripSecretKeyLength' : bigint,
+      'stripeModeSet' : string,
+    }
+  >,
+  'deleteBackup' : ActorMethod<[string], { 'ok' : null } | { 'err' : string }>,
   'deleteBackupRecord' : ActorMethod<
     [bigint],
     { 'ok' : null } |
@@ -738,6 +800,7 @@ export interface _SERVICE {
   >,
   'getGasPackages' : ActorMethod<[], Array<GasPackage>>,
   'getHealthStatus' : ActorMethod<[], HealthStatus>,
+  'getLatestExtensionVersion' : ActorMethod<[], [] | [ExtensionUpdateCheck]>,
   'getListing' : ActorMethod<[ListingId], [] | [Listing]>,
   'getLoyaltyStatus' : ActorMethod<[], LoyaltyStatus>,
   'getMaintenanceMode' : ActorMethod<
@@ -899,6 +962,19 @@ export interface _SERVICE {
     [ListingId],
     { 'ok' : null } |
       { 'err' : string }
+  >,
+  'previewVersionRestoreSnapshot' : ActorMethod<
+    [string],
+    [] | [
+      {
+        'snapshotCreatedAt' : Timestamp,
+        'createdBy' : string,
+        'isManualBackup' : boolean,
+        'notes' : [] | [string],
+        'listingCount' : bigint,
+        'userCount' : bigint,
+      }
+    ]
   >,
   'receiveExtensionData' : ActorMethod<
     [ExtensionListingData, string],
@@ -1166,6 +1242,23 @@ export interface _SERVICE {
   'updateAdminSettings' : ActorMethod<[UpdateSettingsArgs], SiteSettings>,
   'updateListing' : ActorMethod<[UpdateListingArgs], Listing>,
   'updateMyProfile' : ActorMethod<[UpdateProfileArgs], UpdateProfileResult>,
+  'validateBackupIntegrity' : ActorMethod<
+    [string],
+    {
+      'valid' : boolean,
+      'error' : [] | [string],
+      'listingCount' : bigint,
+      'userCount' : bigint,
+    }
+  >,
+  'validateCriticalConfig' : ActorMethod<
+    [],
+    {
+      'status' : string,
+      'keysConfigured' : boolean,
+      'missingKeys' : Array<string>,
+    }
+  >,
   'validateDiscountCode' : ActorMethod<[string, bigint], [] | [DiscountCode]>,
   'verifyAndGrantPayment' : ActorMethod<
     [string],

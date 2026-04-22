@@ -383,6 +383,77 @@ mixin (
       .toArray()
   };
 
+  /// Preview what will be restored from a backup WITHOUT applying it.
+  public query ({ caller }) func previewVersionRestoreSnapshot(
+    backupId : Text,
+  ) : async ?{
+    userCount         : Nat;
+    listingCount      : Nat;
+    snapshotCreatedAt : Common.Timestamp;
+    createdBy         : Text;
+    notes             : ?Text;
+    isManualBackup    : Bool;
+  } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return null;
+    };
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool { b.id == backupId })) {
+      case null { null };
+      case (?b) {
+        ?{
+          userCount         = BackupLib.countUsersInBackup(b.backupData);
+          listingCount      = BackupLib.countListingsInBackup(b.backupData);
+          snapshotCreatedAt = b.createdAt;
+          createdBy         = b.createdBy;
+          notes             = b.notes;
+          isManualBackup    = b.backupType == "version-snapshot-manual"
+                              or b.backupType == "version-snapshot-manual-locked";
+        }
+      };
+    };
+  };
+
+  /// Validate a backup's JSON is not corrupted and can be restored.
+  public shared ({ caller }) func validateBackupIntegrity(backupId : Text) : async {
+    valid        : Bool;
+    userCount    : Nat;
+    listingCount : Nat;
+    error        : ?Text;
+  } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return { valid = false; userCount = 0; listingCount = 0; error = ?"Unauthorized" };
+    };
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool { b.id == backupId })) {
+      case null { { valid = false; userCount = 0; listingCount = 0; error = ?"Backup not found" } };
+      case (?b) {
+        let hasUsers    = b.backupData.contains(#text "\"users\"");
+        let hasListings = b.backupData.contains(#text "\"listings\"");
+        if (hasUsers and hasListings) {
+          { valid = true; userCount = BackupLib.countUsersInBackup(b.backupData); listingCount = BackupLib.countListingsInBackup(b.backupData); error = null }
+        } else {
+          { valid = false; userCount = 0; listingCount = 0; error = ?"JSON missing users or listings" }
+        }
+      };
+    };
+  };
+
+  /// Admin: lock a backup permanently (cannot be deleted or modified).
+  public shared ({ caller }) func adminLockBackupPermanent(backupId : Text) : async { #ok; #err : Text } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return #err("Unauthorized: admin only");
+    };
+    var found = false;
+    versionBackups.mapInPlace(func(b : BackupTypes.VersionBackup) : BackupTypes.VersionBackup {
+      if (b.id == backupId
+          and (b.backupType == "version-snapshot-manual"
+               or b.backupType == "version-snapshot-auto")) {
+        found := true;
+        { b with isStable = true; backupType = "version-snapshot-manual-locked" }
+      } else { b }
+    });
+    if (found) { #ok } else { #err("Backup not found or already locked") }
+  };
+
   /// Create a version snapshot with adaptive frequency control.
   /// Checks lastAutoSnapshotTime against user count thresholds.
   /// Safe to call on a timer — silently skips if not yet due.
@@ -520,8 +591,7 @@ mixin (
   };
 
   /// Restore all data from a version backup.
-  /// Automatically saves current state before restoring.
-  /// Step 0: auto-backup current state. If fails, abort.
+  /// Step 0: creates a pre-restore safety snapshot before applying the restore.
   /// Steps 1-5: restore users, listings, site settings from backup JSON.
   /// Never deletes post-backup records. Never overwrites Stripe/webhook credentials.
   public shared ({ caller }) func restoreFromVersionBackup(
@@ -537,7 +607,35 @@ mixin (
       };
     };
     let now = Time.now();
-    BackupLib.restoreFromVersionBackup(
+
+    // STEP 0: Create a pre-restore safety snapshot so we can roll back if needed
+    let preSnapshot = BackupLib.createVersionSnapshot(
+      versionBackups, profiles, listings, subscriptions, notifications,
+      siteSettings, appVersions, "version-snapshot-pre-restore",
+      caller.toText(),
+      ?("PRE-RESTORE SAFETY SNAPSHOT — Rolling back to backup: " # backupId),
+      now,
+    );
+
+    // STEP 1: Validate the target backup exists
+    let targetExists = versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool {
+      b.id == backupId
+    });
+    switch (targetExists) {
+      case null {
+        return {
+          success          = false;
+          usersRestored    = 0;
+          listingsRestored = 0;
+          preSaveBackupId  = preSnapshot.id;
+          errorMessage     = ?"Target backup not found";
+        };
+      };
+      case (?_) {};
+    };
+
+    // STEP 2: Execute the actual restore and attach the pre-restore snapshot ID
+    let result = BackupLib.restoreFromVersionBackup(
       versionBackups,
       backupId,
       profiles,
@@ -551,7 +649,8 @@ mixin (
       false,
       caller.toText(),
       now,
-    )
+    );
+    { result with preSaveBackupId = preSnapshot.id }
   };
 
   /// Admin: mark a backup as the stable/known-good version.
@@ -569,27 +668,33 @@ mixin (
     found
   };
 
-  /// Admin: delete an auto backup (only if it is not marked stable).
-  /// Manual backups and stable backups cannot be deleted this way.
-  public shared ({ caller }) func deleteBackup(backupId : Text) : async Bool {
+  /// Admin: delete an auto backup (only if it is not marked stable, manual, or locked).
+  /// Manual backups, locked backups, and stable backups cannot be deleted.
+  public shared ({ caller }) func deleteBackup(backupId : Text) : async { #ok; #err : Text } {
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
-      return false;
+      return #err("Unauthorized: admin only");
     };
     let target = versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool {
       b.id == backupId
     });
     switch (target) {
-      case null { false };
+      case null { #err("Backup not found") };
       case (?b) {
-        if (b.backupType.startsWith(#text "version-snapshot-manual") or b.backupType == "manual" or b.isStable) {
-          false // refuse to delete manual, version-snapshot-manual, or stable backups
-        } else {
+        if (b.backupType == "version-snapshot-manual"
+            or b.backupType == "version-snapshot-manual-locked"
+            or b.isStable) {
+          return #err("Cannot delete: Manual/locked/stable backups are protected. Use adminLockBackupPermanent to manage protection.");
+        };
+        if (b.backupType.startsWith(#text "version-snapshot-auto")
+            or b.backupType == "version-snapshot-pre-restore") {
           let keep = versionBackups.filter(func(x : BackupTypes.VersionBackup) : Bool {
             x.id != backupId
           });
           versionBackups.clear();
           versionBackups.append(keep);
-          true
+          #ok
+        } else {
+          #err("Cannot delete: Unknown backup type")
         }
       };
     }

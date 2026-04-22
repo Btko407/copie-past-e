@@ -158,3 +158,64 @@ export function useReceiveExtensionData() {
     },
   });
 }
+
+// ─── Extension Update Check ───────────────────────────────────────────────────
+
+export interface ExtensionUpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  needsUpdate: boolean;
+  isForceUpdate: boolean;
+  buildNumber: number;
+  releaseNotes: string;
+  downloadUrl: string;
+}
+
+export function useExtensionUpdateCheck(currentVersion: string) {
+  const { actor, isFetching } = useActor(createActor);
+
+  return useQuery<ExtensionUpdateInfo>({
+    queryKey: ["extensionUpdate", currentVersion],
+    queryFn: async (): Promise<ExtensionUpdateInfo> => {
+      if (!actor) throw new Error("Backend not ready");
+      const result = await (actor as ActorAny).checkExtensionUpdateStatus(
+        currentVersion,
+      );
+      return {
+        currentVersion: String(result.currentVersion),
+        latestVersion: String(result.latestVersion),
+        needsUpdate: Boolean(result.needsUpdate),
+        isForceUpdate: Boolean(result.isForceUpdate),
+        buildNumber: Number(result.buildNumber),
+        releaseNotes: String(result.releaseNotes),
+        downloadUrl: String(result.downloadUrl),
+      };
+    },
+    refetchInterval: 1000 * 60 * 60, // Re-check every hour
+    enabled: !!actor && !isFetching && currentVersion.length > 0,
+  });
+}
+
+// ─── Extension Version History (admin) ───────────────────────────────────────
+
+export function useExtensionVersions() {
+  const { actor, isFetching } = useActor(createActor);
+
+  return useQuery<ExtensionUpdateInfo[]>({
+    queryKey: ["extensionVersionHistory"],
+    queryFn: async (): Promise<ExtensionUpdateInfo[]> => {
+      if (!actor) throw new Error("Backend not ready");
+      const results = await (actor as ActorAny).adminListExtensionVersions();
+      return (results as ActorAny[]).map((r) => ({
+        currentVersion: "",
+        latestVersion: String(r.version),
+        needsUpdate: false,
+        isForceUpdate: Boolean(r.isForceUpdate),
+        buildNumber: Number(r.buildNumber),
+        releaseNotes: String(r.releaseNotes),
+        downloadUrl: String(r.downloadUrl),
+      }));
+    },
+    enabled: !!actor && !isFetching,
+  });
+}

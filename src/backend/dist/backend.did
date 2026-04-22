@@ -453,11 +453,35 @@ type FbCredentials =
    appId: text;
  };
 type ExternalBlob = blob;
+type ExtensionVersion = 
+ record {
+   buildNumber: nat;
+   downloadUrl: text;
+   isForceUpdate: bool;
+   releaseNotes: text;
+   releasedAt: Timestamp;
+   version: text;
+ };
+type ExtensionUpdateCheck = 
+ record {
+   buildNumber: nat;
+   currentVersion: text;
+   downloadUrl: text;
+   isForceUpdate: bool;
+   latestVersion: text;
+   needsUpdate: bool;
+   releaseNotes: text;
+ };
 type ExtensionListingData = 
  record {
+   brand: opt text;
    category: opt text;
+   condition: opt text;
+   deliveryDays: opt nat;
    description: opt text;
    imageUrls: vec text;
+   localPickupAvailable: opt bool;
+   platform: opt text;
    price: opt text;
    sourceUrl: opt text;
    title: text;
@@ -640,6 +664,10 @@ service : {
               err: text;
               ok: UserTierSubscription;
             });
+  adminForceResaveStripeConfig: () -> (variant {
+                                         err: text;
+                                         ok: text;
+                                       });
   adminGetGeminiConfig: () -> (record {
                                  configured: bool;
                                  model: text;
@@ -653,10 +681,15 @@ service : {
   adminGetUserSubscription: (userId: UserId) ->
    (opt UserTierSubscription) query;
   adminListDiscountCodes: () -> (vec DiscountCode) query;
+  adminListExtensionVersions: () -> (vec ExtensionVersion) query;
   adminListPayments: () -> (vec PaymentRecord) query;
   adminListProfiles: () -> (vec UserProfile) query;
   adminListSubscriptions: () -> (vec UserTierSubscription) query;
   adminListTierActions: () -> (vec AdminTierAction) query;
+  adminLockBackupPermanent: (backupId: text) -> (variant {
+                                                   err: text;
+                                                   ok;
+                                                 });
   adminResetAllUserSubscriptions: () -> (variant {
                                            err: text;
                                            ok: text;
@@ -680,6 +713,12 @@ service : {
       err: text;
       ok;
     });
+  adminSetExtensionVersion: (version: text, buildNumber: nat, releaseNotes:
+   text, downloadUrl: text, isForceUpdate: bool) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   adminSetGeminiKey: (key: text) -> ();
   adminSetMaintenanceMode: (enabled: bool, message: text) -> ();
   adminSetSiteBaseUrl: (url: text) -> (variant {
@@ -689,6 +728,15 @@ service : {
   adminSetStripeKeys: (publishable: text, secret: text, mode: text) -> ();
   adminSetStripePrices: (walker: text, traveler: text, lord: text, backup:
    text) -> ();
+  adminTestAndVerifyStripeConfig: () ->
+   (record {
+      configValid: bool;
+      message: text;
+      modeCorrect: bool;
+      pubKeyPresent: bool;
+      secretKeyPresent: bool;
+      testPassed: bool;
+    });
   adminTestGeminiConnection: () -> (record {
                                       message: text;
                                       success: bool;
@@ -708,6 +756,8 @@ service : {
   assignUserRole: (userId: text, role: text) -> ();
   checkAndCreateLowFuelNotification: (fuelPercent: float64,
    subscriptionExpirationTimestamp: Timestamp) -> (opt InAppNotification);
+  checkExtensionUpdateStatus: (clientVersion: text) ->
+   (ExtensionUpdateCheck) query;
   claimLoyaltyReward: (tier: TierName) -> (variant {
                                              err: text;
                                              ok;
@@ -765,7 +815,20 @@ service : {
       ok: VersionBackup;
     });
   debugCheckStripeKeyLength: () -> (nat) query;
-  deleteBackup: (backupId: text) -> (bool);
+  debugConfigHealthReport: () ->
+   (record {
+      allCriticalKeysPresent: bool;
+      geminiKeyLength: nat;
+      siteBaseUrlSet: text;
+      status: text;
+      stripSecretKeyLength: nat;
+      stripeModeSet: text;
+      stripePublishableKeyLength: nat;
+    }) query;
+  deleteBackup: (backupId: text) -> (variant {
+                                       err: text;
+                                       ok;
+                                     });
   deleteBackupRecord: (backupId: nat) -> (variant {
                                             err: text;
                                             ok;
@@ -819,6 +882,7 @@ service : {
                         });
   getGasPackages: () -> (vec GasPackage) query;
   getHealthStatus: () -> (HealthStatus) query;
+  getLatestExtensionVersion: () -> (opt ExtensionUpdateCheck) query;
   getListing: (id: ListingId) -> (opt Listing) query;
   getLoyaltyStatus: () -> (LoyaltyStatus) query;
   getMaintenanceMode: () ->
@@ -986,6 +1050,16 @@ service : {
                                                        err: text;
                                                        ok;
                                                      });
+  previewVersionRestoreSnapshot: (backupId: text) ->
+   (opt
+     record {
+       createdBy: text;
+       isManualBackup: bool;
+       listingCount: nat;
+       notes: opt text;
+       snapshotCreatedAt: Timestamp;
+       userCount: nat;
+     }) query;
   receiveExtensionData: (data: ExtensionListingData, webhookToken: text) ->
    (variant {
       err: text;
@@ -1290,6 +1364,19 @@ service : {
   updateAdminSettings: (args: UpdateSettingsArgs) -> (SiteSettings);
   updateListing: (args: UpdateListingArgs) -> (Listing);
   updateMyProfile: (args: UpdateProfileArgs) -> (UpdateProfileResult);
+  validateBackupIntegrity: (backupId: text) ->
+   (record {
+      error: opt text;
+      listingCount: nat;
+      userCount: nat;
+      valid: bool;
+    });
+  validateCriticalConfig: () ->
+   (record {
+      keysConfigured: bool;
+      missingKeys: vec text;
+      status: text;
+    });
   validateDiscountCode: (code: text, tierId: nat) -> (opt DiscountCode) query;
   verifyAndGrantPayment: (sessionId: text) -> (variant {
                                                  err: text;

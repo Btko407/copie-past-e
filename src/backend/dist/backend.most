@@ -85,6 +85,15 @@ type DiscountCode__1005510210 =
     usageCount : Nat
   };
 type DiscountType__251381276 = {#fixedUSD; #percentage};
+type ExtensionVersion__1001368693 =
+  {
+    buildNumber : Nat;
+    downloadUrl : Text;
+    isForceUpdate : Bool;
+    releaseNotes : Text;
+    releasedAt : Timestamp__301639476;
+    version : Text
+  };
 type ExternalBlob__246066408 = Blob;
 type FailedWebhookEvent__773709489 =
   {
@@ -517,6 +526,11 @@ actor {
       var root : Node__46230540<Text, ConfigEntry__967475232>;
       var size : Nat__490723111
     };
+  stable var appConfigBackup :
+    {
+      var root : Node__46230540<Text, ConfigEntry__967475232>;
+      var size : Nat__490723111
+    };
   stable appVersions :
     {
       var blockIndex : Nat__490723111;
@@ -560,6 +574,12 @@ actor {
       var root : Node__46230540<Text, UserId__158757552>;
       var size : Nat__490723111
     };
+  stable extensionVersions :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?ExtensionVersion__1001368693]];
+      var elementIndex : Nat__490723111
+    };
   stable failedWebhookEvents :
     {
       var root : Node__46230540<Text, FailedWebhookEvent__773709489>;
@@ -586,6 +606,11 @@ actor {
   stable lastAutoSnapshotTime : {var value : Int};
   stable listingCounter : {var value : Nat};
   stable listings :
+    {
+      var root : Node__46230540<ListingId__58075594, Listing__798123527>;
+      var size : Nat__490723111
+    };
+  stable var listingsBackup :
     {
       var root : Node__46230540<ListingId__58075594, Listing__798123527>;
       var size : Nat__490723111
@@ -633,6 +658,11 @@ actor {
       var root : Node__46230540<UserId__158757552, UserProfile__513675666>;
       var size : Nat__490723111
     };
+  stable var profilesBackup :
+    {
+      var root : Node__46230540<UserId__158757552, UserProfile__513675666>;
+      var size : Nat__490723111
+    };
   stable refuelHistory :
     {
       var root :
@@ -647,6 +677,12 @@ actor {
       var size : Nat__490723111
     };
   stable subscriptions :
+    {
+      var root :
+        Node__46230540<UserId__158757552, UserTierSubscription__97090275>;
+      var size : Nat__490723111
+    };
+  stable var subscriptionsBackup :
     {
       var root :
         Node__46230540<UserId__158757552, UserTierSubscription__97090275>;

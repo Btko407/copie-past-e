@@ -16,11 +16,16 @@ export class ExternalBlob {
 }
 export interface ExtensionListingData {
     title: string;
+    localPickupAvailable?: boolean;
     imageUrls: Array<string>;
+    deliveryDays?: bigint;
     description?: string;
+    platform?: string;
     sourceUrl?: string;
     category?: string;
+    brand?: string;
     price?: string;
+    condition?: string;
 }
 export interface PaymentRecord {
     id: bigint;
@@ -289,6 +294,15 @@ export interface ConfigEntry {
     category: string;
 }
 export type Timestamp = bigint;
+export interface ExtensionUpdateCheck {
+    needsUpdate: boolean;
+    downloadUrl: string;
+    releaseNotes: string;
+    currentVersion: string;
+    latestVersion: string;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
+}
 export interface AddImageArgs {
     order: bigint;
     blob: ExternalBlob;
@@ -448,9 +462,13 @@ export interface SiteAnalytics {
     avgListingsPerUser: number;
 }
 export type ImageId = bigint;
-export interface CreateVersionArgs {
-    versionLabel: string;
-    description: string;
+export interface ExtensionVersion {
+    downloadUrl: string;
+    releaseNotes: string;
+    version: string;
+    releasedAt: Timestamp;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
 }
 export interface GasPurchase {
     id: bigint;
@@ -460,6 +478,10 @@ export interface GasPurchase {
     createdAt: Timestamp;
     stripePaymentIntentId: string;
     priceUSD: number;
+}
+export interface CreateVersionArgs {
+    versionLabel: string;
+    description: string;
 }
 export interface AdminNotification {
     id: bigint;
@@ -585,6 +607,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    adminForceResaveStripeConfig(): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminGetGeminiConfig(): Promise<{
         model: string;
         configured: boolean;
@@ -599,10 +628,18 @@ export interface backendInterface {
     }>;
     adminGetUserSubscription(userId: UserId): Promise<UserTierSubscription | null>;
     adminListDiscountCodes(): Promise<Array<DiscountCode>>;
+    adminListExtensionVersions(): Promise<Array<ExtensionVersion>>;
     adminListPayments(): Promise<Array<PaymentRecord>>;
     adminListProfiles(): Promise<Array<UserProfile>>;
     adminListSubscriptions(): Promise<Array<UserTierSubscription>>;
     adminListTierActions(): Promise<Array<AdminTierAction>>;
+    adminLockBackupPermanent(backupId: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminResetAllUserSubscriptions(): Promise<{
         __kind__: "ok";
         ok: string;
@@ -638,6 +675,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    adminSetExtensionVersion(version: string, buildNumber: bigint, releaseNotes: string, downloadUrl: string, isForceUpdate: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetGeminiKey(key: string): Promise<void>;
     adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
     adminSetSiteBaseUrl(url: string): Promise<{
@@ -649,6 +693,14 @@ export interface backendInterface {
     }>;
     adminSetStripeKeys(publishable: string, secret: string, mode: string): Promise<void>;
     adminSetStripePrices(walker: string, traveler: string, lord: string, backup: string): Promise<void>;
+    adminTestAndVerifyStripeConfig(): Promise<{
+        testPassed: boolean;
+        modeCorrect: boolean;
+        pubKeyPresent: boolean;
+        secretKeyPresent: boolean;
+        message: string;
+        configValid: boolean;
+    }>;
     adminTestGeminiConnection(): Promise<{
         message: string;
         success: boolean;
@@ -669,6 +721,7 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     assignUserRole(userId: string, role: string): Promise<void>;
     checkAndCreateLowFuelNotification(fuelPercent: number, subscriptionExpirationTimestamp: Timestamp): Promise<InAppNotification | null>;
+    checkExtensionUpdateStatus(clientVersion: string): Promise<ExtensionUpdateCheck>;
     claimLoyaltyReward(tier: TierName): Promise<{
         __kind__: "ok";
         ok: null;
@@ -746,7 +799,22 @@ export interface backendInterface {
         err: string;
     }>;
     debugCheckStripeKeyLength(): Promise<bigint>;
-    deleteBackup(backupId: string): Promise<boolean>;
+    debugConfigHealthReport(): Promise<{
+        status: string;
+        allCriticalKeysPresent: boolean;
+        siteBaseUrlSet: string;
+        stripePublishableKeyLength: bigint;
+        geminiKeyLength: bigint;
+        stripSecretKeyLength: bigint;
+        stripeModeSet: string;
+    }>;
+    deleteBackup(backupId: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     deleteBackupRecord(backupId: bigint): Promise<{
         __kind__: "ok";
         ok: null;
@@ -802,6 +870,7 @@ export interface backendInterface {
     }>;
     getGasPackages(): Promise<Array<GasPackage>>;
     getHealthStatus(): Promise<HealthStatus>;
+    getLatestExtensionVersion(): Promise<ExtensionUpdateCheck | null>;
     getListing(id: ListingId): Promise<Listing | null>;
     getLoyaltyStatus(): Promise<LoyaltyStatus>;
     getMaintenanceMode(): Promise<{
@@ -983,6 +1052,14 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    previewVersionRestoreSnapshot(backupId: string): Promise<{
+        snapshotCreatedAt: Timestamp;
+        createdBy: string;
+        isManualBackup: boolean;
+        notes?: string;
+        listingCount: bigint;
+        userCount: bigint;
+    } | null>;
     receiveExtensionData(data: ExtensionListingData, webhookToken: string): Promise<{
         __kind__: "ok";
         ok: DraftListingId;
@@ -1276,6 +1353,17 @@ export interface backendInterface {
     updateAdminSettings(args: UpdateSettingsArgs): Promise<SiteSettings>;
     updateListing(args: UpdateListingArgs): Promise<Listing>;
     updateMyProfile(args: UpdateProfileArgs): Promise<UpdateProfileResult>;
+    validateBackupIntegrity(backupId: string): Promise<{
+        valid: boolean;
+        error?: string;
+        listingCount: bigint;
+        userCount: bigint;
+    }>;
+    validateCriticalConfig(): Promise<{
+        status: string;
+        keysConfigured: boolean;
+        missingKeys: Array<string>;
+    }>;
     validateDiscountCode(code: string, tierId: bigint): Promise<DiscountCode | null>;
     verifyAndGrantPayment(sessionId: string): Promise<{
         __kind__: "ok";

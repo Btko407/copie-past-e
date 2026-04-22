@@ -74,6 +74,15 @@ export const PaymentConfig = IDL.Record({
   'stripeWebhookSecret' : IDL.Opt(IDL.Text),
   'stripeWalkerPriceId' : IDL.Opt(IDL.Text),
 });
+export const Timestamp = IDL.Int;
+export const ExtensionVersion = IDL.Record({
+  'downloadUrl' : IDL.Text,
+  'releaseNotes' : IDL.Text,
+  'version' : IDL.Text,
+  'releasedAt' : Timestamp,
+  'buildNumber' : IDL.Nat,
+  'isForceUpdate' : IDL.Bool,
+});
 export const PaymentStatus = IDL.Variant({
   'pending' : IDL.Null,
   'completed' : IDL.Null,
@@ -95,7 +104,6 @@ export const PaymentRecord = IDL.Record({
   'amountUSD' : IDL.Float64,
   'externalOrderId' : IDL.Opt(IDL.Text),
 });
-export const Timestamp = IDL.Int;
 export const UserProfile = IDL.Record({
   'fbWebhookToken' : IDL.Opt(IDL.Text),
   'emailVerified' : IDL.Bool,
@@ -173,6 +181,15 @@ export const InAppNotification = IDL.Record({
   'createdAt' : Timestamp,
   'isRead' : IDL.Bool,
   'message' : IDL.Text,
+});
+export const ExtensionUpdateCheck = IDL.Record({
+  'needsUpdate' : IDL.Bool,
+  'downloadUrl' : IDL.Text,
+  'releaseNotes' : IDL.Text,
+  'currentVersion' : IDL.Text,
+  'latestVersion' : IDL.Text,
+  'buildNumber' : IDL.Nat,
+  'isForceUpdate' : IDL.Bool,
 });
 export const TierName = IDL.Text;
 export const GasWallet = IDL.Record({
@@ -469,11 +486,16 @@ export const ParsedListingResult = IDL.Record({
 });
 export const ExtensionListingData = IDL.Record({
   'title' : IDL.Text,
+  'localPickupAvailable' : IDL.Opt(IDL.Bool),
   'imageUrls' : IDL.Vec(IDL.Text),
+  'deliveryDays' : IDL.Opt(IDL.Nat),
   'description' : IDL.Opt(IDL.Text),
+  'platform' : IDL.Opt(IDL.Text),
   'sourceUrl' : IDL.Opt(IDL.Text),
   'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
+  'condition' : IDL.Opt(IDL.Text),
 });
 export const DraftListingId = IDL.Nat;
 export const SetUsernameResult = IDL.Variant({
@@ -607,6 +629,11 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : UserTierSubscription, 'err' : IDL.Text })],
       [],
     ),
+  'adminForceResaveStripeConfig' : IDL.Func(
+      [],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'adminGetGeminiConfig' : IDL.Func(
       [],
       [IDL.Record({ 'model' : IDL.Text, 'configured' : IDL.Bool })],
@@ -624,6 +651,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'adminListDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
+  'adminListExtensionVersions' : IDL.Func(
+      [],
+      [IDL.Vec(ExtensionVersion)],
+      ['query'],
+    ),
   'adminListPayments' : IDL.Func([], [IDL.Vec(PaymentRecord)], ['query']),
   'adminListProfiles' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
   'adminListSubscriptions' : IDL.Func(
@@ -632,6 +664,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'adminListTierActions' : IDL.Func([], [IDL.Vec(AdminTierAction)], ['query']),
+  'adminLockBackupPermanent' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'adminResetAllUserSubscriptions' : IDL.Func(
       [],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
@@ -657,6 +694,11 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
     ),
+  'adminSetExtensionVersion' : IDL.Func(
+      [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Bool],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
   'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
   'adminSetSiteBaseUrl' : IDL.Func(
@@ -668,6 +710,20 @@ export const idlService = IDL.Service({
   'adminSetStripePrices' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
+      [],
+    ),
+  'adminTestAndVerifyStripeConfig' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'testPassed' : IDL.Bool,
+          'modeCorrect' : IDL.Bool,
+          'pubKeyPresent' : IDL.Bool,
+          'secretKeyPresent' : IDL.Bool,
+          'message' : IDL.Text,
+          'configValid' : IDL.Bool,
+        }),
+      ],
       [],
     ),
   'adminTestGeminiConnection' : IDL.Func(
@@ -693,6 +749,11 @@ export const idlService = IDL.Service({
       [IDL.Float64, Timestamp],
       [IDL.Opt(InAppNotification)],
       [],
+    ),
+  'checkExtensionUpdateStatus' : IDL.Func(
+      [IDL.Text],
+      [ExtensionUpdateCheck],
+      ['query'],
     ),
   'claimLoyaltyReward' : IDL.Func(
       [TierName],
@@ -751,7 +812,26 @@ export const idlService = IDL.Service({
       [],
     ),
   'debugCheckStripeKeyLength' : IDL.Func([], [IDL.Nat], ['query']),
-  'deleteBackup' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'debugConfigHealthReport' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'status' : IDL.Text,
+          'allCriticalKeysPresent' : IDL.Bool,
+          'siteBaseUrlSet' : IDL.Text,
+          'stripePublishableKeyLength' : IDL.Nat,
+          'geminiKeyLength' : IDL.Nat,
+          'stripSecretKeyLength' : IDL.Nat,
+          'stripeModeSet' : IDL.Text,
+        }),
+      ],
+      ['query'],
+    ),
+  'deleteBackup' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'deleteBackupRecord' : IDL.Func(
       [IDL.Nat],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -833,6 +913,11 @@ export const idlService = IDL.Service({
     ),
   'getGasPackages' : IDL.Func([], [IDL.Vec(GasPackage)], ['query']),
   'getHealthStatus' : IDL.Func([], [HealthStatus], ['query']),
+  'getLatestExtensionVersion' : IDL.Func(
+      [],
+      [IDL.Opt(ExtensionUpdateCheck)],
+      ['query'],
+    ),
   'getListing' : IDL.Func([ListingId], [IDL.Opt(Listing)], ['query']),
   'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
   'getMaintenanceMode' : IDL.Func(
@@ -1084,6 +1169,22 @@ export const idlService = IDL.Service({
       [ListingId],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
+    ),
+  'previewVersionRestoreSnapshot' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'snapshotCreatedAt' : Timestamp,
+            'createdBy' : IDL.Text,
+            'isManualBackup' : IDL.Bool,
+            'notes' : IDL.Opt(IDL.Text),
+            'listingCount' : IDL.Nat,
+            'userCount' : IDL.Nat,
+          })
+        ),
+      ],
+      ['query'],
     ),
   'receiveExtensionData' : IDL.Func(
       [ExtensionListingData, IDL.Text],
@@ -1435,6 +1536,29 @@ export const idlService = IDL.Service({
   'updateAdminSettings' : IDL.Func([UpdateSettingsArgs], [SiteSettings], []),
   'updateListing' : IDL.Func([UpdateListingArgs], [Listing], []),
   'updateMyProfile' : IDL.Func([UpdateProfileArgs], [UpdateProfileResult], []),
+  'validateBackupIntegrity' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Record({
+          'valid' : IDL.Bool,
+          'error' : IDL.Opt(IDL.Text),
+          'listingCount' : IDL.Nat,
+          'userCount' : IDL.Nat,
+        }),
+      ],
+      [],
+    ),
+  'validateCriticalConfig' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'status' : IDL.Text,
+          'keysConfigured' : IDL.Bool,
+          'missingKeys' : IDL.Vec(IDL.Text),
+        }),
+      ],
+      [],
+    ),
   'validateDiscountCode' : IDL.Func(
       [IDL.Text, IDL.Nat],
       [IDL.Opt(DiscountCode)],
@@ -1517,6 +1641,15 @@ export const idlFactory = ({ IDL }) => {
     'stripeWebhookSecret' : IDL.Opt(IDL.Text),
     'stripeWalkerPriceId' : IDL.Opt(IDL.Text),
   });
+  const Timestamp = IDL.Int;
+  const ExtensionVersion = IDL.Record({
+    'downloadUrl' : IDL.Text,
+    'releaseNotes' : IDL.Text,
+    'version' : IDL.Text,
+    'releasedAt' : Timestamp,
+    'buildNumber' : IDL.Nat,
+    'isForceUpdate' : IDL.Bool,
+  });
   const PaymentStatus = IDL.Variant({
     'pending' : IDL.Null,
     'completed' : IDL.Null,
@@ -1538,7 +1671,6 @@ export const idlFactory = ({ IDL }) => {
     'amountUSD' : IDL.Float64,
     'externalOrderId' : IDL.Opt(IDL.Text),
   });
-  const Timestamp = IDL.Int;
   const UserProfile = IDL.Record({
     'fbWebhookToken' : IDL.Opt(IDL.Text),
     'emailVerified' : IDL.Bool,
@@ -1616,6 +1748,15 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Timestamp,
     'isRead' : IDL.Bool,
     'message' : IDL.Text,
+  });
+  const ExtensionUpdateCheck = IDL.Record({
+    'needsUpdate' : IDL.Bool,
+    'downloadUrl' : IDL.Text,
+    'releaseNotes' : IDL.Text,
+    'currentVersion' : IDL.Text,
+    'latestVersion' : IDL.Text,
+    'buildNumber' : IDL.Nat,
+    'isForceUpdate' : IDL.Bool,
   });
   const TierName = IDL.Text;
   const GasWallet = IDL.Record({
@@ -1909,11 +2050,16 @@ export const idlFactory = ({ IDL }) => {
   });
   const ExtensionListingData = IDL.Record({
     'title' : IDL.Text,
+    'localPickupAvailable' : IDL.Opt(IDL.Bool),
     'imageUrls' : IDL.Vec(IDL.Text),
+    'deliveryDays' : IDL.Opt(IDL.Nat),
     'description' : IDL.Opt(IDL.Text),
+    'platform' : IDL.Opt(IDL.Text),
     'sourceUrl' : IDL.Opt(IDL.Text),
     'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
+    'condition' : IDL.Opt(IDL.Text),
   });
   const DraftListingId = IDL.Nat;
   const SetUsernameResult = IDL.Variant({
@@ -2048,6 +2194,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : UserTierSubscription, 'err' : IDL.Text })],
         [],
       ),
+    'adminForceResaveStripeConfig' : IDL.Func(
+        [],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'adminGetGeminiConfig' : IDL.Func(
         [],
         [IDL.Record({ 'model' : IDL.Text, 'configured' : IDL.Bool })],
@@ -2065,6 +2216,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'adminListDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
+    'adminListExtensionVersions' : IDL.Func(
+        [],
+        [IDL.Vec(ExtensionVersion)],
+        ['query'],
+      ),
     'adminListPayments' : IDL.Func([], [IDL.Vec(PaymentRecord)], ['query']),
     'adminListProfiles' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
     'adminListSubscriptions' : IDL.Func(
@@ -2076,6 +2232,11 @@ export const idlFactory = ({ IDL }) => {
         [],
         [IDL.Vec(AdminTierAction)],
         ['query'],
+      ),
+    'adminLockBackupPermanent' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
       ),
     'adminResetAllUserSubscriptions' : IDL.Func(
         [],
@@ -2102,6 +2263,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
       ),
+    'adminSetExtensionVersion' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
     'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
     'adminSetSiteBaseUrl' : IDL.Func(
@@ -2113,6 +2279,20 @@ export const idlFactory = ({ IDL }) => {
     'adminSetStripePrices' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],
+        [],
+      ),
+    'adminTestAndVerifyStripeConfig' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'testPassed' : IDL.Bool,
+            'modeCorrect' : IDL.Bool,
+            'pubKeyPresent' : IDL.Bool,
+            'secretKeyPresent' : IDL.Bool,
+            'message' : IDL.Text,
+            'configValid' : IDL.Bool,
+          }),
+        ],
         [],
       ),
     'adminTestGeminiConnection' : IDL.Func(
@@ -2138,6 +2318,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Float64, Timestamp],
         [IDL.Opt(InAppNotification)],
         [],
+      ),
+    'checkExtensionUpdateStatus' : IDL.Func(
+        [IDL.Text],
+        [ExtensionUpdateCheck],
+        ['query'],
       ),
     'claimLoyaltyReward' : IDL.Func(
         [TierName],
@@ -2200,7 +2385,26 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'debugCheckStripeKeyLength' : IDL.Func([], [IDL.Nat], ['query']),
-    'deleteBackup' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'debugConfigHealthReport' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'status' : IDL.Text,
+            'allCriticalKeysPresent' : IDL.Bool,
+            'siteBaseUrlSet' : IDL.Text,
+            'stripePublishableKeyLength' : IDL.Nat,
+            'geminiKeyLength' : IDL.Nat,
+            'stripSecretKeyLength' : IDL.Nat,
+            'stripeModeSet' : IDL.Text,
+          }),
+        ],
+        ['query'],
+      ),
+    'deleteBackup' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
     'deleteBackupRecord' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -2294,6 +2498,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getGasPackages' : IDL.Func([], [IDL.Vec(GasPackage)], ['query']),
     'getHealthStatus' : IDL.Func([], [HealthStatus], ['query']),
+    'getLatestExtensionVersion' : IDL.Func(
+        [],
+        [IDL.Opt(ExtensionUpdateCheck)],
+        ['query'],
+      ),
     'getListing' : IDL.Func([ListingId], [IDL.Opt(Listing)], ['query']),
     'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
     'getMaintenanceMode' : IDL.Func(
@@ -2549,6 +2758,22 @@ export const idlFactory = ({ IDL }) => {
         [ListingId],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
+      ),
+    'previewVersionRestoreSnapshot' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'snapshotCreatedAt' : Timestamp,
+              'createdBy' : IDL.Text,
+              'isManualBackup' : IDL.Bool,
+              'notes' : IDL.Opt(IDL.Text),
+              'listingCount' : IDL.Nat,
+              'userCount' : IDL.Nat,
+            })
+          ),
+        ],
+        ['query'],
       ),
     'receiveExtensionData' : IDL.Func(
         [ExtensionListingData, IDL.Text],
@@ -2902,6 +3127,29 @@ export const idlFactory = ({ IDL }) => {
     'updateMyProfile' : IDL.Func(
         [UpdateProfileArgs],
         [UpdateProfileResult],
+        [],
+      ),
+    'validateBackupIntegrity' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Record({
+            'valid' : IDL.Bool,
+            'error' : IDL.Opt(IDL.Text),
+            'listingCount' : IDL.Nat,
+            'userCount' : IDL.Nat,
+          }),
+        ],
+        [],
+      ),
+    'validateCriticalConfig' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'status' : IDL.Text,
+            'keysConfigured' : IDL.Bool,
+            'missingKeys' : IDL.Vec(IDL.Text),
+          }),
+        ],
         [],
       ),
     'validateDiscountCode' : IDL.Func(

@@ -162,6 +162,14 @@ actor {
   let appVersions = List.empty<AdminTypes.AppVersion>();
   let versionCounter = { var value : Nat = 0 };
 
+  // ── STABLE BACKUP MAPS (Emergency restore if upgrade corrupts state) ──────
+  // These survive every redeploy. If main collections are empty post-upgrade,
+  // we restore from these backups automatically in postupgrade.
+  stable var appConfigBackup    = Map.empty<Text, AppConfigTypes.ConfigEntry>();
+  stable var profilesBackup     = Map.empty<Common.UserId, ProfileTypes.UserProfile>();
+  stable var subscriptionsBackup = Map.empty<Common.UserId, TierTypes.UserTierSubscription>();
+  stable var listingsBackup     = Map.empty<Common.ListingId, ListingTypes.Listing>();
+
   let userRegistrations = Map.empty<Common.UserId, Common.Timestamp>();
   let userLastLogins = Map.empty<Common.UserId, Common.Timestamp>();
 
@@ -565,4 +573,30 @@ actor {
     notifications,
     usernameIndex,
   );
+
+  // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
+  // On every upgrade, sync critical data to stable backup maps so they survive
+  // any future upgrade that might lose in-flight state.
+  system func preupgrade() {
+    appConfigBackup     := appConfig;
+    profilesBackup      := profiles;
+    subscriptionsBackup := subscriptions;
+    listingsBackup      := listings;
+  };
+
+  // After upgrade, restore critical data if the main collections were lost.
+  system func postupgrade() {
+    if (appConfig.isEmpty() and not appConfigBackup.isEmpty()) {
+      for ((k, v) in appConfigBackup.entries()) { appConfig.add(k, v) };
+    };
+    if (profiles.isEmpty() and not profilesBackup.isEmpty()) {
+      for ((k, v) in profilesBackup.entries()) { profiles.add(k, v) };
+    };
+    if (subscriptions.isEmpty() and not subscriptionsBackup.isEmpty()) {
+      for ((k, v) in subscriptionsBackup.entries()) { subscriptions.add(k, v) };
+    };
+    if (listings.isEmpty() and not listingsBackup.isEmpty()) {
+      for ((k, v) in listingsBackup.entries()) { listings.add(k, v) };
+    };
+  };
 };

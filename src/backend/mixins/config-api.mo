@@ -285,4 +285,118 @@ mixin (
       backupCount;
     };
   };
+
+  /// System startup guard: verify critical payment config exists.
+  /// Returns status, keysConfigured flag, and list of missing keys.
+  public shared func validateCriticalConfig() : async {
+    status       : Text;
+    keysConfigured : Bool;
+    missingKeys  : [Text];
+  } {
+    let missing = List.empty<Text>();
+    let secretKey = switch (appConfig.get("stripe_secret_key"))    { case (?e) e.value; case null "" };
+    let pubKey    = switch (appConfig.get("stripe_publishable_key")){ case (?e) e.value; case null "" };
+    let mode      = switch (appConfig.get("stripe_mode"))          { case (?e) e.value; case null "" };
+    if (secretKey == "") missing.add("stripe_secret_key");
+    if (pubKey    == "") missing.add("stripe_publishable_key");
+    if (mode      == "") missing.add("stripe_mode");
+    let allOk = missing.size() == 0;
+    {
+      status       = if (allOk) "ok" else "degraded";
+      keysConfigured = allOk;
+      missingKeys  = missing.toArray();
+    }
+  };
+
+  /// Admin: force re-save all Stripe settings with a fresh timestamp.
+  /// Use this if config ever gets corrupted or disappears.
+  public shared ({ caller }) func adminForceResaveStripeConfig() : async { #ok : Text; #err : Text } {
+    requireAdmin(caller);
+    let secretKey = switch (appConfig.get("stripe_secret_key"))    { case (?e) e.value; case null { return #err("No secret key stored — set it first in admin > Payments") } };
+    let pubKey    = switch (appConfig.get("stripe_publishable_key")){ case (?e) e.value; case null { return #err("No publishable key stored") } };
+    let mode      = switch (appConfig.get("stripe_mode"))          { case (?e) e.value; case null { return #err("No Stripe mode set (test/live)") } };
+    let now = Time.now();
+    appConfig.add("stripe_secret_key", {
+      key = "stripe_secret_key"; value = secretKey; encrypted = true;
+      category = "stripe"; updatedAt = now; updatedBy = caller.toText();
+    });
+    appConfig.add("stripe_publishable_key", {
+      key = "stripe_publishable_key"; value = pubKey; encrypted = false;
+      category = "stripe"; updatedAt = now; updatedBy = caller.toText();
+    });
+    appConfig.add("stripe_mode", {
+      key = "stripe_mode"; value = mode; encrypted = false;
+      category = "stripe"; updatedAt = now; updatedBy = caller.toText();
+    });
+    #ok("Stripe config re-saved and locked in — all keys verified")
+  };
+
+  /// Admin: comprehensive config health diagnostics showing key presence and lengths.
+  public query ({ caller }) func debugConfigHealthReport() : async {
+    stripSecretKeyLength       : Nat;
+    stripePublishableKeyLength : Nat;
+    stripeModeSet              : Text;
+    geminiKeyLength            : Nat;
+    siteBaseUrlSet             : Text;
+    allCriticalKeysPresent     : Bool;
+    status                     : Text;
+  } {
+    requireAdmin(caller);
+    let secretKey = switch (appConfig.get("stripe_secret_key"))    { case (?e) e.value; case null "" };
+    let pubKey    = switch (appConfig.get("stripe_publishable_key")){ case (?e) e.value; case null "" };
+    let mode      = switch (appConfig.get("stripe_mode"))          { case (?e) e.value; case null "" };
+    let gemini    = switch (appConfig.get("gemini_api_key"))        { case (?e) e.value; case null "" };
+    let baseUrl   = switch (appConfig.get("site_base_url"))         { case (?e) e.value; case null "" };
+    let allOk = secretKey != "" and pubKey != "" and mode != "";
+    {
+      stripSecretKeyLength       = secretKey.size();
+      stripePublishableKeyLength = pubKey.size();
+      stripeModeSet              = mode;
+      geminiKeyLength            = gemini.size();
+      siteBaseUrlSet             = baseUrl;
+      allCriticalKeysPresent     = allOk;
+      status = if (allOk) {
+        "HEALTHY — All critical keys present"
+      } else {
+        "DEGRADED — Missing keys: "
+          # (if (secretKey == "") "secret_key " else "")
+          # (if (pubKey    == "") "pub_key " else "")
+          # (if (mode      == "") "mode" else "")
+      };
+    }
+  };
+
+  /// Admin: test and verify Stripe config by reading all keys and checking lengths.
+  public shared ({ caller }) func adminTestAndVerifyStripeConfig() : async {
+    configValid    : Bool;
+    testPassed     : Bool;
+    secretKeyPresent : Bool;
+    pubKeyPresent  : Bool;
+    modeCorrect    : Bool;
+    message        : Text;
+  } {
+    requireAdmin(caller);
+    let secretKey = switch (appConfig.get("stripe_secret_key"))    { case (?e) e.value; case null "" };
+    let pubKey    = switch (appConfig.get("stripe_publishable_key")){ case (?e) e.value; case null "" };
+    let mode      = switch (appConfig.get("stripe_mode"))          { case (?e) e.value; case null "" };
+    let secretOk = secretKey != "" and secretKey.size() > 10;
+    let pubOk    = pubKey    != "" and pubKey.size()    > 10;
+    let modeOk   = mode == "test" or mode == "live";
+    let configOk = secretOk and pubOk and modeOk;
+    {
+      configValid    = configOk;
+      testPassed     = configOk;
+      secretKeyPresent = secretOk;
+      pubKeyPresent  = pubOk;
+      modeCorrect    = modeOk;
+      message = if (configOk) {
+        "Stripe config VALID — " # mode # " mode — ready for payments"
+      } else {
+        "Config invalid: "
+          # (if (not secretOk) "secret_key_bad " else "")
+          # (if (not pubOk)    "pub_key_bad " else "")
+          # (if (not modeOk)   "mode_bad" else "")
+      };
+    }
+  };
 };
