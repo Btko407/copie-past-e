@@ -895,4 +895,13 @@ export const mockBackend: backendInterface = {
   // ── Backup Download API ──
   downloadVersionBackupAsJson: async (_backupId: string) => null,
   listBackupsForDownload: async () => [],
+  // ── Universal Cross-Listing API ──
+  createUniversalListing: async () => ({ __kind__: "ok" as const, ok: "mock-ul-id" }),
+  getUniversalListing: async () => null,
+  getUserUniversalListings: async () => [],
+  getPlatformCapabilities: async () => null,
+  getAllPlatformCapabilities: async () => [],
+  publishUniversalListing: async () => ({ __kind__: "ok" as const, ok: "Published" }),
+  markAsSOLD: async () => ({ __kind__: "ok" as const, ok: "Marked as sold" }),
+  getCampaignResults: async () => null,
 };

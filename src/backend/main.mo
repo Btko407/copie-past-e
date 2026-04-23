@@ -56,9 +56,10 @@ import MaintenanceApi "mixins/maintenance-api";
 import SystemHealthApi "mixins/system-health-api";
 import AutofillConfigApi "mixins/autofill-config-api";
 import SystemDiagnosticsApi "mixins/system-diagnostics-api";
-import Migration "migration";
+import UniversalListingApi "mixins/universal-listing-api";
 
-(with migration = Migration.run)
+
+
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -615,6 +616,9 @@ actor {
     accessControlState,
     appConfig,
   );
+
+  // ── Universal Cross-Listing ───────────────────────────────────────────────
+  include UniversalListingApi(accessControlState);
 
   // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
 };

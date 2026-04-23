@@ -4,6 +4,7 @@ import { MaintenanceBanner } from "@/components/MaintenanceBanner";
 import { PaymentBanners } from "@/components/PaymentBanners";
 import { LowFuelWarningBanner, RefuelBanner } from "@/components/RefuelBanner";
 import { TimeCircuitsCountdown } from "@/components/TimeCircuitsCountdown";
+import { UniversalListingForm } from "@/components/UniversalListingForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,16 +12,19 @@ import { useFavoritedListings, useListings } from "@/hooks/useListings";
 import { useCheckLowFuelNotification } from "@/hooks/useNotifications";
 import { useGetMySubscription, useGetTiers } from "@/hooks/useTiers";
 import { useNavigate } from "@tanstack/react-router";
-import { Heart, Plus, Search, Zap } from "lucide-react";
+import { Calendar, Heart, Plus, Search, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Listing } from "../backend";
 import { ListingStatus } from "../backend";
 import { computeFuelFromExpiry } from "../components/GasFuelTank";
+import { NewListingModal } from "./NewListingModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TabKey = "active" | "archived" | "favorites";
+type SortOption = "newest" | "oldest";
+type DateFilter = "all" | "today" | "week" | "month";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,6 +47,32 @@ function formatCompactTime(msRemaining: number): string {
   return parts.join(" ");
 }
 
+const DATE_FILTER_META: Record<DateFilter, { label: string; icon: string }> = {
+  all: { label: "All Time", icon: "📅" },
+  today: { label: "Today", icon: "📍" },
+  week: { label: "This Week", icon: "📆" },
+  month: { label: "This Month", icon: "📊" },
+};
+
+function filterByDateRange(listings: Listing[], filter: DateFilter): Listing[] {
+  if (filter === "all") return listings;
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return listings.filter((l) => {
+    const ageMs = now - nsToMs(l.createdAt);
+    switch (filter) {
+      case "today":
+        return ageMs <= DAY_MS;
+      case "week":
+        return ageMs <= 7 * DAY_MS;
+      case "month":
+        return ageMs <= 30 * DAY_MS;
+      default:
+        return true;
+    }
+  });
+}
+
 // ─── Compact Countdown Banner (mobile) ────────────────────────────────────────
 
 interface CompactCountdownProps {
@@ -54,7 +84,6 @@ function CompactCountdown({ expirationDate, tierName }: CompactCountdownProps) {
   const expMs = nsToMs(expirationDate);
   const [msRemaining, setMsRemaining] = useState(() => expMs - Date.now());
 
-  // Use useEffect-free polling via a ref-driven interval; kept simple with useState + interval
   useState(() => {
     const tick = () => setMsRemaining(expMs - Date.now());
     const id = setInterval(tick, 60_000);
@@ -63,7 +92,6 @@ function CompactCountdown({ expirationDate, tierName }: CompactCountdownProps) {
 
   const timeStr = formatCompactTime(msRemaining);
   const isExpired = msRemaining <= 0;
-  // Threshold: show warning only when < 20% fuel — determined by DashboardPage
   const isLow = msRemaining > 0 && msRemaining < 7 * 24 * 60 * 60 * 1000;
 
   return (
@@ -110,10 +138,10 @@ function SkeletonGrid() {
 
 interface EmptyStateProps {
   tab: TabKey;
-  onImport: () => void;
+  onNewListing: () => void;
 }
 
-function EmptyState({ tab, onImport }: EmptyStateProps) {
+function EmptyState({ tab, onNewListing }: EmptyStateProps) {
   const config = {
     active: {
       icon: "📋",
@@ -155,7 +183,7 @@ function EmptyState({ tab, onImport }: EmptyStateProps) {
       </p>
       {config.showCta && (
         <Button
-          onClick={onImport}
+          onClick={onNewListing}
           className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow font-display font-bold tracking-wide"
           data-ocid="create-first-listing-btn"
         >
@@ -278,7 +306,6 @@ function TabBar({
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
-// Threshold: show low-fuel banner only when fuel drops below 20%
 const LOW_FUEL_THRESHOLD = 20;
 
 export function DashboardPage() {
@@ -297,8 +324,12 @@ export function DashboardPage() {
   const [platformFilter, setPlatformFilter] = useState<
     "all" | "facebook" | "mecari"
   >("all");
+  const [sortOption, setSortOption] = useState<SortOption>("newest");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [newListingModalOpen, setNewListingModalOpen] = useState(false);
+  const [universalListingModalOpen, setUniversalListingModalOpen] =
+    useState(false);
 
-  // Track whether we've already fired the low-fuel backend check this session
   const lowFuelCheckFiredRef = useRef(false);
 
   const allListings = listings ?? [];
@@ -315,7 +346,6 @@ export function DashboardPage() {
   );
   const tierName = currentTier?.name ?? "Time Walker";
 
-  // Compute fuel level using the same formula as GasFuelTank
   const tierNum = subscription?.tier
     ? (Math.min(3, Math.max(1, Number(subscription.tier))) as 1 | 2 | 3)
     : null;
@@ -331,7 +361,6 @@ export function DashboardPage() {
     fuelPercent < LOW_FUEL_THRESHOLD &&
     fuelPercent > 0;
 
-  // Fire low-fuel backend notification check once per session when < 20%
   useEffect(() => {
     if (
       isLowFuel &&
@@ -340,7 +369,6 @@ export function DashboardPage() {
       subscription
     ) {
       lowFuelCheckFiredRef.current = true;
-      // Convert expirationMs (ms) back to nanoseconds for the backend
       const expiryNs = BigInt(Math.round(expirationMs * 1_000_000));
       checkLowFuel.mutate({
         fuelPercent,
@@ -349,21 +377,29 @@ export function DashboardPage() {
     }
   }, [isLowFuel, expirationMs, subscription, fuelPercent, checkLowFuel]);
 
-  // Sort active listings: pinned first (by pinnedAt asc to preserve pin order), then by createdAt desc
+  // Sort active: apply date filter, platform filter, then createdAt sort
   const sortedActive = useMemo(() => {
-    return allListings
-      .filter((l) => l.status === ListingStatus.active)
-      .sort((a, b) => {
-        const aPin = a.pinned ? 1 : 0;
-        const bPin = b.pinned ? 1 : 0;
-        if (bPin !== aPin) return bPin - aPin;
-        // Among pinned, sort by pinnedAt ascending (earlier pin = higher rank)
-        if (a.pinned && b.pinned && a.pinnedAt && b.pinnedAt) {
-          return Number(a.pinnedAt) - Number(b.pinnedAt);
-        }
-        return Number(b.createdAt) - Number(a.createdAt);
+    let items = allListings.filter((l) => l.status === ListingStatus.active);
+    items = filterByDateRange(items, dateFilter);
+    if (platformFilter !== "all") {
+      items = items.filter((l) => {
+        const p = l.platform;
+        if (!p) return false;
+        const pStr =
+          typeof p === "string"
+            ? p.replace(/^#/, "")
+            : typeof p === "object"
+              ? Object.keys(p as Record<string, unknown>)[0]
+              : "";
+        return pStr === platformFilter;
       });
-  }, [allListings]);
+    }
+    return items.sort((a, b) => {
+      const aTime = Number(a.createdAt);
+      const bTime = Number(b.createdAt);
+      return sortOption === "newest" ? bTime - aTime : aTime - bTime;
+    });
+  }, [allListings, dateFilter, platformFilter, sortOption]);
 
   const sortedArchived = useMemo(() => {
     return allListings
@@ -371,8 +407,6 @@ export function DashboardPage() {
       .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
   }, [allListings]);
 
-  // Favorites tab: use the dedicated backend query, filtered by search
-  // Also sort: pinned favorites first
   const sortedFavorites = useMemo(() => {
     return [...allFavorited].sort((a, b) => {
       const aPin = a.pinned ? 1 : 0;
@@ -382,24 +416,6 @@ export function DashboardPage() {
     });
   }, [allFavorited]);
 
-  // Platform filter — only applied to the active tab
-  function filterByPlatform(items: Listing[]): Listing[] {
-    if (platformFilter === "all") return items;
-    return items.filter((l) => {
-      const p = l.platform;
-      if (!p) return false;
-      // Handle both enum string value ("facebook") and object form ({facebook: null})
-      const pStr =
-        typeof p === "string"
-          ? p.replace(/^#/, "")
-          : typeof p === "object"
-            ? Object.keys(p as Record<string, unknown>)[0]
-            : "";
-      return pStr === platformFilter;
-    });
-  }
-
-  // Search filter — applied to the active tab
   function filterBySearch(items: Listing[]): Listing[] {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return items;
@@ -412,7 +428,7 @@ export function DashboardPage() {
 
   const visibleListings = filterBySearch(
     activeTab === "active"
-      ? filterByPlatform(sortedActive)
+      ? sortedActive
       : activeTab === "archived"
         ? sortedArchived
         : sortedFavorites,
@@ -421,7 +437,6 @@ export function DashboardPage() {
   const isLoading =
     listingsLoading || (activeTab === "favorites" && favoritesLoading);
 
-  // Days until deletion for expired archive clock
   const daysUntilDeletion =
     isSubscriptionExpired && expirationMs !== null
       ? Math.max(
@@ -444,7 +459,6 @@ export function DashboardPage() {
 
   return (
     <Layout>
-      {/* Maintenance mode banner — self-hides if not active or non-admin */}
       <MaintenanceBanner />
 
       <div
@@ -469,7 +483,7 @@ export function DashboardPage() {
             </Button>
             <Button
               size="sm"
-              onClick={() => navigate({ to: "/import" })}
+              onClick={() => setUniversalListingModalOpen(true)}
               className="h-8 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow-sm font-display font-bold tracking-wide text-xs"
               data-ocid="new-listing-btn"
             >
@@ -478,10 +492,8 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Payment banners — success (24h) and failure (persistent) */}
         <PaymentBanners />
 
-        {/* Expired banner (red) — shown when subscription is expired */}
         {showRefuelBanner && (
           <RefuelBanner
             daysUntilDeletion={daysUntilDeletion}
@@ -490,24 +502,20 @@ export function DashboardPage() {
           />
         )}
 
-        {/* Low fuel warning banner (amber) — shown only when fuel < 20% */}
         {showLowFuelBanner && (
           <LowFuelWarningBanner
             onDismiss={() => setLowFuelBannerDismissed(true)}
           />
         )}
 
-        {/* Subscription countdown */}
         {subscription?.expirationDate && (
           <>
-            {/* Mobile: compact banner */}
             <div className="sm:hidden mb-3">
               <CompactCountdown
                 expirationDate={subscription.expirationDate}
                 tierName={tierName}
               />
             </div>
-            {/* Desktop: full BTTF display */}
             <div
               className="hidden sm:block mb-4"
               data-ocid="active-listings-countdown"
@@ -538,13 +546,15 @@ export function DashboardPage() {
           onTabChange={(tab) => {
             setActiveTab(tab);
             setPlatformFilter("all");
+            setSortOption("newest");
+            setDateFilter("all");
           }}
           activeCnt={sortedActive.length}
           archivedCnt={sortedArchived.length}
           favoritesCnt={allFavorited.length}
         />
 
-        {/* Expired archive clock — shown in archived tab when subscription expired */}
+        {/* Expired archive clock */}
         {activeTab === "archived" &&
           isSubscriptionExpired &&
           expirationMs !== null && (
@@ -576,48 +586,81 @@ export function DashboardPage() {
             </div>
           )}
 
-        {/* Platform filter — active tab only */}
+        {/* Active tab controls: platform filter + sort + date filter */}
         {activeTab === "active" && (
-          <div
-            className="flex gap-2 mb-3 flex-wrap"
-            data-ocid="platform-filter-bar"
-          >
-            <button
-              type="button"
-              onClick={() => setPlatformFilter("all")}
-              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                platformFilter === "all"
-                  ? "bg-primary/20 text-primary border border-primary/50"
-                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-              }`}
-              data-ocid="platform-filter.all.tab"
+          <div className="space-y-2 mb-4">
+            {/* Platform filter */}
+            <div
+              className="flex gap-2 flex-wrap"
+              data-ocid="platform-filter-bar"
             >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlatformFilter("facebook")}
-              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                platformFilter === "facebook"
-                  ? "bg-blue-600/20 text-blue-300 border border-blue-500/50"
-                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-              }`}
-              data-ocid="platform-filter.facebook.tab"
-            >
-              📘 Facebook
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlatformFilter("mecari")}
-              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                platformFilter === "mecari"
-                  ? "bg-pink-600/20 text-pink-300 border border-pink-500/50"
-                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-              }`}
-              data-ocid="platform-filter.mecari.tab"
-            >
-              🏯 Mecari
-            </button>
+              {(["all", "facebook", "mecari"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPlatformFilter(p)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                    platformFilter === p
+                      ? p === "all"
+                        ? "bg-primary/20 text-primary border border-primary/50"
+                        : p === "facebook"
+                          ? "bg-blue-600/20 text-blue-300 border border-blue-500/50"
+                          : "bg-pink-600/20 text-pink-300 border border-pink-500/50"
+                      : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+                  }`}
+                  data-ocid={`platform-filter.${p}.tab`}
+                >
+                  {p === "all"
+                    ? "All"
+                    : p === "facebook"
+                      ? "📘 Facebook"
+                      : "🏯 Mecari"}
+                </button>
+              ))}
+            </div>
+
+            {/* Sort + Date filter row */}
+            <div className="flex gap-3 flex-wrap items-center">
+              {/* Sort select */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">
+                  Sort:
+                </span>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="px-2 py-1.5 rounded-md text-xs font-mono bg-secondary/50 border border-border/40 text-foreground focus:outline-none focus:border-primary/60 transition-smooth"
+                  data-ocid="sort-select"
+                  aria-label="Sort order"
+                >
+                  <option value="newest">📥 Newest First</option>
+                  <option value="oldest">📤 Oldest First</option>
+                </select>
+              </div>
+
+              {/* Date filter */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                {(["all", "today", "week", "month"] as const).map((f) => {
+                  const { label, icon } = DATE_FILTER_META[f];
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setDateFilter(f)}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                        dateFilter === f
+                          ? "bg-accent/20 text-accent border border-accent/50"
+                          : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+                      }`}
+                      data-ocid={`date-filter-${f}`}
+                    >
+                      {icon} {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 
@@ -627,12 +670,21 @@ export function DashboardPage() {
         ) : visibleListings.length === 0 ? (
           <EmptyState
             tab={activeTab}
-            onImport={() => navigate({ to: "/import" })}
+            onNewListing={() => setNewListingModalOpen(true)}
           />
         ) : (
           <ListingsGrid listings={visibleListings} />
         )}
       </div>
+
+      <NewListingModal
+        isOpen={newListingModalOpen}
+        onClose={() => setNewListingModalOpen(false)}
+      />
+      <UniversalListingForm
+        isOpen={universalListingModalOpen}
+        onClose={() => setUniversalListingModalOpen(false)}
+      />
     </Layout>
   );
 }

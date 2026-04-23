@@ -34,6 +34,7 @@ const NAV_ITEMS = [
   { label: "Users", path: "/admin/users", icon: Users },
   { label: "Analytics", path: "/admin/analytics", icon: BarChart3 },
   { label: "Versions", path: "/admin/versions", icon: Clock },
+  { label: "Extension", path: "/admin/extension", icon: Zap },
   { label: "Tier Mgmt", path: "/admin/tiers", icon: Zap },
   { label: "Payments", path: "/admin/payments", icon: CreditCard },
   { label: "Cleanup", path: "/admin/cleanup", icon: Trash2 },

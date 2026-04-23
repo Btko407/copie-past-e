@@ -147,6 +147,11 @@ const AdminExtensionVersionsPage = lazy(() =>
     default: m.AdminExtensionVersionsPage,
   })),
 );
+const CrossListingAnalyticsPage = lazy(() =>
+  import("./pages/CrossListingAnalyticsPage").then((m) => ({
+    default: m.CrossListingAnalyticsPage,
+  })),
+);
 
 // ─── Maintenance Guard ────────────────────────────────────────────────────────
 
@@ -582,6 +587,20 @@ const adminExtensionRoute = createRoute({
   ),
 });
 
+const crossListingAnalyticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/analytics/cross-listing",
+  component: () => (
+    <ProtectedRoute>
+      <MaintenanceGuard>
+        <Suspense fallback={<PageLoader />}>
+          <CrossListingAnalyticsPage />
+        </Suspense>
+      </MaintenanceGuard>
+    </ProtectedRoute>
+  ),
+});
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -614,6 +633,7 @@ const routeTree = rootRoute.addChildren([
   adminDataSnapshotsRoute,
   adminAutofillRoute,
   adminExtensionRoute,
+  crossListingAnalyticsRoute,
 ]);
 
 const router = createRouter({

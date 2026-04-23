@@ -124,6 +124,16 @@ export interface BulkGasDiscount {
   'description' : string,
   'discountPercent' : bigint,
 }
+export interface CampaignResults {
+  'totalListingsPublished' : bigint,
+  'publishedAt' : [] | [bigint],
+  'totalSales' : bigint,
+  'totalListingsFailed' : bigint,
+  'avgConversionRate' : [] | [number],
+  'totalRevenue' : [] | [string],
+  'avgViewsPerListing' : [] | [number],
+  'totalListingsSucceeded' : bigint,
+}
 export interface ComponentMetrics {
   'successCount' : bigint,
   'uptime' : number,
@@ -174,6 +184,19 @@ export interface CreateListingArgs {
 export interface CreateVersionArgs {
   'versionLabel' : string,
   'description' : string,
+}
+export interface CrossListingCampaign {
+  'id' : string,
+  'status' : { 'active' : null } |
+    { 'completed' : null } |
+    { 'draft' : null } |
+    { 'failed' : null },
+  'listings' : Array<string>,
+  'userId' : Principal,
+  'name' : string,
+  'createdAt' : bigint,
+  'results' : CampaignResults,
+  'targetPlatforms' : Array<string>,
 }
 export interface DiscountCode {
   'id' : bigint,
@@ -237,6 +260,23 @@ export interface FbListing {
   'description' : [] | [string],
   'category' : [] | [string],
   'price' : [] | [string],
+}
+export interface FieldMapping {
+  'weight' : [] | [string],
+  'title' : string,
+  'condition5Scale' : [] | [string],
+  'localPickup' : [] | [boolean],
+  'color' : [] | [string],
+  'size' : [] | [string],
+  'shipping' : [] | [boolean],
+  'deliveryDays' : [] | [bigint],
+  'description' : string,
+  'shippingCost' : [] | [string],
+  'shippingType' : [] | [string],
+  'category' : [] | [string],
+  'brand' : [] | [string],
+  'dimensions' : [] | [string],
+  'condition' : [] | [string],
 }
 export interface GasPackage {
   'gasAmount' : bigint,
@@ -334,6 +374,18 @@ export interface Listing {
   'archivedAt' : [] | [Timestamp],
 }
 export type ListingId = bigint;
+export interface ListingMetrics {
+  'viewsPerPlatform' : Array<[string, bigint]>,
+  'totalOffers' : bigint,
+  'offersPerPlatform' : Array<[string, bigint]>,
+  'totalViews' : bigint,
+  'salesPerPlatform' : Array<[string, bigint]>,
+  'totalLikes' : bigint,
+  'totalSales' : bigint,
+  'conversionRate' : [] | [number],
+  'avgTimeToSale' : [] | [bigint],
+  'likesPerPlatform' : Array<[string, bigint]>,
+}
 export interface ListingSnapshot {
   'title' : string,
   'favorited' : boolean,
@@ -343,6 +395,11 @@ export interface ListingSnapshot {
   'price' : [] | [string],
 }
 export type ListingStatus = { 'active' : null } |
+  { 'archived' : null };
+export type ListingStatus__1 = { 'active' : null } |
+  { 'pending' : null } |
+  { 'sold' : null } |
+  { 'draft' : null } |
   { 'archived' : null };
 export interface LoyaltyStatus {
   'rewardClaimedForTiers' : Array<TierName>,
@@ -450,11 +507,60 @@ export interface PlatformAutofillConfig {
   'mecariPrefillCategory' : boolean,
   'mecariPrefillTitle' : boolean,
 }
+export interface PlatformCapabilities {
+  'supportsAutoSync' : boolean,
+  'supportsCondition' : boolean,
+  'maxPhotos' : bigint,
+  'maxTitleLength' : bigint,
+  'supportsShipping' : boolean,
+  'priceFormat' : string,
+  'supportedCategories' : Array<string>,
+  'apiAvailable' : boolean,
+  'maxDescriptionLength' : bigint,
+  'name' : string,
+  'supportsBulkListing' : boolean,
+  'supportsLocalPickup' : boolean,
+  'requiresCategory' : boolean,
+  'supportsBrand' : boolean,
+}
+export interface PlatformTarget {
+  'status' : RemoteListingStatus,
+  'listingId' : [] | [string],
+  'publishedAt' : [] | [bigint],
+  'customPrice' : [] | [string],
+  'platform' : string,
+  'enabled' : boolean,
+  'syncedAt' : [] | [bigint],
+  'mappedFields' : FieldMapping,
+  'customCategory' : [] | [string],
+}
 export type Platform__1 = { 'facebook' : null } |
   { 'offerUp' : null } |
   { 'unknown' : null } |
   { 'mecari' : null };
+export interface PricingRules {
+  'maxPrice' : [] | [string],
+  'priceAdjustmentPerPlatform' : Array<[string, string]>,
+  'minPrice' : [] | [string],
+  'priceMarkupPercent' : [] | [number],
+  'basePrice' : string,
+  'autoRepricing' : boolean,
+}
+export interface PublishSchedule {
+  'scheduledTime' : [] | [bigint],
+  'scheduleType' : { 'scheduled' : null } |
+    { 'batch' : null } |
+    { 'immediate' : null },
+  'batchNumber' : [] | [bigint],
+  'itemsPerBatch' : [] | [bigint],
+}
 export interface RefuelEntry { 'tierAtRefuel' : TierName, 'date' : bigint }
+export type RemoteListingStatus = { 'scheduled' : null } |
+  { 'active' : null } |
+  { 'sold' : null } |
+  { 'error' : null } |
+  { 'syncing' : null } |
+  { 'delisted' : null };
 export type ResendResult = {
     'ok' : { 'resendCount' : bigint, 'cooldownSecondsRemaining' : bigint }
   } |
@@ -547,6 +653,28 @@ export interface TierConfig {
 }
 export type TierName = string;
 export type Timestamp = bigint;
+export interface UniversalListing {
+  'id' : string,
+  'status' : ListingStatus__1,
+  'soldOnPlatforms' : Array<string>,
+  'title' : string,
+  'publishSchedule' : [] | [PublishSchedule],
+  'metrics' : ListingMetrics,
+  'userId' : Principal,
+  'createdAt' : bigint,
+  'publishedAt' : [] | [bigint],
+  'description' : string,
+  'pricingRules' : PricingRules,
+  'quantitySold' : bigint,
+  'quantity' : bigint,
+  'category' : [] | [string],
+  'brand' : [] | [string],
+  'lastSyncAt' : [] | [bigint],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'targetPlatforms' : Array<PlatformTarget>,
+  'condition' : string,
+}
 export interface UpdateListingArgs {
   'id' : ListingId,
   'mecariCondition' : [] | [Condition],
@@ -880,6 +1008,39 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : string }
   >,
+  'createUniversalListing' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      [] | [string],
+      string,
+      [] | [string],
+      bigint,
+      Array<string>,
+      {
+        'platformPrices' : Array<[string, string]>,
+        'priceMarkupPercent' : [] | [number],
+        'basePrice' : string,
+        'autoRepricing' : boolean,
+      },
+      [] | [
+        {
+          'scheduledTime' : [] | [bigint],
+          'scheduleType' : { 'scheduled' : null } |
+            { 'batch' : null } |
+            { 'immediate' : null },
+          'batchSize' : [] | [bigint],
+        }
+      ],
+      {
+        'facebook' : [] | [{ 'localPickup' : boolean, 'shipping' : boolean }],
+        'mecari' : [] | [{ 'deliveryDays' : bigint, 'shippingType' : string }],
+      },
+    ],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'createVersion' : ActorMethod<[CreateVersionArgs], AppVersion>,
   'createVersionBackup' : ActorMethod<
     [boolean, [] | [string]],
@@ -972,6 +1133,7 @@ export interface _SERVICE {
   'getAdminSettings' : ActorMethod<[], SiteSettings>,
   'getAllAutofillConfigs' : ActorMethod<[], Array<PlatformAutofillConfig>>,
   'getAllConfig' : ActorMethod<[], Array<ConfigEntry>>,
+  'getAllPlatformCapabilities' : ActorMethod<[], Array<PlatformCapabilities>>,
   'getAuditLog' : ActorMethod<[], Array<AuditLogEntry>>,
   'getAutofillConfig' : ActorMethod<[string], [] | [PlatformAutofillConfig]>,
   'getAutofillHealthStatus' : ActorMethod<[], Array<AutofillHealthStatus>>,
@@ -979,6 +1141,7 @@ export interface _SERVICE {
   'getBackupHistory' : ActorMethod<[], Array<BackupHistoryRecord>>,
   'getBulkGasDiscounts' : ActorMethod<[], Array<BulkGasDiscount>>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCampaignResults' : ActorMethod<[string], [] | [CrossListingCampaign]>,
   'getCanisterCyclesBalance' : ActorMethod<[], bigint>,
   'getCleanupSummaries' : ActorMethod<[], Array<UserCleanupSummary>>,
   'getConfig' : ActorMethod<[string], [] | [string]>,
@@ -1010,6 +1173,10 @@ export interface _SERVICE {
   'getPendingSession' : ActorMethod<
     [],
     [] | [{ 'tierId' : bigint, 'tierDays' : bigint, 'sessionId' : string }]
+  >,
+  'getPlatformCapabilities' : ActorMethod<
+    [string],
+    [] | [PlatformCapabilities]
   >,
   'getProfileByUsername' : ActorMethod<[string], [] | [UserProfile]>,
   'getPublicConfig' : ActorMethod<
@@ -1078,8 +1245,10 @@ export interface _SERVICE {
   >,
   'getTier' : ActorMethod<[bigint], [] | [TierConfig]>,
   'getTiers' : ActorMethod<[], Array<TierConfig>>,
+  'getUniversalListing' : ActorMethod<[string], [] | [UniversalListing]>,
   'getUnreadAdminNotificationCount' : ActorMethod<[], bigint>,
   'getUserNotifications' : ActorMethod<[], Array<InAppNotification>>,
+  'getUserUniversalListings' : ActorMethod<[], Array<UniversalListing>>,
   'getVerificationStatus' : ActorMethod<[], [] | [VerificationRecord]>,
   'getVersionBackupIndex' : ActorMethod<
     [],
@@ -1171,6 +1340,7 @@ export interface _SERVICE {
   'markAdminNotificationRead' : ActorMethod<[bigint], undefined>,
   'markAllAdminNotificationsRead' : ActorMethod<[], undefined>,
   'markAllNotificationsRead' : ActorMethod<[], undefined>,
+  'markAsSOLD' : ActorMethod<[string], { 'ok' : string } | { 'err' : string }>,
   'markBackupAsStable' : ActorMethod<[string], boolean>,
   'markNotificationRead' : ActorMethod<[bigint], MarkReadResult>,
   'ocrScanImage' : ActorMethod<
@@ -1196,6 +1366,11 @@ export interface _SERVICE {
         'userCount' : bigint,
       }
     ]
+  >,
+  'publishUniversalListing' : ActorMethod<
+    [string],
+    { 'ok' : string } |
+      { 'err' : string }
   >,
   'receiveExtensionData' : ActorMethod<
     [ExtensionListingData, string],

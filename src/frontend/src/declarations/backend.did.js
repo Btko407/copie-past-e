@@ -366,6 +366,22 @@ export const ConfigEntry = IDL.Record({
   'updatedBy' : IDL.Text,
   'category' : IDL.Text,
 });
+export const PlatformCapabilities = IDL.Record({
+  'supportsAutoSync' : IDL.Bool,
+  'supportsCondition' : IDL.Bool,
+  'maxPhotos' : IDL.Nat,
+  'maxTitleLength' : IDL.Nat,
+  'supportsShipping' : IDL.Bool,
+  'priceFormat' : IDL.Text,
+  'supportedCategories' : IDL.Vec(IDL.Text),
+  'apiAvailable' : IDL.Bool,
+  'maxDescriptionLength' : IDL.Nat,
+  'name' : IDL.Text,
+  'supportsBulkListing' : IDL.Bool,
+  'supportsLocalPickup' : IDL.Bool,
+  'requiresCategory' : IDL.Bool,
+  'supportsBrand' : IDL.Bool,
+});
 export const AuditLogEntry = IDL.Record({
   'id' : IDL.Nat,
   'action' : IDL.Text,
@@ -389,6 +405,31 @@ export const BulkGasDiscount = IDL.Record({
   'minGasAmount' : IDL.Nat,
   'description' : IDL.Text,
   'discountPercent' : IDL.Nat,
+});
+export const CampaignResults = IDL.Record({
+  'totalListingsPublished' : IDL.Nat,
+  'publishedAt' : IDL.Opt(IDL.Int),
+  'totalSales' : IDL.Nat,
+  'totalListingsFailed' : IDL.Nat,
+  'avgConversionRate' : IDL.Opt(IDL.Float64),
+  'totalRevenue' : IDL.Opt(IDL.Text),
+  'avgViewsPerListing' : IDL.Opt(IDL.Float64),
+  'totalListingsSucceeded' : IDL.Nat,
+});
+export const CrossListingCampaign = IDL.Record({
+  'id' : IDL.Text,
+  'status' : IDL.Variant({
+    'active' : IDL.Null,
+    'completed' : IDL.Null,
+    'draft' : IDL.Null,
+    'failed' : IDL.Null,
+  }),
+  'listings' : IDL.Vec(IDL.Text),
+  'userId' : IDL.Principal,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'results' : CampaignResults,
+  'targetPlatforms' : IDL.Vec(IDL.Text),
 });
 export const UserCleanupSummary = IDL.Record({
   'hasExpiredListings' : IDL.Bool,
@@ -539,6 +580,101 @@ export const SystemDiagnostics = IDL.Record({
     'healthy' : IDL.Null,
     'critical' : IDL.Null,
   }),
+});
+export const ListingStatus__1 = IDL.Variant({
+  'active' : IDL.Null,
+  'pending' : IDL.Null,
+  'sold' : IDL.Null,
+  'draft' : IDL.Null,
+  'archived' : IDL.Null,
+});
+export const PublishSchedule = IDL.Record({
+  'scheduledTime' : IDL.Opt(IDL.Int),
+  'scheduleType' : IDL.Variant({
+    'scheduled' : IDL.Null,
+    'batch' : IDL.Null,
+    'immediate' : IDL.Null,
+  }),
+  'batchNumber' : IDL.Opt(IDL.Nat),
+  'itemsPerBatch' : IDL.Opt(IDL.Nat),
+});
+export const ListingMetrics = IDL.Record({
+  'viewsPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  'totalOffers' : IDL.Nat,
+  'offersPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  'totalViews' : IDL.Nat,
+  'salesPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  'totalLikes' : IDL.Nat,
+  'totalSales' : IDL.Nat,
+  'conversionRate' : IDL.Opt(IDL.Float64),
+  'avgTimeToSale' : IDL.Opt(IDL.Nat),
+  'likesPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+});
+export const PricingRules = IDL.Record({
+  'maxPrice' : IDL.Opt(IDL.Text),
+  'priceAdjustmentPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+  'minPrice' : IDL.Opt(IDL.Text),
+  'priceMarkupPercent' : IDL.Opt(IDL.Float64),
+  'basePrice' : IDL.Text,
+  'autoRepricing' : IDL.Bool,
+});
+export const RemoteListingStatus = IDL.Variant({
+  'scheduled' : IDL.Null,
+  'active' : IDL.Null,
+  'sold' : IDL.Null,
+  'error' : IDL.Null,
+  'syncing' : IDL.Null,
+  'delisted' : IDL.Null,
+});
+export const FieldMapping = IDL.Record({
+  'weight' : IDL.Opt(IDL.Text),
+  'title' : IDL.Text,
+  'condition5Scale' : IDL.Opt(IDL.Text),
+  'localPickup' : IDL.Opt(IDL.Bool),
+  'color' : IDL.Opt(IDL.Text),
+  'size' : IDL.Opt(IDL.Text),
+  'shipping' : IDL.Opt(IDL.Bool),
+  'deliveryDays' : IDL.Opt(IDL.Nat),
+  'description' : IDL.Text,
+  'shippingCost' : IDL.Opt(IDL.Text),
+  'shippingType' : IDL.Opt(IDL.Text),
+  'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
+  'dimensions' : IDL.Opt(IDL.Text),
+  'condition' : IDL.Opt(IDL.Text),
+});
+export const PlatformTarget = IDL.Record({
+  'status' : RemoteListingStatus,
+  'listingId' : IDL.Opt(IDL.Text),
+  'publishedAt' : IDL.Opt(IDL.Int),
+  'customPrice' : IDL.Opt(IDL.Text),
+  'platform' : IDL.Text,
+  'enabled' : IDL.Bool,
+  'syncedAt' : IDL.Opt(IDL.Int),
+  'mappedFields' : FieldMapping,
+  'customCategory' : IDL.Opt(IDL.Text),
+});
+export const UniversalListing = IDL.Record({
+  'id' : IDL.Text,
+  'status' : ListingStatus__1,
+  'soldOnPlatforms' : IDL.Vec(IDL.Text),
+  'title' : IDL.Text,
+  'publishSchedule' : IDL.Opt(PublishSchedule),
+  'metrics' : ListingMetrics,
+  'userId' : IDL.Principal,
+  'createdAt' : IDL.Int,
+  'publishedAt' : IDL.Opt(IDL.Int),
+  'description' : IDL.Text,
+  'pricingRules' : PricingRules,
+  'quantitySold' : IDL.Nat,
+  'quantity' : IDL.Nat,
+  'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
+  'lastSyncAt' : IDL.Opt(IDL.Int),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'targetPlatforms' : IDL.Vec(PlatformTarget),
+  'condition' : IDL.Text,
 });
 export const VerificationStatus = IDL.Variant({
   'verified' : IDL.Null,
@@ -970,6 +1106,45 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
+  'createUniversalListing' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Nat,
+        IDL.Vec(IDL.Text),
+        IDL.Record({
+          'platformPrices' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+          'priceMarkupPercent' : IDL.Opt(IDL.Float64),
+          'basePrice' : IDL.Text,
+          'autoRepricing' : IDL.Bool,
+        }),
+        IDL.Opt(
+          IDL.Record({
+            'scheduledTime' : IDL.Opt(IDL.Int),
+            'scheduleType' : IDL.Variant({
+              'scheduled' : IDL.Null,
+              'batch' : IDL.Null,
+              'immediate' : IDL.Null,
+            }),
+            'batchSize' : IDL.Opt(IDL.Nat),
+          })
+        ),
+        IDL.Record({
+          'facebook' : IDL.Opt(
+            IDL.Record({ 'localPickup' : IDL.Bool, 'shipping' : IDL.Bool })
+          ),
+          'mecari' : IDL.Opt(
+            IDL.Record({ 'deliveryDays' : IDL.Nat, 'shippingType' : IDL.Text })
+          ),
+        }),
+      ],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'createVersion' : IDL.Func([CreateVersionArgs], [AppVersion], []),
   'createVersionBackup' : IDL.Func(
       [IDL.Bool, IDL.Opt(IDL.Text)],
@@ -1104,6 +1279,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getAllConfig' : IDL.Func([], [IDL.Vec(ConfigEntry)], ['query']),
+  'getAllPlatformCapabilities' : IDL.Func(
+      [],
+      [IDL.Vec(PlatformCapabilities)],
+      ['query'],
+    ),
   'getAuditLog' : IDL.Func([], [IDL.Vec(AuditLogEntry)], ['query']),
   'getAutofillConfig' : IDL.Func(
       [IDL.Text],
@@ -1123,6 +1303,11 @@ export const idlService = IDL.Service({
   'getBackupHistory' : IDL.Func([], [IDL.Vec(BackupHistoryRecord)], ['query']),
   'getBulkGasDiscounts' : IDL.Func([], [IDL.Vec(BulkGasDiscount)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCampaignResults' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(CrossListingCampaign)],
+      ['query'],
+    ),
   'getCanisterCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
   'getCleanupSummaries' : IDL.Func(
       [],
@@ -1194,6 +1379,11 @@ export const idlService = IDL.Service({
         ),
       ],
       [],
+    ),
+  'getPlatformCapabilities' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(PlatformCapabilities)],
+      ['query'],
     ),
   'getProfileByUsername' : IDL.Func(
       [IDL.Text],
@@ -1291,10 +1481,20 @@ export const idlService = IDL.Service({
     ),
   'getTier' : IDL.Func([IDL.Nat], [IDL.Opt(TierConfig)], ['query']),
   'getTiers' : IDL.Func([], [IDL.Vec(TierConfig)], ['query']),
+  'getUniversalListing' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(UniversalListing)],
+      ['query'],
+    ),
   'getUnreadAdminNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getUserNotifications' : IDL.Func(
       [],
       [IDL.Vec(InAppNotification)],
+      ['query'],
+    ),
+  'getUserUniversalListings' : IDL.Func(
+      [],
+      [IDL.Vec(UniversalListing)],
       ['query'],
     ),
   'getVerificationStatus' : IDL.Func(
@@ -1419,6 +1619,11 @@ export const idlService = IDL.Service({
   'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'markAllAdminNotificationsRead' : IDL.Func([], [], []),
   'markAllNotificationsRead' : IDL.Func([], [], []),
+  'markAsSOLD' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'markBackupAsStable' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'markNotificationRead' : IDL.Func([IDL.Nat], [MarkReadResult], []),
   'ocrScanImage' : IDL.Func(
@@ -1447,6 +1652,11 @@ export const idlService = IDL.Service({
         ),
       ],
       ['query'],
+    ),
+  'publishUniversalListing' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
     ),
   'receiveExtensionData' : IDL.Func(
       [ExtensionListingData, IDL.Text],
@@ -2250,6 +2460,22 @@ export const idlFactory = ({ IDL }) => {
     'updatedBy' : IDL.Text,
     'category' : IDL.Text,
   });
+  const PlatformCapabilities = IDL.Record({
+    'supportsAutoSync' : IDL.Bool,
+    'supportsCondition' : IDL.Bool,
+    'maxPhotos' : IDL.Nat,
+    'maxTitleLength' : IDL.Nat,
+    'supportsShipping' : IDL.Bool,
+    'priceFormat' : IDL.Text,
+    'supportedCategories' : IDL.Vec(IDL.Text),
+    'apiAvailable' : IDL.Bool,
+    'maxDescriptionLength' : IDL.Nat,
+    'name' : IDL.Text,
+    'supportsBulkListing' : IDL.Bool,
+    'supportsLocalPickup' : IDL.Bool,
+    'requiresCategory' : IDL.Bool,
+    'supportsBrand' : IDL.Bool,
+  });
   const AuditLogEntry = IDL.Record({
     'id' : IDL.Nat,
     'action' : IDL.Text,
@@ -2273,6 +2499,31 @@ export const idlFactory = ({ IDL }) => {
     'minGasAmount' : IDL.Nat,
     'description' : IDL.Text,
     'discountPercent' : IDL.Nat,
+  });
+  const CampaignResults = IDL.Record({
+    'totalListingsPublished' : IDL.Nat,
+    'publishedAt' : IDL.Opt(IDL.Int),
+    'totalSales' : IDL.Nat,
+    'totalListingsFailed' : IDL.Nat,
+    'avgConversionRate' : IDL.Opt(IDL.Float64),
+    'totalRevenue' : IDL.Opt(IDL.Text),
+    'avgViewsPerListing' : IDL.Opt(IDL.Float64),
+    'totalListingsSucceeded' : IDL.Nat,
+  });
+  const CrossListingCampaign = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Variant({
+      'active' : IDL.Null,
+      'completed' : IDL.Null,
+      'draft' : IDL.Null,
+      'failed' : IDL.Null,
+    }),
+    'listings' : IDL.Vec(IDL.Text),
+    'userId' : IDL.Principal,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'results' : CampaignResults,
+    'targetPlatforms' : IDL.Vec(IDL.Text),
   });
   const UserCleanupSummary = IDL.Record({
     'hasExpiredListings' : IDL.Bool,
@@ -2423,6 +2674,101 @@ export const idlFactory = ({ IDL }) => {
       'healthy' : IDL.Null,
       'critical' : IDL.Null,
     }),
+  });
+  const ListingStatus__1 = IDL.Variant({
+    'active' : IDL.Null,
+    'pending' : IDL.Null,
+    'sold' : IDL.Null,
+    'draft' : IDL.Null,
+    'archived' : IDL.Null,
+  });
+  const PublishSchedule = IDL.Record({
+    'scheduledTime' : IDL.Opt(IDL.Int),
+    'scheduleType' : IDL.Variant({
+      'scheduled' : IDL.Null,
+      'batch' : IDL.Null,
+      'immediate' : IDL.Null,
+    }),
+    'batchNumber' : IDL.Opt(IDL.Nat),
+    'itemsPerBatch' : IDL.Opt(IDL.Nat),
+  });
+  const ListingMetrics = IDL.Record({
+    'viewsPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+    'totalOffers' : IDL.Nat,
+    'offersPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+    'totalViews' : IDL.Nat,
+    'salesPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+    'totalLikes' : IDL.Nat,
+    'totalSales' : IDL.Nat,
+    'conversionRate' : IDL.Opt(IDL.Float64),
+    'avgTimeToSale' : IDL.Opt(IDL.Nat),
+    'likesPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  });
+  const PricingRules = IDL.Record({
+    'maxPrice' : IDL.Opt(IDL.Text),
+    'priceAdjustmentPerPlatform' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+    'minPrice' : IDL.Opt(IDL.Text),
+    'priceMarkupPercent' : IDL.Opt(IDL.Float64),
+    'basePrice' : IDL.Text,
+    'autoRepricing' : IDL.Bool,
+  });
+  const RemoteListingStatus = IDL.Variant({
+    'scheduled' : IDL.Null,
+    'active' : IDL.Null,
+    'sold' : IDL.Null,
+    'error' : IDL.Null,
+    'syncing' : IDL.Null,
+    'delisted' : IDL.Null,
+  });
+  const FieldMapping = IDL.Record({
+    'weight' : IDL.Opt(IDL.Text),
+    'title' : IDL.Text,
+    'condition5Scale' : IDL.Opt(IDL.Text),
+    'localPickup' : IDL.Opt(IDL.Bool),
+    'color' : IDL.Opt(IDL.Text),
+    'size' : IDL.Opt(IDL.Text),
+    'shipping' : IDL.Opt(IDL.Bool),
+    'deliveryDays' : IDL.Opt(IDL.Nat),
+    'description' : IDL.Text,
+    'shippingCost' : IDL.Opt(IDL.Text),
+    'shippingType' : IDL.Opt(IDL.Text),
+    'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
+    'dimensions' : IDL.Opt(IDL.Text),
+    'condition' : IDL.Opt(IDL.Text),
+  });
+  const PlatformTarget = IDL.Record({
+    'status' : RemoteListingStatus,
+    'listingId' : IDL.Opt(IDL.Text),
+    'publishedAt' : IDL.Opt(IDL.Int),
+    'customPrice' : IDL.Opt(IDL.Text),
+    'platform' : IDL.Text,
+    'enabled' : IDL.Bool,
+    'syncedAt' : IDL.Opt(IDL.Int),
+    'mappedFields' : FieldMapping,
+    'customCategory' : IDL.Opt(IDL.Text),
+  });
+  const UniversalListing = IDL.Record({
+    'id' : IDL.Text,
+    'status' : ListingStatus__1,
+    'soldOnPlatforms' : IDL.Vec(IDL.Text),
+    'title' : IDL.Text,
+    'publishSchedule' : IDL.Opt(PublishSchedule),
+    'metrics' : ListingMetrics,
+    'userId' : IDL.Principal,
+    'createdAt' : IDL.Int,
+    'publishedAt' : IDL.Opt(IDL.Int),
+    'description' : IDL.Text,
+    'pricingRules' : PricingRules,
+    'quantitySold' : IDL.Nat,
+    'quantity' : IDL.Nat,
+    'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
+    'lastSyncAt' : IDL.Opt(IDL.Int),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'targetPlatforms' : IDL.Vec(PlatformTarget),
+    'condition' : IDL.Text,
   });
   const VerificationStatus = IDL.Variant({
     'verified' : IDL.Null,
@@ -2860,6 +3206,48 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
+    'createUniversalListing' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Nat,
+          IDL.Vec(IDL.Text),
+          IDL.Record({
+            'platformPrices' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+            'priceMarkupPercent' : IDL.Opt(IDL.Float64),
+            'basePrice' : IDL.Text,
+            'autoRepricing' : IDL.Bool,
+          }),
+          IDL.Opt(
+            IDL.Record({
+              'scheduledTime' : IDL.Opt(IDL.Int),
+              'scheduleType' : IDL.Variant({
+                'scheduled' : IDL.Null,
+                'batch' : IDL.Null,
+                'immediate' : IDL.Null,
+              }),
+              'batchSize' : IDL.Opt(IDL.Nat),
+            })
+          ),
+          IDL.Record({
+            'facebook' : IDL.Opt(
+              IDL.Record({ 'localPickup' : IDL.Bool, 'shipping' : IDL.Bool })
+            ),
+            'mecari' : IDL.Opt(
+              IDL.Record({
+                'deliveryDays' : IDL.Nat,
+                'shippingType' : IDL.Text,
+              })
+            ),
+          }),
+        ],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'createVersion' : IDL.Func([CreateVersionArgs], [AppVersion], []),
     'createVersionBackup' : IDL.Func(
         [IDL.Bool, IDL.Opt(IDL.Text)],
@@ -3002,6 +3390,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getAllConfig' : IDL.Func([], [IDL.Vec(ConfigEntry)], ['query']),
+    'getAllPlatformCapabilities' : IDL.Func(
+        [],
+        [IDL.Vec(PlatformCapabilities)],
+        ['query'],
+      ),
     'getAuditLog' : IDL.Func([], [IDL.Vec(AuditLogEntry)], ['query']),
     'getAutofillConfig' : IDL.Func(
         [IDL.Text],
@@ -3025,6 +3418,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getBulkGasDiscounts' : IDL.Func([], [IDL.Vec(BulkGasDiscount)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCampaignResults' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(CrossListingCampaign)],
+        ['query'],
+      ),
     'getCanisterCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getCleanupSummaries' : IDL.Func(
         [],
@@ -3096,6 +3494,11 @@ export const idlFactory = ({ IDL }) => {
           ),
         ],
         [],
+      ),
+    'getPlatformCapabilities' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(PlatformCapabilities)],
+        ['query'],
       ),
     'getProfileByUsername' : IDL.Func(
         [IDL.Text],
@@ -3197,10 +3600,20 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getTier' : IDL.Func([IDL.Nat], [IDL.Opt(TierConfig)], ['query']),
     'getTiers' : IDL.Func([], [IDL.Vec(TierConfig)], ['query']),
+    'getUniversalListing' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(UniversalListing)],
+        ['query'],
+      ),
     'getUnreadAdminNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUserNotifications' : IDL.Func(
         [],
         [IDL.Vec(InAppNotification)],
+        ['query'],
+      ),
+    'getUserUniversalListings' : IDL.Func(
+        [],
+        [IDL.Vec(UniversalListing)],
         ['query'],
       ),
     'getVerificationStatus' : IDL.Func(
@@ -3325,6 +3738,11 @@ export const idlFactory = ({ IDL }) => {
     'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'markAllAdminNotificationsRead' : IDL.Func([], [], []),
     'markAllNotificationsRead' : IDL.Func([], [], []),
+    'markAsSOLD' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'markBackupAsStable' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'markNotificationRead' : IDL.Func([IDL.Nat], [MarkReadResult], []),
     'ocrScanImage' : IDL.Func(
@@ -3353,6 +3771,11 @@ export const idlFactory = ({ IDL }) => {
           ),
         ],
         ['query'],
+      ),
+    'publishUniversalListing' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
       ),
     'receiveExtensionData' : IDL.Func(
         [ExtensionListingData, IDL.Text],

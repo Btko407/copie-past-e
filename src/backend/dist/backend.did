@@ -156,6 +156,29 @@ type UpdateListingArgs =
    tierLevel: opt nat;
    title: text;
  };
+type UniversalListing = 
+ record {
+   brand: opt text;
+   category: opt text;
+   condition: text;
+   createdAt: int;
+   description: text;
+   id: text;
+   lastSyncAt: opt int;
+   metrics: ListingMetrics;
+   photos: vec blob;
+   price: opt text;
+   pricingRules: PricingRules;
+   publishSchedule: opt PublishSchedule;
+   publishedAt: opt int;
+   quantity: nat;
+   quantitySold: nat;
+   soldOnPlatforms: vec text;
+   status: ListingStatus__1;
+   targetPlatforms: vec PlatformTarget;
+   title: text;
+   userId: principal;
+ };
 type Timestamp = int;
 type TierName = text;
 type TierConfig = 
@@ -270,10 +293,42 @@ type ResendResult =
          resendCount: nat;
        };
  };
+type RemoteListingStatus = 
+ variant {
+   active;
+   delisted;
+   error;
+   scheduled;
+   sold;
+   syncing;
+ };
 type RefuelEntry = 
  record {
    date: int;
    tierAtRefuel: TierName;
+ };
+type PublishSchedule = 
+ record {
+   batchNumber: opt nat;
+   itemsPerBatch: opt nat;
+   scheduleType: variant {
+                   batch;
+                   immediate;
+                   scheduled;
+                 };
+   scheduledTime: opt int;
+ };
+type PricingRules = 
+ record {
+   autoRepricing: bool;
+   basePrice: text;
+   maxPrice: opt text;
+   minPrice: opt text;
+   priceAdjustmentPerPlatform: vec record {
+                                     text;
+                                     text;
+                                   };
+   priceMarkupPercent: opt float64;
  };
 type Platform__1 = 
  variant {
@@ -281,6 +336,35 @@ type Platform__1 =
    mecari;
    offerUp;
    unknown;
+ };
+type PlatformTarget = 
+ record {
+   customCategory: opt text;
+   customPrice: opt text;
+   enabled: bool;
+   listingId: opt text;
+   mappedFields: FieldMapping;
+   platform: text;
+   publishedAt: opt int;
+   status: RemoteListingStatus;
+   syncedAt: opt int;
+ };
+type PlatformCapabilities = 
+ record {
+   apiAvailable: bool;
+   maxDescriptionLength: nat;
+   maxPhotos: nat;
+   maxTitleLength: nat;
+   name: text;
+   priceFormat: text;
+   requiresCategory: bool;
+   supportedCategories: vec text;
+   supportsAutoSync: bool;
+   supportsBrand: bool;
+   supportsBulkListing: bool;
+   supportsCondition: bool;
+   supportsLocalPickup: bool;
+   supportsShipping: bool;
  };
 type PlatformAutofillConfig = 
  record {
@@ -414,6 +498,14 @@ type LoyaltyStatus =
    refuelCount: nat;
    rewardClaimedForTiers: vec TierName;
  };
+type ListingStatus__1 = 
+ variant {
+   active;
+   archived;
+   draft;
+   pending;
+   sold;
+ };
 type ListingStatus = 
  variant {
    active;
@@ -427,6 +519,31 @@ type ListingSnapshot =
    pinned: bool;
    price: opt text;
    title: text;
+ };
+type ListingMetrics = 
+ record {
+   avgTimeToSale: opt nat;
+   conversionRate: opt float64;
+   likesPerPlatform: vec record {
+                           text;
+                           nat;
+                         };
+   offersPerPlatform: vec record {
+                            text;
+                            nat;
+                          };
+   salesPerPlatform: vec record {
+                           text;
+                           nat;
+                         };
+   totalLikes: nat;
+   totalOffers: nat;
+   totalSales: nat;
+   totalViews: nat;
+   viewsPerPlatform: vec record {
+                           text;
+                           nat;
+                         };
  };
 type ListingId = nat;
 type Listing = 
@@ -541,6 +658,24 @@ type GasPackage =
    priceUSD: float64;
    stripeProductId: text;
  };
+type FieldMapping = 
+ record {
+   brand: opt text;
+   category: opt text;
+   color: opt text;
+   condition: opt text;
+   condition5Scale: opt text;
+   deliveryDays: opt nat;
+   description: text;
+   dimensions: opt text;
+   localPickup: opt bool;
+   shipping: opt bool;
+   shippingCost: opt text;
+   shippingType: opt text;
+   size: opt text;
+   title: text;
+   weight: opt text;
+ };
 type FbListing = 
  record {
    category: opt text;
@@ -616,6 +751,22 @@ type DiscountCode =
    tierRestriction: opt nat;
    usageCount: nat;
  };
+type CrossListingCampaign = 
+ record {
+   createdAt: int;
+   id: text;
+   listings: vec text;
+   name: text;
+   results: CampaignResults;
+   status: variant {
+             active;
+             completed;
+             draft;
+             failed;
+           };
+   targetPlatforms: vec text;
+   userId: principal;
+ };
 type CreateVersionArgs = 
  record {
    description: text;
@@ -676,6 +827,17 @@ type ComponentMetrics =
    responseTime: nat;
    successCount: nat;
    uptime: float64;
+ };
+type CampaignResults = 
+ record {
+   avgConversionRate: opt float64;
+   avgViewsPerListing: opt float64;
+   publishedAt: opt int;
+   totalListingsFailed: nat;
+   totalListingsPublished: nat;
+   totalListingsSucceeded: nat;
+   totalRevenue: opt text;
+   totalSales: nat;
  };
 type BulkGasDiscount = 
  record {
@@ -986,6 +1148,41 @@ service : {
                                       err: text;
                                       ok: text;
                                     });
+  createUniversalListing: (title: text, description: text, price: text,
+   category: opt text, condition: text, brand: opt text, quantity: nat,
+   targetPlatforms: vec text, pricingRules:
+   record {
+     autoRepricing: bool;
+     basePrice: text;
+     platformPrices: vec record {
+                           text;
+                           text;
+                         };
+     priceMarkupPercent: opt float64;
+   }, publishSchedule:
+   opt
+    record {
+      batchSize: opt nat;
+      scheduleType: variant {
+                      batch;
+                      immediate;
+                      scheduled;
+                    };
+      scheduledTime: opt int;
+    }, platformSpecificFields:
+   record {
+     facebook: opt record {
+                     localPickup: bool;
+                     shipping: bool;
+                   };
+     mecari: opt record {
+                   deliveryDays: nat;
+                   shippingType: text;
+                 };
+   }) -> (variant {
+            err: text;
+            ok: text;
+          });
   createVersion: (args: CreateVersionArgs) -> (AppVersion);
   createVersionBackup: (isManual: bool, notes: opt text) ->
    (variant {
@@ -1074,6 +1271,7 @@ service : {
   getAdminSettings: () -> (SiteSettings) query;
   getAllAutofillConfigs: () -> (vec PlatformAutofillConfig) query;
   getAllConfig: () -> (vec ConfigEntry) query;
+  getAllPlatformCapabilities: () -> (vec PlatformCapabilities) query;
   getAuditLog: () -> (vec AuditLogEntry) query;
   getAutofillConfig: (platform: text) -> (opt PlatformAutofillConfig) query;
   getAutofillHealthStatus: () -> (vec AutofillHealthStatus) query;
@@ -1081,6 +1279,7 @@ service : {
   getBackupHistory: () -> (vec BackupHistoryRecord) query;
   getBulkGasDiscounts: () -> (vec BulkGasDiscount) query;
   getCallerUserRole: () -> (UserRole) query;
+  getCampaignResults: (campaignId: text) -> (opt CrossListingCampaign) query;
   getCanisterCyclesBalance: () -> (nat) query;
   getCleanupSummaries: () -> (vec UserCleanupSummary) query;
   getConfig: (key: text) -> (opt text) query;
@@ -1122,6 +1321,8 @@ service : {
           tierDays: nat;
           tierId: nat;
         });
+  getPlatformCapabilities: (platformName: text) ->
+   (opt PlatformCapabilities) query;
   getProfileByUsername: (username: text) -> (opt UserProfile) query;
   getPublicConfig: () ->
    (record {
@@ -1192,8 +1393,10 @@ service : {
     }) query;
   getTier: (tierId: nat) -> (opt TierConfig) query;
   getTiers: () -> (vec TierConfig) query;
+  getUniversalListing: (listingId: text) -> (opt UniversalListing) query;
   getUnreadAdminNotificationCount: () -> (nat) query;
   getUserNotifications: () -> (vec InAppNotification) query;
+  getUserUniversalListings: () -> (vec UniversalListing) query;
   getVerificationStatus: () -> (opt VerificationRecord) query;
   getVersionBackupIndex: () ->
    (record {
@@ -1275,6 +1478,10 @@ service : {
   markAdminNotificationRead: (id: nat) -> ();
   markAllAdminNotificationsRead: () -> ();
   markAllNotificationsRead: () -> ();
+  markAsSOLD: (listingId: text) -> (variant {
+                                      err: text;
+                                      ok: text;
+                                    });
   markBackupAsStable: (backupId: text) -> (bool);
   markNotificationRead: (notificationId: nat) -> (MarkReadResult);
   ocrScanImage: (imageBase64: text) -> (variant {
@@ -1296,6 +1503,11 @@ service : {
        snapshotCreatedAt: Timestamp;
        userCount: nat;
      }) query;
+  publishUniversalListing: (listingId: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   receiveExtensionData: (data: ExtensionListingData, webhookToken: text) ->
    (variant {
       err: text;

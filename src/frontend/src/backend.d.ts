@@ -63,12 +63,21 @@ export interface UserCleanupSummary {
     activeListingCount: bigint;
 }
 export type TierName = string;
-export interface HealthStatus {
-    status: string;
-    backupCount: bigint;
-    keysConfigured: boolean;
-    lastBackupAt: Timestamp;
-    criticalKeysPresent: boolean;
+export interface PlatformCapabilities {
+    supportsAutoSync: boolean;
+    supportsCondition: boolean;
+    maxPhotos: bigint;
+    maxTitleLength: bigint;
+    supportsShipping: boolean;
+    priceFormat: string;
+    supportedCategories: Array<string>;
+    apiAvailable: boolean;
+    maxDescriptionLength: bigint;
+    name: string;
+    supportsBulkListing: boolean;
+    supportsLocalPickup: boolean;
+    requiresCategory: boolean;
+    supportsBrand: boolean;
 }
 export interface VersionBackup {
     id: string;
@@ -79,6 +88,13 @@ export interface VersionBackup {
     backupData: string;
     backupType: string;
     notes?: string;
+}
+export interface HealthStatus {
+    status: string;
+    backupCount: bigint;
+    keysConfigured: boolean;
+    lastBackupAt: Timestamp;
+    criticalKeysPresent: boolean;
 }
 export interface BackupRecord {
     id: bigint;
@@ -140,6 +156,28 @@ export interface UserTierSubscription {
     updatedAt: bigint;
     expirationDate: bigint;
 }
+export interface UniversalListing {
+    id: string;
+    status: ListingStatus__1;
+    soldOnPlatforms: Array<string>;
+    title: string;
+    publishSchedule?: PublishSchedule;
+    metrics: ListingMetrics;
+    userId: Principal;
+    createdAt: bigint;
+    publishedAt?: bigint;
+    description: string;
+    pricingRules: PricingRules;
+    quantitySold: bigint;
+    quantity: bigint;
+    category?: string;
+    brand?: string;
+    lastSyncAt?: bigint;
+    price?: string;
+    photos: Array<Uint8Array>;
+    targetPlatforms: Array<PlatformTarget>;
+    condition: string;
+}
 export interface LoyaltyStatus {
     rewardClaimedForTiers: Array<TierName>;
     currentTier: TierName;
@@ -186,12 +224,6 @@ export interface BackupListingEntry {
     images: Array<BackupImageEntry>;
     archivedAt?: Timestamp;
 }
-export interface AutofillValidation {
-    valid: boolean;
-    errors: Array<string>;
-    warnings: Array<string>;
-    platformReady: boolean;
-}
 export type ResendResult = {
     __kind__: "ok";
     ok: {
@@ -214,16 +246,25 @@ export type GetProfileResult = {
     __kind__: "err";
     err: string;
 };
-export interface AutofillHealthStatus {
-    successRate: number;
-    isHealthy: boolean;
-    enabled: boolean;
-    totalAttempts: bigint;
-    lastTestResult?: string;
-    lastTestAt?: Timestamp;
-    totalSuccessful: bigint;
-    activeSessions: bigint;
-    platformName: string;
+export interface PublishSchedule {
+    scheduledTime?: bigint;
+    scheduleType: Variant_scheduled_batch_immediate;
+    batchNumber?: bigint;
+    itemsPerBatch?: bigint;
+}
+export interface AutofillValidation {
+    valid: boolean;
+    errors: Array<string>;
+    warnings: Array<string>;
+    platformReady: boolean;
+}
+export interface PricingRules {
+    maxPrice?: string;
+    priceAdjustmentPerPlatform: Array<[string, string]>;
+    minPrice?: string;
+    priceMarkupPercent?: number;
+    basePrice: string;
+    autoRepricing: boolean;
 }
 export type MarkReadResult = {
     __kind__: "ok";
@@ -319,6 +360,12 @@ export type UpdateProfileResult = {
     __kind__: "err";
     err: string;
 };
+export interface ParsedListingResult {
+    title?: string;
+    description?: string;
+    category?: string;
+    price?: string;
+}
 export interface VersionBackupSummary {
     id: string;
     versionLabel: string;
@@ -331,12 +378,6 @@ export interface VersionBackupSummary {
     sizeKb: bigint;
     listingCount: bigint;
     userCount: bigint;
-}
-export interface ParsedListingResult {
-    title?: string;
-    description?: string;
-    category?: string;
-    price?: string;
 }
 export interface UserProfile {
     fbWebhookToken?: string;
@@ -352,6 +393,18 @@ export interface UserProfile {
     updatedAt: Timestamp;
     stripeCustomerId?: string;
     phoneNumber?: string;
+}
+export interface ListingMetrics {
+    viewsPerPlatform: Array<[string, bigint]>;
+    totalOffers: bigint;
+    offersPerPlatform: Array<[string, bigint]>;
+    totalViews: bigint;
+    salesPerPlatform: Array<[string, bigint]>;
+    totalLikes: bigint;
+    totalSales: bigint;
+    conversionRate?: number;
+    avgTimeToSale?: bigint;
+    likesPerPlatform: Array<[string, bigint]>;
 }
 export interface BackupHistoryRecord {
     id: string;
@@ -380,6 +433,16 @@ export interface ExtensionUpdateCheck {
     latestVersion: string;
     buildNumber: bigint;
     isForceUpdate: boolean;
+}
+export interface CampaignResults {
+    totalListingsPublished: bigint;
+    publishedAt?: bigint;
+    totalSales: bigint;
+    totalListingsFailed: bigint;
+    avgConversionRate?: number;
+    totalRevenue?: string;
+    avgViewsPerListing?: number;
+    totalListingsSucceeded: bigint;
 }
 export interface AddImageArgs {
     order: bigint;
@@ -459,21 +522,15 @@ export interface GasPackage {
     priceUSD: number;
     packageId: bigint;
 }
-export interface CreateListingArgs {
-    mecariCondition?: Condition;
-    tierLevel?: bigint;
-    title: string;
-    fbLocalPickup?: boolean;
-    description: string;
-    platform?: Platform__1;
-    sourceUrl?: string;
-    mecariDeliveryDays?: bigint;
-    fbShipping?: boolean;
-    fbCondition?: Condition;
-    category?: string;
-    mecariShippingType?: string;
-    mecariBrand?: string;
-    price?: string;
+export interface CrossListingCampaign {
+    id: string;
+    status: Variant_active_completed_draft_failed;
+    listings: Array<string>;
+    userId: Principal;
+    name: string;
+    createdAt: bigint;
+    results: CampaignResults;
+    targetPlatforms: Array<string>;
 }
 export interface UpdateSettingsArgs {
     maxSessionDurationMinutes: bigint;
@@ -565,6 +622,22 @@ export interface Listing {
     condition?: string;
     archivedAt?: Timestamp;
 }
+export interface CreateListingArgs {
+    mecariCondition?: Condition;
+    tierLevel?: bigint;
+    title: string;
+    fbLocalPickup?: boolean;
+    description: string;
+    platform?: Platform__1;
+    sourceUrl?: string;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
+    category?: string;
+    mecariShippingType?: string;
+    mecariBrand?: string;
+    price?: string;
+}
 export interface SiteAnalytics {
     totalListings: bigint;
     avgImagesPerListing: number;
@@ -632,10 +705,44 @@ export interface Image {
     listingId: ListingId;
     altText: string;
 }
-export interface BulkGasDiscount {
-    minGasAmount: bigint;
+export interface AutofillHealthStatus {
+    successRate: number;
+    isHealthy: boolean;
+    enabled: boolean;
+    totalAttempts: bigint;
+    lastTestResult?: string;
+    lastTestAt?: Timestamp;
+    totalSuccessful: bigint;
+    activeSessions: bigint;
+    platformName: string;
+}
+export interface PlatformTarget {
+    status: RemoteListingStatus;
+    listingId?: string;
+    publishedAt?: bigint;
+    customPrice?: string;
+    platform: string;
+    enabled: boolean;
+    syncedAt?: bigint;
+    mappedFields: FieldMapping;
+    customCategory?: string;
+}
+export interface FieldMapping {
+    weight?: string;
+    title: string;
+    condition5Scale?: string;
+    localPickup?: boolean;
+    color?: string;
+    size?: string;
+    shipping?: boolean;
+    deliveryDays?: bigint;
     description: string;
-    discountPercent: bigint;
+    shippingCost?: string;
+    shippingType?: string;
+    category?: string;
+    brand?: string;
+    dimensions?: string;
+    condition?: string;
 }
 export type VerifyEmailResult = {
     __kind__: "ok";
@@ -644,6 +751,11 @@ export type VerifyEmailResult = {
     __kind__: "err";
     err: string;
 };
+export interface BulkGasDiscount {
+    minGasAmount: bigint;
+    description: string;
+    discountPercent: bigint;
+}
 export interface AdminTierAction {
     tierId: bigint;
     userId: Principal;
@@ -676,6 +788,13 @@ export enum ItemCondition {
 }
 export enum ListingStatus {
     active = "active",
+    archived = "archived"
+}
+export enum ListingStatus__1 {
+    active = "active",
+    pending = "pending",
+    sold = "sold",
+    draft = "draft",
     archived = "archived"
 }
 export enum MarketplaceSource {
@@ -711,10 +830,29 @@ export enum Platform__1 {
     unknown_ = "unknown",
     mecari = "mecari"
 }
+export enum RemoteListingStatus {
+    scheduled = "scheduled",
+    active = "active",
+    sold = "sold",
+    error = "error",
+    syncing = "syncing",
+    delisted = "delisted"
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
+}
+export enum Variant_active_completed_draft_failed {
+    active = "active",
+    completed = "completed",
+    draft = "draft",
+    failed = "failed"
+}
+export enum Variant_scheduled_batch_immediate {
+    scheduled = "scheduled",
+    batch = "batch",
+    immediate = "immediate"
 }
 export enum Variant_warning_healthy_critical {
     warning = "warning",
@@ -950,6 +1088,31 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    createUniversalListing(title: string, description: string, price: string, category: string | null, condition: string, brand: string | null, quantity: bigint, targetPlatforms: Array<string>, pricingRules: {
+        platformPrices: Array<[string, string]>;
+        priceMarkupPercent?: number;
+        basePrice: string;
+        autoRepricing: boolean;
+    }, publishSchedule: {
+        scheduledTime?: bigint;
+        scheduleType: Variant_scheduled_batch_immediate;
+        batchSize?: bigint;
+    } | null, platformSpecificFields: {
+        facebook?: {
+            localPickup: boolean;
+            shipping: boolean;
+        };
+        mecari?: {
+            deliveryDays: bigint;
+            shippingType: string;
+        };
+    }): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     createVersion(args: CreateVersionArgs): Promise<AppVersion>;
     createVersionBackup(isManual: boolean, notes: string | null): Promise<{
         __kind__: "ok";
@@ -1036,6 +1199,7 @@ export interface backendInterface {
     getAdminSettings(): Promise<SiteSettings>;
     getAllAutofillConfigs(): Promise<Array<PlatformAutofillConfig>>;
     getAllConfig(): Promise<Array<ConfigEntry>>;
+    getAllPlatformCapabilities(): Promise<Array<PlatformCapabilities>>;
     getAuditLog(): Promise<Array<AuditLogEntry>>;
     getAutofillConfig(platform: string): Promise<PlatformAutofillConfig | null>;
     getAutofillHealthStatus(): Promise<Array<AutofillHealthStatus>>;
@@ -1043,6 +1207,7 @@ export interface backendInterface {
     getBackupHistory(): Promise<Array<BackupHistoryRecord>>;
     getBulkGasDiscounts(): Promise<Array<BulkGasDiscount>>;
     getCallerUserRole(): Promise<UserRole>;
+    getCampaignResults(campaignId: string): Promise<CrossListingCampaign | null>;
     getCanisterCyclesBalance(): Promise<bigint>;
     getCleanupSummaries(): Promise<Array<UserCleanupSummary>>;
     getConfig(key: string): Promise<string | null>;
@@ -1091,6 +1256,7 @@ export interface backendInterface {
         tierDays: bigint;
         sessionId: string;
     } | null>;
+    getPlatformCapabilities(platformName: string): Promise<PlatformCapabilities | null>;
     getProfileByUsername(username: string): Promise<UserProfile | null>;
     getPublicConfig(): Promise<{
         maintenanceMessage: string;
@@ -1159,8 +1325,10 @@ export interface backendInterface {
     }>;
     getTier(tierId: bigint): Promise<TierConfig | null>;
     getTiers(): Promise<Array<TierConfig>>;
+    getUniversalListing(listingId: string): Promise<UniversalListing | null>;
     getUnreadAdminNotificationCount(): Promise<bigint>;
     getUserNotifications(): Promise<Array<InAppNotification>>;
+    getUserUniversalListings(): Promise<Array<UniversalListing>>;
     getVerificationStatus(): Promise<VerificationRecord | null>;
     getVersionBackupIndex(): Promise<{
         latestSnapshot?: string;
@@ -1246,6 +1414,13 @@ export interface backendInterface {
     markAdminNotificationRead(id: bigint): Promise<void>;
     markAllAdminNotificationsRead(): Promise<void>;
     markAllNotificationsRead(): Promise<void>;
+    markAsSOLD(listingId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     markBackupAsStable(backupId: string): Promise<boolean>;
     markNotificationRead(notificationId: bigint): Promise<MarkReadResult>;
     ocrScanImage(imageBase64: string): Promise<{
@@ -1271,6 +1446,13 @@ export interface backendInterface {
         listingCount: bigint;
         userCount: bigint;
     } | null>;
+    publishUniversalListing(listingId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     receiveExtensionData(data: ExtensionListingData, webhookToken: string): Promise<{
         __kind__: "ok";
         ok: DraftListingId;

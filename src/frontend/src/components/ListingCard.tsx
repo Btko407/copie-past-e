@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useListings";
 import { useGetMySubscription } from "@/hooks/useTiers";
 import { useNavigate } from "@tanstack/react-router";
+import { formatDistanceToNow } from "date-fns";
 import {
   Archive,
   Check,
@@ -180,6 +181,16 @@ export function ListingCard({ listing, index }: ListingCardProps) {
     isArchived && listing.archivedAt
       ? daysUntilDeletion(listing.archivedAt)
       : null;
+
+  const createdAtMs =
+    typeof listing.createdAt === "bigint"
+      ? Number(listing.createdAt) / 1_000_000
+      : Number(listing.createdAt) > 1e15
+        ? Number(listing.createdAt) / 1_000_000
+        : Number(listing.createdAt);
+  const relativeTime = formatDistanceToNow(new Date(createdAtMs), {
+    addSuffix: true,
+  });
 
   const thumbnail =
     images && images.length > 0 && !imageError
@@ -437,6 +448,11 @@ export function ListingCard({ listing, index }: ListingCardProps) {
             </span>
           </div>
         )}
+
+        {/* Timestamp overlay — shows on hover */}
+        <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/60 to-transparent text-xs text-gray-200 group-hover:block hidden pointer-events-none z-10">
+          📅 {relativeTime}
+        </div>
       </div>
 
       {/* Title below image */}
