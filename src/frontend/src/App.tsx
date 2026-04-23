@@ -142,6 +142,11 @@ const AdminAutofillConfigPage = lazy(() =>
     default: m.AdminAutofillConfigPage,
   })),
 );
+const AdminExtensionVersionsPage = lazy(() =>
+  import("./pages/admin/AdminExtensionVersionsPage").then((m) => ({
+    default: m.AdminExtensionVersionsPage,
+  })),
+);
 
 // ─── Maintenance Guard ────────────────────────────────────────────────────────
 
@@ -565,6 +570,18 @@ const adminAutofillRoute = createRoute({
   ),
 });
 
+const adminExtensionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/extension",
+  component: () => (
+    <AdminRoute>
+      <Suspense fallback={<PageLoader />}>
+        <AdminExtensionVersionsPage />
+      </Suspense>
+    </AdminRoute>
+  ),
+});
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -596,6 +613,7 @@ const routeTree = rootRoute.addChildren([
   adminActivityRoute,
   adminDataSnapshotsRoute,
   adminAutofillRoute,
+  adminExtensionRoute,
 ]);
 
 const router = createRouter({

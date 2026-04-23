@@ -141,6 +141,12 @@ export interface ComponentStatus {
   'message' : string,
   'category' : string,
 }
+export type Condition = { 'new' : null } |
+  { 'fair' : null } |
+  { 'good' : null } |
+  { 'poor' : null } |
+  { 'likeNew' : null } |
+  { 'unknown' : null };
 export interface ConfigEntry {
   'key' : string,
   'value' : string,
@@ -150,11 +156,19 @@ export interface ConfigEntry {
   'category' : string,
 }
 export interface CreateListingArgs {
+  'mecariCondition' : [] | [Condition],
   'tierLevel' : [] | [bigint],
   'title' : string,
+  'fbLocalPickup' : [] | [boolean],
   'description' : string,
+  'platform' : [] | [Platform__1],
   'sourceUrl' : [] | [string],
+  'mecariDeliveryDays' : [] | [bigint],
+  'fbShipping' : [] | [boolean],
+  'fbCondition' : [] | [Condition],
   'category' : [] | [string],
+  'mecariShippingType' : [] | [string],
+  'mecariBrand' : [] | [string],
   'price' : [] | [string],
 }
 export interface CreateVersionArgs {
@@ -292,22 +306,29 @@ export type ItemCondition = { 'new' : null } |
   { 'unknown' : null };
 export interface Listing {
   'id' : ListingId,
+  'mecariCondition' : [] | [Condition],
   'status' : ListingStatus,
   'tierLevel' : bigint,
   'title' : string,
+  'fbLocalPickup' : [] | [boolean],
   'favorited' : boolean,
   'userId' : UserId,
   'createdAt' : Timestamp,
   'description' : string,
-  'platform' : [] | [string],
+  'platform' : [] | [Platform__1],
   'sourceUrl' : [] | [string],
+  'mecariDeliveryDays' : [] | [bigint],
   'pinned' : boolean,
   'expirationDate' : Timestamp,
+  'fbShipping' : [] | [boolean],
+  'fbCondition' : [] | [Condition],
   'archivedManually' : boolean,
   'pinnedAt' : [] | [Timestamp],
   'restoredAt' : [] | [Timestamp],
   'category' : [] | [string],
+  'mecariShippingType' : [] | [string],
   'brand' : [] | [string],
+  'mecariBrand' : [] | [string],
   'price' : [] | [string],
   'condition' : [] | [string],
   'archivedAt' : [] | [Timestamp],
@@ -429,6 +450,10 @@ export interface PlatformAutofillConfig {
   'mecariPrefillCategory' : boolean,
   'mecariPrefillTitle' : boolean,
 }
+export type Platform__1 = { 'facebook' : null } |
+  { 'offerUp' : null } |
+  { 'unknown' : null } |
+  { 'mecari' : null };
 export interface RefuelEntry { 'tierAtRefuel' : TierName, 'date' : bigint }
 export type ResendResult = {
     'ok' : { 'resendCount' : bigint, 'cooldownSecondsRemaining' : bigint }
@@ -524,10 +549,18 @@ export type TierName = string;
 export type Timestamp = bigint;
 export interface UpdateListingArgs {
   'id' : ListingId,
+  'mecariCondition' : [] | [Condition],
   'tierLevel' : [] | [bigint],
   'title' : string,
+  'fbLocalPickup' : [] | [boolean],
   'description' : string,
+  'platform' : [] | [Platform__1],
+  'mecariDeliveryDays' : [] | [bigint],
+  'fbShipping' : [] | [boolean],
+  'fbCondition' : [] | [Condition],
   'category' : [] | [string],
+  'mecariShippingType' : [] | [string],
+  'mecariBrand' : [] | [string],
   'price' : [] | [string],
 }
 export interface UpdateProfileArgs {

@@ -40,13 +40,21 @@ module {
       category = args.category;
       condition = null;
       brand = null;
-      platform = null;
       archivedAt = null;
       archivedManually = false;
       restoredAt = null;
       pinned = false;
       favorited = false;
       pinnedAt = null;
+      // Platform fields from args (all optional — null when not provided)
+      platform           = args.platform;
+      fbCondition        = args.fbCondition;
+      fbLocalPickup      = args.fbLocalPickup;
+      fbShipping         = args.fbShipping;
+      mecariCondition    = args.mecariCondition;
+      mecariBrand        = args.mecariBrand;
+      mecariDeliveryDays = args.mecariDeliveryDays;
+      mecariShippingType = args.mecariShippingType;
     };
     listings.add(id, listing);
     listing;
@@ -118,6 +126,15 @@ module {
       title = args.title;
       description = args.description;
       price = args.price;
+      // Update platform fields when provided; keep existing values otherwise
+      platform           = switch (args.platform)           { case (?v) ?v; case null existing.platform };
+      fbCondition        = switch (args.fbCondition)        { case (?v) ?v; case null existing.fbCondition };
+      fbLocalPickup      = switch (args.fbLocalPickup)      { case (?v) ?v; case null existing.fbLocalPickup };
+      fbShipping         = switch (args.fbShipping)         { case (?v) ?v; case null existing.fbShipping };
+      mecariCondition    = switch (args.mecariCondition)    { case (?v) ?v; case null existing.mecariCondition };
+      mecariBrand        = switch (args.mecariBrand)        { case (?v) ?v; case null existing.mecariBrand };
+      mecariDeliveryDays = switch (args.mecariDeliveryDays) { case (?v) ?v; case null existing.mecariDeliveryDays };
+      mecariShippingType = switch (args.mecariShippingType) { case (?v) ?v; case null existing.mecariShippingType };
     };
     listings.add(args.id, updated);
     updated;

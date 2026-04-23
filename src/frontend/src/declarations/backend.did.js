@@ -135,28 +135,49 @@ export const TierConfig = IDL.Record({
   'stripeProductId' : IDL.Opt(IDL.Text),
   'priceUSD' : IDL.Float64,
 });
+export const Condition = IDL.Variant({
+  'new' : IDL.Null,
+  'fair' : IDL.Null,
+  'good' : IDL.Null,
+  'poor' : IDL.Null,
+  'likeNew' : IDL.Null,
+  'unknown' : IDL.Null,
+});
 export const ListingStatus = IDL.Variant({
   'active' : IDL.Null,
   'archived' : IDL.Null,
 });
+export const Platform__1 = IDL.Variant({
+  'facebook' : IDL.Null,
+  'offerUp' : IDL.Null,
+  'unknown' : IDL.Null,
+  'mecari' : IDL.Null,
+});
 export const Listing = IDL.Record({
   'id' : ListingId,
+  'mecariCondition' : IDL.Opt(Condition),
   'status' : ListingStatus,
   'tierLevel' : IDL.Nat,
   'title' : IDL.Text,
+  'fbLocalPickup' : IDL.Opt(IDL.Bool),
   'favorited' : IDL.Bool,
   'userId' : UserId,
   'createdAt' : Timestamp,
   'description' : IDL.Text,
-  'platform' : IDL.Opt(IDL.Text),
+  'platform' : IDL.Opt(Platform__1),
   'sourceUrl' : IDL.Opt(IDL.Text),
+  'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
   'pinned' : IDL.Bool,
   'expirationDate' : Timestamp,
+  'fbShipping' : IDL.Opt(IDL.Bool),
+  'fbCondition' : IDL.Opt(Condition),
   'archivedManually' : IDL.Bool,
   'pinnedAt' : IDL.Opt(Timestamp),
   'restoredAt' : IDL.Opt(Timestamp),
   'category' : IDL.Opt(IDL.Text),
+  'mecariShippingType' : IDL.Opt(IDL.Text),
   'brand' : IDL.Opt(IDL.Text),
+  'mecariBrand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
   'condition' : IDL.Opt(IDL.Text),
   'archivedAt' : IDL.Opt(Timestamp),
@@ -237,11 +258,19 @@ export const BackupRecord = IDL.Record({
   'fileSize' : IDL.Nat,
 });
 export const CreateListingArgs = IDL.Record({
+  'mecariCondition' : IDL.Opt(Condition),
   'tierLevel' : IDL.Opt(IDL.Nat),
   'title' : IDL.Text,
+  'fbLocalPickup' : IDL.Opt(IDL.Bool),
   'description' : IDL.Text,
+  'platform' : IDL.Opt(Platform__1),
   'sourceUrl' : IDL.Opt(IDL.Text),
+  'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+  'fbShipping' : IDL.Opt(IDL.Bool),
+  'fbCondition' : IDL.Opt(Condition),
   'category' : IDL.Opt(IDL.Text),
+  'mecariShippingType' : IDL.Opt(IDL.Text),
+  'mecariBrand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
 });
 export const CreateVersionArgs = IDL.Record({
@@ -671,10 +700,18 @@ export const UpdateSettingsArgs = IDL.Record({
 });
 export const UpdateListingArgs = IDL.Record({
   'id' : ListingId,
+  'mecariCondition' : IDL.Opt(Condition),
   'tierLevel' : IDL.Opt(IDL.Nat),
   'title' : IDL.Text,
+  'fbLocalPickup' : IDL.Opt(IDL.Bool),
   'description' : IDL.Text,
+  'platform' : IDL.Opt(Platform__1),
+  'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+  'fbShipping' : IDL.Opt(IDL.Bool),
+  'fbCondition' : IDL.Opt(Condition),
   'category' : IDL.Opt(IDL.Text),
+  'mecariShippingType' : IDL.Opt(IDL.Text),
+  'mecariBrand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
 });
 export const UpdateProfileArgs = IDL.Record({
@@ -1982,28 +2019,49 @@ export const idlFactory = ({ IDL }) => {
     'stripeProductId' : IDL.Opt(IDL.Text),
     'priceUSD' : IDL.Float64,
   });
+  const Condition = IDL.Variant({
+    'new' : IDL.Null,
+    'fair' : IDL.Null,
+    'good' : IDL.Null,
+    'poor' : IDL.Null,
+    'likeNew' : IDL.Null,
+    'unknown' : IDL.Null,
+  });
   const ListingStatus = IDL.Variant({
     'active' : IDL.Null,
     'archived' : IDL.Null,
   });
+  const Platform__1 = IDL.Variant({
+    'facebook' : IDL.Null,
+    'offerUp' : IDL.Null,
+    'unknown' : IDL.Null,
+    'mecari' : IDL.Null,
+  });
   const Listing = IDL.Record({
     'id' : ListingId,
+    'mecariCondition' : IDL.Opt(Condition),
     'status' : ListingStatus,
     'tierLevel' : IDL.Nat,
     'title' : IDL.Text,
+    'fbLocalPickup' : IDL.Opt(IDL.Bool),
     'favorited' : IDL.Bool,
     'userId' : UserId,
     'createdAt' : Timestamp,
     'description' : IDL.Text,
-    'platform' : IDL.Opt(IDL.Text),
+    'platform' : IDL.Opt(Platform__1),
     'sourceUrl' : IDL.Opt(IDL.Text),
+    'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
     'pinned' : IDL.Bool,
     'expirationDate' : Timestamp,
+    'fbShipping' : IDL.Opt(IDL.Bool),
+    'fbCondition' : IDL.Opt(Condition),
     'archivedManually' : IDL.Bool,
     'pinnedAt' : IDL.Opt(Timestamp),
     'restoredAt' : IDL.Opt(Timestamp),
     'category' : IDL.Opt(IDL.Text),
+    'mecariShippingType' : IDL.Opt(IDL.Text),
     'brand' : IDL.Opt(IDL.Text),
+    'mecariBrand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
     'condition' : IDL.Opt(IDL.Text),
     'archivedAt' : IDL.Opt(Timestamp),
@@ -2084,11 +2142,19 @@ export const idlFactory = ({ IDL }) => {
     'fileSize' : IDL.Nat,
   });
   const CreateListingArgs = IDL.Record({
+    'mecariCondition' : IDL.Opt(Condition),
     'tierLevel' : IDL.Opt(IDL.Nat),
     'title' : IDL.Text,
+    'fbLocalPickup' : IDL.Opt(IDL.Bool),
     'description' : IDL.Text,
+    'platform' : IDL.Opt(Platform__1),
     'sourceUrl' : IDL.Opt(IDL.Text),
+    'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+    'fbShipping' : IDL.Opt(IDL.Bool),
+    'fbCondition' : IDL.Opt(Condition),
     'category' : IDL.Opt(IDL.Text),
+    'mecariShippingType' : IDL.Opt(IDL.Text),
+    'mecariBrand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
   });
   const CreateVersionArgs = IDL.Record({
@@ -2512,10 +2578,18 @@ export const idlFactory = ({ IDL }) => {
   });
   const UpdateListingArgs = IDL.Record({
     'id' : ListingId,
+    'mecariCondition' : IDL.Opt(Condition),
     'tierLevel' : IDL.Opt(IDL.Nat),
     'title' : IDL.Text,
+    'fbLocalPickup' : IDL.Opt(IDL.Bool),
     'description' : IDL.Text,
+    'platform' : IDL.Opt(Platform__1),
+    'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+    'fbShipping' : IDL.Opt(IDL.Bool),
+    'fbCondition' : IDL.Opt(Condition),
     'category' : IDL.Opt(IDL.Text),
+    'mecariShippingType' : IDL.Opt(IDL.Text),
+    'mecariBrand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
   });
   const UpdateProfileArgs = IDL.Record({

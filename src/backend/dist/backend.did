@@ -143,7 +143,15 @@ type UpdateListingArgs =
  record {
    category: opt text;
    description: text;
+   fbCondition: opt Condition;
+   fbLocalPickup: opt bool;
+   fbShipping: opt bool;
    id: ListingId;
+   mecariBrand: opt text;
+   mecariCondition: opt Condition;
+   mecariDeliveryDays: opt nat;
+   mecariShippingType: opt text;
+   platform: opt Platform__1;
    price: opt text;
    tierLevel: opt nat;
    title: text;
@@ -266,6 +274,13 @@ type RefuelEntry =
  record {
    date: int;
    tierAtRefuel: TierName;
+ };
+type Platform__1 = 
+ variant {
+   facebook;
+   mecari;
+   offerUp;
+   unknown;
  };
 type PlatformAutofillConfig = 
  record {
@@ -425,10 +440,17 @@ type Listing =
    description: text;
    expirationDate: Timestamp;
    favorited: bool;
+   fbCondition: opt Condition;
+   fbLocalPickup: opt bool;
+   fbShipping: opt bool;
    id: ListingId;
+   mecariBrand: opt text;
+   mecariCondition: opt Condition;
+   mecariDeliveryDays: opt nat;
+   mecariShippingType: opt text;
    pinned: bool;
    pinnedAt: opt Timestamp;
-   platform: opt text;
+   platform: opt Platform__1;
    price: opt text;
    restoredAt: opt Timestamp;
    sourceUrl: opt text;
@@ -603,6 +625,14 @@ type CreateListingArgs =
  record {
    category: opt text;
    description: text;
+   fbCondition: opt Condition;
+   fbLocalPickup: opt bool;
+   fbShipping: opt bool;
+   mecariBrand: opt text;
+   mecariCondition: opt Condition;
+   mecariDeliveryDays: opt nat;
+   mecariShippingType: opt text;
+   platform: opt Platform__1;
    price: opt text;
    sourceUrl: opt text;
    tierLevel: opt nat;
@@ -616,6 +646,15 @@ type ConfigEntry =
    updatedAt: Timestamp;
    updatedBy: text;
    value: text;
+ };
+type Condition = 
+ variant {
+   fair;
+   good;
+   likeNew;
+   new;
+   poor;
+   unknown;
  };
 type ComponentStatus = 
  record {

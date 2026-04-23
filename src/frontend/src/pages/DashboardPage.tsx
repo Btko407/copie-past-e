@@ -294,6 +294,9 @@ export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [lowFuelBannerDismissed, setLowFuelBannerDismissed] = useState(false);
+  const [platformFilter, setPlatformFilter] = useState<
+    "all" | "facebook" | "mecari"
+  >("all");
 
   // Track whether we've already fired the low-fuel backend check this session
   const lowFuelCheckFiredRef = useRef(false);
@@ -379,6 +382,23 @@ export function DashboardPage() {
     });
   }, [allFavorited]);
 
+  // Platform filter — only applied to the active tab
+  function filterByPlatform(items: Listing[]): Listing[] {
+    if (platformFilter === "all") return items;
+    return items.filter((l) => {
+      const p = l.platform;
+      if (!p) return false;
+      // Handle both enum string value ("facebook") and object form ({facebook: null})
+      const pStr =
+        typeof p === "string"
+          ? p.replace(/^#/, "")
+          : typeof p === "object"
+            ? Object.keys(p as Record<string, unknown>)[0]
+            : "";
+      return pStr === platformFilter;
+    });
+  }
+
   // Search filter — applied to the active tab
   function filterBySearch(items: Listing[]): Listing[] {
     const q = searchQuery.trim().toLowerCase();
@@ -392,7 +412,7 @@ export function DashboardPage() {
 
   const visibleListings = filterBySearch(
     activeTab === "active"
-      ? sortedActive
+      ? filterByPlatform(sortedActive)
       : activeTab === "archived"
         ? sortedArchived
         : sortedFavorites,
@@ -515,7 +535,10 @@ export function DashboardPage() {
         {/* Tab bar */}
         <TabBar
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setPlatformFilter("all");
+          }}
           activeCnt={sortedActive.length}
           archivedCnt={sortedArchived.length}
           favoritesCnt={allFavorited.length}
@@ -552,6 +575,51 @@ export function DashboardPage() {
               </div>
             </div>
           )}
+
+        {/* Platform filter — active tab only */}
+        {activeTab === "active" && (
+          <div
+            className="flex gap-2 mb-3 flex-wrap"
+            data-ocid="platform-filter-bar"
+          >
+            <button
+              type="button"
+              onClick={() => setPlatformFilter("all")}
+              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                platformFilter === "all"
+                  ? "bg-primary/20 text-primary border border-primary/50"
+                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid="platform-filter.all.tab"
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter("facebook")}
+              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                platformFilter === "facebook"
+                  ? "bg-blue-600/20 text-blue-300 border border-blue-500/50"
+                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid="platform-filter.facebook.tab"
+            >
+              📘 Facebook
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter("mecari")}
+              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                platformFilter === "mecari"
+                  ? "bg-pink-600/20 text-pink-300 border border-pink-500/50"
+                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid="platform-filter.mecari.tab"
+            >
+              🏯 Mecari
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {isLoading ? (

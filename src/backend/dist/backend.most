@@ -72,6 +72,7 @@ type BackupRecord__451323854 =
     userId : UserId__158757552
   };
 type BackupStatus__449692461 = {#complete; #failed; #pending};
+type Condition__339691312 = {#fair; #good; #likeNew; #new_; #poor; #unknown};
 type ConfigEntry__967475232 =
   {
     category : Text;
@@ -191,10 +192,17 @@ type Listing__798123527 =
     description : Text;
     expirationDate : Timestamp__301639476;
     favorited : Bool;
+    fbCondition : ?Condition__339691312;
+    fbLocalPickup : ?Bool;
+    fbShipping : ?Bool;
     id : ListingId__58075594;
+    mecariBrand : ?Text;
+    mecariCondition : ?Condition__339691312;
+    mecariDeliveryDays : ?Nat;
+    mecariShippingType : ?Text;
     pinned : Bool;
     pinnedAt : ?Timestamp__301639476;
-    platform : ?Text;
+    platform : ?Platform__966278842;
     price : ?Text;
     restoredAt : ?Timestamp__301639476;
     sourceUrl : ?Text;
@@ -233,35 +241,29 @@ type OcrFailureEntry__941651084 =
     timestamp : Int;
     userPrincipal : Text
   };
-type OldExtensionVersion__473447854 =
-  {
-    buildNumber : Nat;
-    downloadUrl : Text;
-    isForceUpdate : Bool;
-    releaseNotes : Text;
-    releasedAt : Int;
-    version : Text
-  };
 type OldListingStatus__662853161 = {#active; #archived};
 type OldListing__294277369 =
   {
-    archivedAt : ?Int;
+    archivedAt : ?Timestamp__301639476;
     archivedManually : Bool;
+    brand : ?Text;
     category : ?Text;
-    createdAt : Int;
+    condition : ?Text;
+    createdAt : Timestamp__301639476;
     description : Text;
-    expirationDate : Int;
+    expirationDate : Timestamp__301639476;
     favorited : Bool;
-    id : Nat;
+    id : ListingId__58075594;
     pinned : Bool;
-    pinnedAt : ?Int;
+    pinnedAt : ?Timestamp__301639476;
+    platform : ?Text;
     price : ?Text;
-    restoredAt : ?Int;
+    restoredAt : ?Timestamp__301639476;
     sourceUrl : ?Text;
     status : OldListingStatus__662853161;
     tierLevel : Nat;
     title : Text;
-    userId : Principal
+    userId : UserId__158757552
   };
 type PaymentBannerState__567153087 =
   {
@@ -333,6 +335,7 @@ type PlatformAutofillConfig__616518466 =
     platformName : Text;
     updatedBy : Text
   };
+type Platform__966278842 = {#facebook; #mecari; #offerUp; #unknown};
 type RefuelEntry__738623034 =
   {date : Int; tierAtRefuel : TierName__274346593};
 type SiteSettings__435530660 =
@@ -656,7 +659,11 @@ actor ({
       var root : Node__46230540<Text, UserId__158757552>;
       var size : Nat__490723111
     };
-  in extensionVersions : List__415060402<OldExtensionVersion__473447854>;
+  stable extensionVersions :
+    {
+      var root : Node__46230540<Text, ExtensionVersion__1001368693>;
+      var size : Nat__490723111
+    };
   stable failedWebhookEvents :
     {
       var root : Node__46230540<Text, FailedWebhookEvent__773709489>;
@@ -682,8 +689,9 @@ actor ({
     };
   stable lastAutoSnapshotTime : {var value : Int};
   stable listingCounter : {var value : Nat};
-  in listings : Map__605269027<Nat, OldListing__294277369>;
-  in var listingsBackup : Map__605269027<Nat, OldListing__294277369>;
+  in listings : Map__605269027<ListingId__58075594, OldListing__294277369>;
+  in listingsBackup :
+    Map__605269027<ListingId__58075594, OldListing__294277369>;
   stable lowFuelNotificationSentFor :
     {
       var root : Node__46230540<UserId__158757552, Timestamp__301639476>;

@@ -28,6 +28,8 @@ interface SmartPostButtonsProps {
   condition?: string;
   brand?: string;
   images: Image[];
+  /** Optional — derived from listing.platform to dim irrelevant buttons */
+  listingPlatform?: string | null;
 }
 
 // Strip "$" prefix and non-numeric characters for Smart Post price payload
@@ -121,6 +123,7 @@ export function SmartPostButtons({
   condition,
   brand,
   images,
+  listingPlatform,
 }: SmartPostButtonsProps) {
   const { isInstalled } = useExtensionDetection();
   const isMobile = useIsMobile();
@@ -129,6 +132,19 @@ export function SmartPostButtons({
   const [showInstallModal, setShowInstallModal] = useState(false);
 
   const imageUrls = images.map((img) => img.blob.getDirectURL());
+
+  // Derive the canonical platform key from whatever shape the backend returns
+  function resolvePlatformKey(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    // Handle enum string ("facebook", "mecari"), "#facebook" prefix, or object key
+    return raw.replace(/^#/, "").toLowerCase();
+  }
+
+  const platformKey = resolvePlatformKey(listingPlatform ?? null);
+
+  // Dimming: if a specific platform is set, dim the other button (but keep it clickable)
+  const fbDimmed = platformKey !== null && platformKey !== "facebook";
+  const mecariDimmed = platformKey !== null && platformKey !== "mecari";
 
   function triggerLightning() {
     setLightning(true);
@@ -245,7 +261,7 @@ export function SmartPostButtons({
               <Button
                 variant="outline"
                 size="sm"
-                className="relative w-full font-mono text-xs border-primary/40 text-foreground hover:border-primary hover:bg-primary/10 transition-smooth gap-1.5 h-9"
+                className={`relative w-full font-mono text-xs border-primary/40 text-foreground hover:border-primary hover:bg-primary/10 transition-smooth gap-1.5 h-9 ${fbDimmed ? "opacity-40" : ""}`}
                 onClick={handleAutoFill}
                 data-ocid="autofill-facebook-btn"
               >
@@ -262,7 +278,7 @@ export function SmartPostButtons({
               <Button
                 variant="outline"
                 size="sm"
-                className="relative w-full font-mono text-xs border-orange-500/40 text-foreground hover:border-orange-500 hover:bg-orange-500/10 transition-smooth gap-1.5 h-9"
+                className={`relative w-full font-mono text-xs border-orange-500/40 text-foreground hover:border-orange-500 hover:bg-orange-500/10 transition-smooth gap-1.5 h-9 ${mecariDimmed ? "opacity-40" : ""}`}
                 onClick={handleMercariAutoFill}
                 data-ocid="autofill-mercari-btn"
               >

@@ -244,6 +244,13 @@ module {
         pinned           = entry.pinned;
         favorited        = entry.favorited;
         pinnedAt         = null;
+        fbCondition      = null;
+        fbLocalPickup    = null;
+        fbShipping       = null;
+        mecariBrand      = null;
+        mecariCondition  = null;
+        mecariDeliveryDays = null;
+        mecariShippingType = null;
       });
       count += 1;
     };
@@ -286,6 +293,13 @@ module {
         pinned      = snap.pinned;
         favorited   = snap.favorited;
         pinnedAt    = null;
+        fbCondition      = null;
+        fbLocalPickup    = null;
+        fbShipping       = null;
+        mecariBrand      = null;
+        mecariCondition  = null;
+        mecariDeliveryDays = null;
+        mecariShippingType = null;
       });
       count += 1;
     };
@@ -906,6 +920,13 @@ module {
           pinned;
           favorited;
           pinnedAt = null;
+          fbCondition      = null;
+          fbLocalPickup    = null;
+          fbShipping       = null;
+          mecariBrand      = null;
+          mecariCondition  = null;
+          mecariDeliveryDays = null;
+          mecariShippingType = null;
         };
         // Only upsert — never delete listings added after backup
         listings.add(id, listing);
@@ -939,6 +960,13 @@ module {
           pinned;
           favorited;
           pinnedAt    = null;
+          fbCondition      = null;
+          fbLocalPickup    = null;
+          fbShipping       = null;
+          mecariBrand      = null;
+          mecariCondition  = null;
+          mecariDeliveryDays = null;
+          mecariShippingType = null;
         });
         true
       };

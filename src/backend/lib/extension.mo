@@ -72,6 +72,12 @@ module {
     let id = listingCounter.value;
     // 30-day expiry from now — user must review and save before then
     let expirationDate : Int = now + 30 * 86_400_000_000_000;
+    let resolvedPlatform : ?ListingTypes.Platform = switch (data.platform) {
+      case (?"facebook") { ?#facebook };
+      case (?"mecari")   { ?#mecari };
+      case (?"offerUp")  { ?#offerUp };
+      case _             { ?#unknown };
+    };
     let listing : ListingTypes.Listing = {
       id;
       userId;
@@ -86,13 +92,20 @@ module {
       category         = data.category;
       condition        = data.condition;
       brand            = data.brand;
-      platform         = data.platform;
+      platform         = resolvedPlatform;
       archivedAt       = null;
       archivedManually = false;
       restoredAt       = null;
       pinned           = false;
       pinnedAt         = null;
       favorited        = false;
+      fbCondition      = null;
+      fbLocalPickup    = data.localPickupAvailable;
+      fbShipping       = null;
+      mecariBrand      = data.brand;
+      mecariCondition  = null;
+      mecariDeliveryDays = data.deliveryDays;
+      mecariShippingType = null;
     };
     listings.add(id, listing);
     id;

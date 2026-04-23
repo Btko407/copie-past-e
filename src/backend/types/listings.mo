@@ -6,6 +6,24 @@ module {
     #archived;
   };
 
+  /// Platform identifier — optional on existing listings for migration compat
+  public type Platform = {
+    #facebook;
+    #mecari;
+    #offerUp;
+    #unknown;
+  };
+
+  /// Condition variant — #new_ avoids reserved keyword 'new'
+  public type Condition = {
+    #new_;
+    #likeNew;
+    #good;
+    #fair;
+    #poor;
+    #unknown;
+  };
+
   public type Listing = {
     id : Common.ListingId;
     userId : Common.UserId;
@@ -25,10 +43,21 @@ module {
     pinned : Bool;
     favorited : Bool;
     pinnedAt : ?Common.Timestamp;
-    // Platform-specific autofill fields — optional for backward compat
+    // Legacy backward-compat fields (kept; pre-platform free-form text)
     condition : ?Text;
     brand     : ?Text;
-    platform  : ?Text;
+    // ── PLATFORM SUPPORT (NEW) ──────────────────────────────────────────────
+    // All new fields are optional so existing stable data migrates seamlessly.
+    platform : ?Platform;
+    // Facebook Marketplace specific
+    fbCondition   : ?Condition;
+    fbLocalPickup : ?Bool;
+    fbShipping    : ?Bool;
+    // Mecari specific
+    mecariCondition    : ?Condition;
+    mecariBrand        : ?Text;
+    mecariDeliveryDays : ?Nat;
+    mecariShippingType : ?Text;
   };
 
   public type CreateListingArgs = {
@@ -38,6 +67,17 @@ module {
     sourceUrl : ?Text;
     category : ?Text;
     tierLevel : ?Nat;
+    // Platform selection — optional so existing callers keep working
+    platform : ?Platform;
+    // Facebook-specific
+    fbCondition   : ?Condition;
+    fbLocalPickup : ?Bool;
+    fbShipping    : ?Bool;
+    // Mecari-specific
+    mecariBrand        : ?Text;
+    mecariCondition    : ?Condition;
+    mecariDeliveryDays : ?Nat;
+    mecariShippingType : ?Text;
   };
 
   public type UpdateListingArgs = {
@@ -47,5 +87,27 @@ module {
     price : ?Text;
     category : ?Text;
     tierLevel : ?Nat;
+    // Platform — optional so callers that don't set it leave it unchanged
+    platform : ?Platform;
+    // Facebook-specific
+    fbCondition   : ?Condition;
+    fbLocalPickup : ?Bool;
+    fbShipping    : ?Bool;
+    // Mecari-specific
+    mecariBrand        : ?Text;
+    mecariCondition    : ?Condition;
+    mecariDeliveryDays : ?Nat;
+    mecariShippingType : ?Text;
+  };
+
+  /// Lightweight summary for list queries (platform badge, pin/fav state)
+  public type ListingSummary = {
+    id        : Common.ListingId;
+    title     : Text;
+    platform  : ?Platform;
+    status    : ListingStatus;
+    pinned    : Bool;
+    favorited : Bool;
+    createdAt : Common.Timestamp;
   };
 };

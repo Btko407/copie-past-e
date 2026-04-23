@@ -413,6 +413,13 @@ mixin (
                         pinned           = false;
                         favorited        = false;
                         pinnedAt         = null;
+                        fbCondition      = null;
+                        fbLocalPickup    = null;
+                        fbShipping       = null;
+                        mecariBrand      = null;
+                        mecariCondition  = null;
+                        mecariDeliveryDays = null;
+                        mecariShippingType = null;
                       });
                       if (lid >= listingCounter.value) {
                         listingCounter.value := lid + 1;

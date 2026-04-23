@@ -413,10 +413,18 @@ export interface UpdateProfileArgs {
 }
 export interface UpdateListingArgs {
     id: ListingId;
+    mecariCondition?: Condition;
     tierLevel?: bigint;
     title: string;
+    fbLocalPickup?: boolean;
     description: string;
+    platform?: Platform__1;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
     category?: string;
+    mecariShippingType?: string;
+    mecariBrand?: string;
     price?: string;
 }
 export interface SystemIssue {
@@ -452,11 +460,19 @@ export interface GasPackage {
     packageId: bigint;
 }
 export interface CreateListingArgs {
+    mecariCondition?: Condition;
     tierLevel?: bigint;
     title: string;
+    fbLocalPickup?: boolean;
     description: string;
+    platform?: Platform__1;
     sourceUrl?: string;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
     category?: string;
+    mecariShippingType?: string;
+    mecariBrand?: string;
     price?: string;
 }
 export interface UpdateSettingsArgs {
@@ -522,22 +538,29 @@ export interface PaymentConfig {
 }
 export interface Listing {
     id: ListingId;
+    mecariCondition?: Condition;
     status: ListingStatus;
     tierLevel: bigint;
     title: string;
+    fbLocalPickup?: boolean;
     favorited: boolean;
     userId: UserId;
     createdAt: Timestamp;
     description: string;
-    platform?: string;
+    platform?: Platform__1;
     sourceUrl?: string;
+    mecariDeliveryDays?: bigint;
     pinned: boolean;
     expirationDate: Timestamp;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
     archivedManually: boolean;
     pinnedAt?: Timestamp;
     restoredAt?: Timestamp;
     category?: string;
+    mecariShippingType?: string;
     brand?: string;
+    mecariBrand?: string;
     price?: string;
     condition?: string;
     archivedAt?: Timestamp;
@@ -678,6 +701,12 @@ export enum PaymentMethod {
 }
 export enum Platform {
     facebookMarketplace = "facebookMarketplace",
+    offerUp = "offerUp",
+    unknown_ = "unknown",
+    mecari = "mecari"
+}
+export enum Platform__1 {
+    facebook = "facebook",
     offerUp = "offerUp",
     unknown_ = "unknown",
     mecari = "mecari"
