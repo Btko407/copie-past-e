@@ -132,6 +132,16 @@ const AdminActivityFeedPage = lazy(() =>
     default: m.AdminActivityFeedPage,
   })),
 );
+const AdminDataSnapshotsPage = lazy(() =>
+  import("./pages/admin/AdminDataSnapshotsPage").then((m) => ({
+    default: m.AdminDataSnapshotsPage,
+  })),
+);
+const AdminAutofillConfigPage = lazy(() =>
+  import("./pages/admin/AdminAutofillConfigPage").then((m) => ({
+    default: m.AdminAutofillConfigPage,
+  })),
+);
 
 // ─── Maintenance Guard ────────────────────────────────────────────────────────
 
@@ -531,6 +541,30 @@ const adminActivityRoute = createRoute({
   ),
 });
 
+const adminDataSnapshotsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/data-snapshots",
+  component: () => (
+    <AdminRoute>
+      <Suspense fallback={<PageLoader />}>
+        <AdminDataSnapshotsPage />
+      </Suspense>
+    </AdminRoute>
+  ),
+});
+
+const adminAutofillRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/autofill",
+  component: () => (
+    <AdminRoute>
+      <Suspense fallback={<PageLoader />}>
+        <AdminAutofillConfigPage />
+      </Suspense>
+    </AdminRoute>
+  ),
+});
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -560,6 +594,8 @@ const routeTree = rootRoute.addChildren([
   adminSupportRoute,
   adminEmergencyRestoreRoute,
   adminActivityRoute,
+  adminDataSnapshotsRoute,
+  adminAutofillRoute,
 ]);
 
 const router = createRouter({

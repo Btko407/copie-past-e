@@ -235,6 +235,9 @@ module {
         expirationDate;
         tierLevel        = 1;
         category         = entry.category;
+        condition        = null;
+        brand            = null;
+        platform         = null;
         archivedAt       = null;
         archivedManually = false;
         restoredAt       = ?nowNs;
@@ -274,6 +277,9 @@ module {
         expirationDate;
         tierLevel   = 1;
         category    = snap.category;
+        condition   = null;
+        brand       = null;
+        platform    = null;
         archivedAt  = null;
         archivedManually = false;
         restoredAt  = null;
@@ -891,6 +897,9 @@ module {
           expirationDate;
           tierLevel;
           category;
+          condition        = null;
+          brand            = null;
+          platform         = null;
           archivedAt;
           archivedManually;
           restoredAt = ?nowNs;
@@ -921,6 +930,9 @@ module {
           expirationDate;
           tierLevel;
           category;
+          condition        = null;
+          brand            = null;
+          platform         = null;
           archivedAt;
           archivedManually;
           restoredAt  = ?nowNs;

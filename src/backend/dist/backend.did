@@ -158,6 +158,35 @@ type TierConfig =
    stripeProductId: opt text;
    tierId: nat;
  };
+type SystemIssue = 
+ record {
+   affectedComponent: text;
+   description: text;
+   discoveredAt: Timestamp;
+   id: text;
+   resolved: bool;
+   severity: variant {
+               critical;
+               error;
+               info;
+               warning;
+             };
+   suggestedFix: text;
+   title: text;
+ };
+type SystemDiagnostics = 
+ record {
+   components: vec ComponentStatus;
+   criticalFailures: vec text;
+   issues: vec SystemIssue;
+   overallStatus: variant {
+                    critical;
+                    healthy;
+                    warning;
+                  };
+   recommendations: vec text;
+   timestamp: Timestamp;
+ };
 type SupportTicket = 
  record {
    adminReply: opt text;
@@ -237,6 +266,37 @@ type RefuelEntry =
  record {
    date: int;
    tierAtRefuel: TierName;
+ };
+type PlatformAutofillConfig = 
+ record {
+   enabled: bool;
+   fbAutoClickLocalPickup: bool;
+   fbAutoClickShipping: bool;
+   fbPrefillCategory: bool;
+   fbPrefillCondition: bool;
+   fbPrefillDescription: bool;
+   fbPrefillPrice: bool;
+   fbPrefillTitle: bool;
+   lastUpdated: Timestamp;
+   mecariAutoSelectDeliveryDays: bool;
+   mecariAutoSelectShipping: bool;
+   mecariDeliveryDaysValue: opt nat;
+   mecariPrefillBrand: bool;
+   mecariPrefillCategory: bool;
+   mecariPrefillCondition: bool;
+   mecariPrefillDescription: bool;
+   mecariPrefillPrice: bool;
+   mecariPrefillTitle: bool;
+   mecariShippingType: opt text;
+   platformName: text;
+   updatedBy: text;
+ };
+type Platform = 
+ variant {
+   facebookMarketplace;
+   mecari;
+   offerUp;
+   unknown;
  };
 type PaymentStatus = 
  variant {
@@ -358,7 +418,9 @@ type Listing =
  record {
    archivedAt: opt Timestamp;
    archivedManually: bool;
+   brand: opt text;
    category: opt text;
+   condition: opt text;
    createdAt: Timestamp;
    description: text;
    expirationDate: Timestamp;
@@ -366,6 +428,7 @@ type Listing =
    id: ListingId;
    pinned: bool;
    pinnedAt: opt Timestamp;
+   platform: opt text;
    price: opt text;
    restoredAt: opt Timestamp;
    sourceUrl: opt text;
@@ -373,6 +436,24 @@ type Listing =
    tierLevel: nat;
    title: text;
    userId: UserId;
+ };
+type ItemCondition = 
+ variant {
+   fair;
+   good;
+   likeNew;
+   new;
+   poor;
+   unknown;
+ };
+type IntegrationStatus = 
+ record {
+   configPresent: bool;
+   connected: bool;
+   errorMessage: opt text;
+   lastTestAt: opt Timestamp;
+   lastTestResult: opt bool;
+   name: text;
  };
 type InAppNotification = 
  record {
@@ -460,6 +541,7 @@ type ExtensionVersion =
    isForceUpdate: bool;
    releaseNotes: text;
    releasedAt: Timestamp;
+   supportedPlatforms: vec text;
    version: text;
  };
 type ExtensionUpdateCheck = 
@@ -474,17 +556,25 @@ type ExtensionUpdateCheck =
  };
 type ExtensionListingData = 
  record {
-   brand: opt text;
-   category: opt text;
-   condition: opt text;
-   deliveryDays: opt nat;
    description: opt text;
+   fbCategory: opt text;
+   fbCondition: opt ItemCondition;
+   fbLocalPickup: opt bool;
+   fbShipping: opt bool;
+   imageFileTypes: vec text;
    imageUrls: vec text;
-   localPickupAvailable: opt bool;
-   platform: opt text;
+   mecariBrand: opt text;
+   mecariCategory: opt text;
+   mecariCondition: opt ItemCondition;
+   mecariDeliveryDays: opt nat;
+   mecariShippingType: opt text;
+   offerUpCategory: opt text;
+   offerUpCondition: opt ItemCondition;
+   platform: Platform;
    price: opt text;
    sourceUrl: opt text;
    title: text;
+   totalImageSize: opt nat;
  };
 type DraftListingId = nat;
 type DiscountType = 
@@ -526,6 +616,27 @@ type ConfigEntry =
    updatedAt: Timestamp;
    updatedBy: text;
    value: text;
+ };
+type ComponentStatus = 
+ record {
+   category: text;
+   lastCheck: Timestamp;
+   message: text;
+   metrics: ComponentMetrics;
+   name: text;
+   status: variant {
+             error;
+             healthy;
+             offline;
+             warning;
+           };
+ };
+type ComponentMetrics = 
+ record {
+   errorCount: nat;
+   responseTime: nat;
+   successCount: nat;
+   uptime: float64;
  };
 type BulkGasDiscount = 
  record {
@@ -581,6 +692,34 @@ type BackupHistoryRecord =
    listingCount: nat;
    paymentIntentId: text;
    userId: UserId;
+ };
+type AutofillValidation = 
+ record {
+   errors: vec text;
+   platformReady: bool;
+   valid: bool;
+   warnings: vec text;
+ };
+type AutofillTestResult = 
+ record {
+   duration: nat;
+   fieldsFailed: vec text;
+   fieldsPrepped: vec text;
+   message: text;
+   platform: text;
+   success: bool;
+ };
+type AutofillHealthStatus = 
+ record {
+   activeSessions: nat;
+   enabled: bool;
+   isHealthy: bool;
+   lastTestAt: opt Timestamp;
+   lastTestResult: opt text;
+   platformName: text;
+   successRate: float64;
+   totalAttempts: nat;
+   totalSuccessful: nat;
  };
 type AuditLogEntry = 
  record {
@@ -837,11 +976,38 @@ service : {
   deleteListing: (id: ListingId) -> ();
   detectMarketplaceSource: (url: text) -> (MarketplaceSource) query;
   dismissPaymentBanner: () -> ();
+  downloadDataSnapshot: (backupId: text) ->
+   (opt
+     record {
+       data: text;
+       metadata: record {
+                   backupType: text;
+                   created: Timestamp;
+                   size: nat;
+                 };
+     }) query;
+  downloadVersionBackupAsJson: (backupId: text) ->
+   (opt
+     record {
+       backupType: text;
+       data: text;
+       filename: text;
+       size: nat;
+       timestamp: Timestamp;
+     }) query;
   exportAllUsersData: () ->
    (record {
       imageUrls: vec text;
       jsonData: text;
     }) query;
+  exportSystemReport: () ->
+   (record {
+      componentsJson: text;
+      issuesJson: text;
+      overallStatus: text;
+      recommendationsJson: text;
+      timestamp: Timestamp;
+    });
   exportUserData: (userId: text) ->
    (opt record {
           imageUrls: vec text;
@@ -867,8 +1033,11 @@ service : {
       userCount: nat;
     }) query;
   getAdminSettings: () -> (SiteSettings) query;
+  getAllAutofillConfigs: () -> (vec PlatformAutofillConfig) query;
   getAllConfig: () -> (vec ConfigEntry) query;
   getAuditLog: () -> (vec AuditLogEntry) query;
+  getAutofillConfig: (platform: text) -> (opt PlatformAutofillConfig) query;
+  getAutofillHealthStatus: () -> (vec AutofillHealthStatus) query;
   getBackupDownloadInfo: (token: text) -> (opt BackupHistoryRecord) query;
   getBackupHistory: () -> (vec BackupHistoryRecord) query;
   getBulkGasDiscounts: () -> (vec BulkGasDiscount) query;
@@ -882,6 +1051,7 @@ service : {
                         });
   getGasPackages: () -> (vec GasPackage) query;
   getHealthStatus: () -> (HealthStatus) query;
+  getIntegrationStatus: () -> (vec IntegrationStatus);
   getLatestExtensionVersion: () -> (opt ExtensionUpdateCheck) query;
   getListing: (id: ListingId) -> (opt Listing) query;
   getLoyaltyStatus: () -> (LoyaltyStatus) query;
@@ -944,6 +1114,7 @@ service : {
     }) query;
   getStripePublicKey: () -> (record {publishableKey: text;}) query;
   getSupportTicket: (id: nat) -> (opt SupportTicket) query;
+  getSystemDiagnostics: () -> (SystemDiagnostics);
   getSystemHealthStatus: () ->
    (record {
       backup:
@@ -985,6 +1156,15 @@ service : {
   getUnreadAdminNotificationCount: () -> (nat) query;
   getUserNotifications: () -> (vec InAppNotification) query;
   getVerificationStatus: () -> (opt VerificationRecord) query;
+  getVersionBackupIndex: () ->
+   (record {
+      autoSnapshots: nat;
+      latestSnapshot: opt text;
+      manualSnapshots: nat;
+      oldestSnapshot: opt text;
+      totalDataSize: nat;
+      totalSnapshots: nat;
+    }) query;
   getVersionSnapshotList: () -> (vec VersionBackupSummary) query;
   initConfigFromPaymentConfig: () -> ();
   initiateCryptoPayment: (tierId: nat, discountCode: opt text) ->
@@ -1030,12 +1210,29 @@ service : {
   isCallerAdmin: () -> (bool) query;
   listAdminNotifications: () -> (vec AdminNotification) query;
   listAllUsers: () -> (vec UserSummary) query;
+  listBackupsForDownload: () ->
+   (vec
+     record {
+       backupType: text;
+       created: Timestamp;
+       filename: text;
+       id: text;
+       listingCount: nat;
+       size: nat;
+       userCount: nat;
+     }) query;
   listFavoritedListings: () -> (vec Listing) query;
   listImages: (listingId: ListingId) -> (vec Image) query;
   listListings: () -> (vec Listing) query;
   listSupportTickets: () -> (vec SupportTicket) query;
   listVersionBackups: () -> (vec VersionBackupSummary) query;
   listVersionHistory: () -> (vec AppVersion) query;
+  logAutofillSession: (platform: text, fieldsAttempted: nat,
+   fieldsSuccessful: nat, errors: vec text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   markAdminNotificationRead: (id: nat) -> ();
   markAllAdminNotificationsRead: () -> ();
   markAllNotificationsRead: () -> ();
@@ -1064,6 +1261,14 @@ service : {
    (variant {
       err: text;
       ok: DraftListingId;
+      validationError: record {
+                         errors: vec text;
+                         platformReady: bool;
+                       };
+      validationWarning: record {
+                           draftId: DraftListingId;
+                           warnings: vec text;
+                         };
     });
   registerUserProfile: (username: text, email: text) -> (SetUsernameResult);
   removeImage: (imageId: ImageId) -> ();
@@ -1079,6 +1284,7 @@ service : {
     });
   restoreFromJsonBlob: (jsonBlob: text) -> (RestoreResult);
   restoreFromVersionBackup: (backupId: text) -> (RestoreResult);
+  restoreFromVersionBackupWithSafety: (backupId: text) -> (RestoreResult);
   restoreFromZipBackup: (entries: vec BackupListingEntry) ->
    (ZipRestoreResult);
   restoreListing: (listingId: ListingId) ->
@@ -1102,10 +1308,17 @@ service : {
       ok;
     });
   scrapeListing: (url: text) -> (ScrapeResult);
+  searchVersionSnapshots: (backupTypeFilter: opt text, minUserCount: 
+   opt nat, maxUserCount: opt nat) -> (vec VersionBackupSummary) query;
   setAutoRenewal: (enabled: bool, tierId: nat) ->
    (variant {
       err: text;
       ok: GasWallet;
+    });
+  setAutofillPlatformEnabled: (platform: text, enabled: bool) ->
+   (variant {
+      err: text;
+      ok: text;
     });
   setConfig: (key: text, value: text, encrypted: bool, category: text,
    updatedBy: text) -> ();
@@ -1116,6 +1329,7 @@ service : {
       err: text;
       ok: text;
     });
+  testAutofill: (platform: text) -> (AutofillTestResult);
   toggleListingFavorited: (listingId: ListingId) ->
    (variant {
       err: text;
@@ -1362,8 +1576,25 @@ service : {
                                       ok;
                                     });
   updateAdminSettings: (args: UpdateSettingsArgs) -> (SiteSettings);
+  updateFacebookAutofillSettings: (prefillTitle: bool, prefillDescription:
+   bool, prefillPrice: bool, prefillCategory: bool, prefillCondition: 
+   bool, autoClickLocalPickup: bool, autoClickShipping: bool) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   updateListing: (args: UpdateListingArgs) -> (Listing);
+  updateMecariAutofillSettings: (prefillTitle: bool, prefillDescription:
+   bool, prefillPrice: bool, prefillBrand: bool, prefillCategory: bool,
+   prefillCondition: bool, autoSelectDeliveryDays: bool, deliveryDaysValue:
+   opt nat, autoSelectShipping: bool, shippingType: opt text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   updateMyProfile: (args: UpdateProfileArgs) -> (UpdateProfileResult);
+  validateAutofillData: (data: ExtensionListingData) ->
+   (AutofillValidation) query;
   validateBackupIntegrity: (backupId: text) ->
    (record {
       error: opt text;

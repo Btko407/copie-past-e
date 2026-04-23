@@ -52,6 +52,31 @@ export interface AuditLogEntry {
   'adminId' : UserId,
   'targetUserId' : [] | [UserId],
 }
+export interface AutofillHealthStatus {
+  'successRate' : number,
+  'isHealthy' : boolean,
+  'enabled' : boolean,
+  'totalAttempts' : bigint,
+  'lastTestResult' : [] | [string],
+  'lastTestAt' : [] | [Timestamp],
+  'totalSuccessful' : bigint,
+  'activeSessions' : bigint,
+  'platformName' : string,
+}
+export interface AutofillTestResult {
+  'fieldsFailed' : Array<string>,
+  'duration' : bigint,
+  'platform' : string,
+  'message' : string,
+  'success' : boolean,
+  'fieldsPrepped' : Array<string>,
+}
+export interface AutofillValidation {
+  'valid' : boolean,
+  'errors' : Array<string>,
+  'warnings' : Array<string>,
+  'platformReady' : boolean,
+}
 export interface BackupHistoryRecord {
   'id' : string,
   'downloadExpiresAt' : Timestamp,
@@ -99,6 +124,23 @@ export interface BulkGasDiscount {
   'description' : string,
   'discountPercent' : bigint,
 }
+export interface ComponentMetrics {
+  'successCount' : bigint,
+  'uptime' : number,
+  'errorCount' : bigint,
+  'responseTime' : bigint,
+}
+export interface ComponentStatus {
+  'status' : { 'warning' : null } |
+    { 'healthy' : null } |
+    { 'error' : null } |
+    { 'offline' : null },
+  'metrics' : ComponentMetrics,
+  'name' : string,
+  'lastCheck' : Timestamp,
+  'message' : string,
+  'category' : string,
+}
 export interface ConfigEntry {
   'key' : string,
   'value' : string,
@@ -134,17 +176,25 @@ export type DiscountType = { 'fixedUSD' : null } |
   { 'percentage' : null };
 export type DraftListingId = bigint;
 export interface ExtensionListingData {
+  'mecariCondition' : [] | [ItemCondition],
+  'totalImageSize' : [] | [bigint],
   'title' : string,
-  'localPickupAvailable' : [] | [boolean],
+  'fbLocalPickup' : [] | [boolean],
   'imageUrls' : Array<string>,
-  'deliveryDays' : [] | [bigint],
+  'mecariCategory' : [] | [string],
   'description' : [] | [string],
-  'platform' : [] | [string],
+  'platform' : Platform,
   'sourceUrl' : [] | [string],
-  'category' : [] | [string],
-  'brand' : [] | [string],
+  'mecariDeliveryDays' : [] | [bigint],
+  'fbShipping' : [] | [boolean],
+  'fbCondition' : [] | [ItemCondition],
+  'offerUpCondition' : [] | [ItemCondition],
+  'mecariShippingType' : [] | [string],
+  'mecariBrand' : [] | [string],
   'price' : [] | [string],
-  'condition' : [] | [string],
+  'fbCategory' : [] | [string],
+  'imageFileTypes' : Array<string>,
+  'offerUpCategory' : [] | [string],
 }
 export interface ExtensionUpdateCheck {
   'needsUpdate' : boolean,
@@ -160,6 +210,7 @@ export interface ExtensionVersion {
   'releaseNotes' : string,
   'version' : string,
   'releasedAt' : Timestamp,
+  'supportedPlatforms' : Array<string>,
   'buildNumber' : bigint,
   'isForceUpdate' : boolean,
 }
@@ -225,6 +276,20 @@ export interface InAppNotification {
   'isRead' : boolean,
   'message' : string,
 }
+export interface IntegrationStatus {
+  'configPresent' : boolean,
+  'name' : string,
+  'errorMessage' : [] | [string],
+  'lastTestResult' : [] | [boolean],
+  'lastTestAt' : [] | [Timestamp],
+  'connected' : boolean,
+}
+export type ItemCondition = { 'new' : null } |
+  { 'fair' : null } |
+  { 'good' : null } |
+  { 'poor' : null } |
+  { 'likeNew' : null } |
+  { 'unknown' : null };
 export interface Listing {
   'id' : ListingId,
   'status' : ListingStatus,
@@ -234,6 +299,7 @@ export interface Listing {
   'userId' : UserId,
   'createdAt' : Timestamp,
   'description' : string,
+  'platform' : [] | [string],
   'sourceUrl' : [] | [string],
   'pinned' : boolean,
   'expirationDate' : Timestamp,
@@ -241,7 +307,9 @@ export interface Listing {
   'pinnedAt' : [] | [Timestamp],
   'restoredAt' : [] | [Timestamp],
   'category' : [] | [string],
+  'brand' : [] | [string],
   'price' : [] | [string],
+  'condition' : [] | [string],
   'archivedAt' : [] | [Timestamp],
 }
 export type ListingId = bigint;
@@ -334,6 +402,33 @@ export interface PaymentRecord {
 export type PaymentStatus = { 'pending' : null } |
   { 'completed' : null } |
   { 'failed' : null };
+export type Platform = { 'facebookMarketplace' : null } |
+  { 'offerUp' : null } |
+  { 'unknown' : null } |
+  { 'mecari' : null };
+export interface PlatformAutofillConfig {
+  'fbPrefillDescription' : boolean,
+  'fbAutoClickLocalPickup' : boolean,
+  'mecariPrefillDescription' : boolean,
+  'lastUpdated' : Timestamp,
+  'mecariPrefillCondition' : boolean,
+  'enabled' : boolean,
+  'updatedBy' : string,
+  'mecariAutoSelectDeliveryDays' : boolean,
+  'mecariAutoSelectShipping' : boolean,
+  'mecariPrefillBrand' : boolean,
+  'fbPrefillPrice' : boolean,
+  'mecariPrefillPrice' : boolean,
+  'mecariShippingType' : [] | [string],
+  'fbPrefillCondition' : boolean,
+  'fbAutoClickShipping' : boolean,
+  'mecariDeliveryDaysValue' : [] | [bigint],
+  'fbPrefillCategory' : boolean,
+  'fbPrefillTitle' : boolean,
+  'platformName' : string,
+  'mecariPrefillCategory' : boolean,
+  'mecariPrefillTitle' : boolean,
+}
 export interface RefuelEntry { 'tierAtRefuel' : TierName, 'date' : bigint }
 export type ResendResult = {
     'ok' : { 'resendCount' : bigint, 'cooldownSecondsRemaining' : bigint }
@@ -394,6 +489,29 @@ export interface SupportTicket {
   'createdAt' : Timestamp,
   'repliedAt' : [] | [Timestamp],
   'message' : string,
+}
+export interface SystemDiagnostics {
+  'recommendations' : Array<string>,
+  'criticalFailures' : Array<string>,
+  'components' : Array<ComponentStatus>,
+  'issues' : Array<SystemIssue>,
+  'timestamp' : Timestamp,
+  'overallStatus' : { 'warning' : null } |
+    { 'healthy' : null } |
+    { 'critical' : null },
+}
+export interface SystemIssue {
+  'id' : string,
+  'resolved' : boolean,
+  'title' : string,
+  'description' : string,
+  'affectedComponent' : string,
+  'suggestedFix' : string,
+  'severity' : { 'warning' : null } |
+    { 'info' : null } |
+    { 'error' : null } |
+    { 'critical' : null },
+  'discoveredAt' : Timestamp,
 }
 export interface TierConfig {
   'durationDays' : bigint,
@@ -758,9 +876,44 @@ export interface _SERVICE {
   'deleteListing' : ActorMethod<[ListingId], undefined>,
   'detectMarketplaceSource' : ActorMethod<[string], MarketplaceSource>,
   'dismissPaymentBanner' : ActorMethod<[], undefined>,
+  'downloadDataSnapshot' : ActorMethod<
+    [string],
+    [] | [
+      {
+        'metadata' : {
+          'created' : Timestamp,
+          'size' : bigint,
+          'backupType' : string,
+        },
+        'data' : string,
+      }
+    ]
+  >,
+  'downloadVersionBackupAsJson' : ActorMethod<
+    [string],
+    [] | [
+      {
+        'data' : string,
+        'size' : bigint,
+        'filename' : string,
+        'backupType' : string,
+        'timestamp' : Timestamp,
+      }
+    ]
+  >,
   'exportAllUsersData' : ActorMethod<
     [],
     { 'imageUrls' : Array<string>, 'jsonData' : string }
+  >,
+  'exportSystemReport' : ActorMethod<
+    [],
+    {
+      'issuesJson' : string,
+      'componentsJson' : string,
+      'recommendationsJson' : string,
+      'timestamp' : Timestamp,
+      'overallStatus' : string,
+    }
   >,
   'exportUserData' : ActorMethod<
     [string],
@@ -784,8 +937,11 @@ export interface _SERVICE {
     { 'intervalHours' : bigint, 'nextBackupAt' : bigint, 'userCount' : bigint }
   >,
   'getAdminSettings' : ActorMethod<[], SiteSettings>,
+  'getAllAutofillConfigs' : ActorMethod<[], Array<PlatformAutofillConfig>>,
   'getAllConfig' : ActorMethod<[], Array<ConfigEntry>>,
   'getAuditLog' : ActorMethod<[], Array<AuditLogEntry>>,
+  'getAutofillConfig' : ActorMethod<[string], [] | [PlatformAutofillConfig]>,
+  'getAutofillHealthStatus' : ActorMethod<[], Array<AutofillHealthStatus>>,
   'getBackupDownloadInfo' : ActorMethod<[string], [] | [BackupHistoryRecord]>,
   'getBackupHistory' : ActorMethod<[], Array<BackupHistoryRecord>>,
   'getBulkGasDiscounts' : ActorMethod<[], Array<BulkGasDiscount>>,
@@ -800,6 +956,7 @@ export interface _SERVICE {
   >,
   'getGasPackages' : ActorMethod<[], Array<GasPackage>>,
   'getHealthStatus' : ActorMethod<[], HealthStatus>,
+  'getIntegrationStatus' : ActorMethod<[], Array<IntegrationStatus>>,
   'getLatestExtensionVersion' : ActorMethod<[], [] | [ExtensionUpdateCheck]>,
   'getListing' : ActorMethod<[ListingId], [] | [Listing]>,
   'getLoyaltyStatus' : ActorMethod<[], LoyaltyStatus>,
@@ -858,6 +1015,7 @@ export interface _SERVICE {
   >,
   'getStripePublicKey' : ActorMethod<[], { 'publishableKey' : string }>,
   'getSupportTicket' : ActorMethod<[bigint], [] | [SupportTicket]>,
+  'getSystemDiagnostics' : ActorMethod<[], SystemDiagnostics>,
   'getSystemHealthStatus' : ActorMethod<
     [],
     {
@@ -890,6 +1048,17 @@ export interface _SERVICE {
   'getUnreadAdminNotificationCount' : ActorMethod<[], bigint>,
   'getUserNotifications' : ActorMethod<[], Array<InAppNotification>>,
   'getVerificationStatus' : ActorMethod<[], [] | [VerificationRecord]>,
+  'getVersionBackupIndex' : ActorMethod<
+    [],
+    {
+      'latestSnapshot' : [] | [string],
+      'manualSnapshots' : bigint,
+      'totalSnapshots' : bigint,
+      'autoSnapshots' : bigint,
+      'oldestSnapshot' : [] | [string],
+      'totalDataSize' : bigint,
+    }
+  >,
   'getVersionSnapshotList' : ActorMethod<[], Array<VersionBackupSummary>>,
   'initConfigFromPaymentConfig' : ActorMethod<[], undefined>,
   'initiateCryptoPayment' : ActorMethod<
@@ -941,12 +1110,31 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'listAdminNotifications' : ActorMethod<[], Array<AdminNotification>>,
   'listAllUsers' : ActorMethod<[], Array<UserSummary>>,
+  'listBackupsForDownload' : ActorMethod<
+    [],
+    Array<
+      {
+        'id' : string,
+        'created' : Timestamp,
+        'size' : bigint,
+        'filename' : string,
+        'backupType' : string,
+        'listingCount' : bigint,
+        'userCount' : bigint,
+      }
+    >
+  >,
   'listFavoritedListings' : ActorMethod<[], Array<Listing>>,
   'listImages' : ActorMethod<[ListingId], Array<Image>>,
   'listListings' : ActorMethod<[], Array<Listing>>,
   'listSupportTickets' : ActorMethod<[], Array<SupportTicket>>,
   'listVersionBackups' : ActorMethod<[], Array<VersionBackupSummary>>,
   'listVersionHistory' : ActorMethod<[], Array<AppVersion>>,
+  'logAutofillSession' : ActorMethod<
+    [string, bigint, bigint, Array<string>],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'markAdminNotificationRead' : ActorMethod<[bigint], undefined>,
   'markAllAdminNotificationsRead' : ActorMethod<[], undefined>,
   'markAllNotificationsRead' : ActorMethod<[], undefined>,
@@ -979,7 +1167,19 @@ export interface _SERVICE {
   'receiveExtensionData' : ActorMethod<
     [ExtensionListingData, string],
     { 'ok' : DraftListingId } |
-      { 'err' : string }
+      { 'err' : string } |
+      {
+        'validationError' : {
+          'errors' : Array<string>,
+          'platformReady' : boolean,
+        }
+      } |
+      {
+        'validationWarning' : {
+          'warnings' : Array<string>,
+          'draftId' : DraftListingId,
+        }
+      }
   >,
   'registerUserProfile' : ActorMethod<[string, string], SetUsernameResult>,
   'removeImage' : ActorMethod<[ImageId], undefined>,
@@ -996,6 +1196,7 @@ export interface _SERVICE {
   >,
   'restoreFromJsonBlob' : ActorMethod<[string], RestoreResult>,
   'restoreFromVersionBackup' : ActorMethod<[string], RestoreResult>,
+  'restoreFromVersionBackupWithSafety' : ActorMethod<[string], RestoreResult>,
   'restoreFromZipBackup' : ActorMethod<
     [Array<BackupListingEntry>],
     ZipRestoreResult
@@ -1021,9 +1222,18 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'scrapeListing' : ActorMethod<[string], ScrapeResult>,
+  'searchVersionSnapshots' : ActorMethod<
+    [[] | [string], [] | [bigint], [] | [bigint]],
+    Array<VersionBackupSummary>
+  >,
   'setAutoRenewal' : ActorMethod<
     [boolean, bigint],
     { 'ok' : GasWallet } |
+      { 'err' : string }
+  >,
+  'setAutofillPlatformEnabled' : ActorMethod<
+    [string, boolean],
+    { 'ok' : string } |
       { 'err' : string }
   >,
   'setConfig' : ActorMethod<
@@ -1037,6 +1247,7 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : string }
   >,
+  'testAutofill' : ActorMethod<[string], AutofillTestResult>,
   'toggleListingFavorited' : ActorMethod<
     [ListingId],
     { 'ok' : boolean } |
@@ -1240,8 +1451,33 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'updateAdminSettings' : ActorMethod<[UpdateSettingsArgs], SiteSettings>,
+  'updateFacebookAutofillSettings' : ActorMethod<
+    [boolean, boolean, boolean, boolean, boolean, boolean, boolean],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'updateListing' : ActorMethod<[UpdateListingArgs], Listing>,
+  'updateMecariAutofillSettings' : ActorMethod<
+    [
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      [] | [bigint],
+      boolean,
+      [] | [string],
+    ],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'updateMyProfile' : ActorMethod<[UpdateProfileArgs], UpdateProfileResult>,
+  'validateAutofillData' : ActorMethod<
+    [ExtensionListingData],
+    AutofillValidation
+  >,
   'validateBackupIntegrity' : ActorMethod<
     [string],
     {

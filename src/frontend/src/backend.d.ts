@@ -14,18 +14,34 @@ export class ExternalBlob {
     static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
     withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
 }
+export interface AutofillTestResult {
+    fieldsFailed: Array<string>;
+    duration: bigint;
+    platform: string;
+    message: string;
+    success: boolean;
+    fieldsPrepped: Array<string>;
+}
 export interface ExtensionListingData {
+    mecariCondition?: ItemCondition;
+    totalImageSize?: bigint;
     title: string;
-    localPickupAvailable?: boolean;
+    fbLocalPickup?: boolean;
     imageUrls: Array<string>;
-    deliveryDays?: bigint;
+    mecariCategory?: string;
     description?: string;
-    platform?: string;
+    platform: Platform;
     sourceUrl?: string;
-    category?: string;
-    brand?: string;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: ItemCondition;
+    offerUpCondition?: ItemCondition;
+    mecariShippingType?: string;
+    mecariBrand?: string;
     price?: string;
-    condition?: string;
+    fbCategory?: string;
+    imageFileTypes: Array<string>;
+    offerUpCategory?: string;
 }
 export interface PaymentRecord {
     id: bigint;
@@ -72,6 +88,12 @@ export interface BackupRecord {
     downloadUrl: string;
     fileSize: bigint;
 }
+export interface ComponentMetrics {
+    successCount: bigint;
+    uptime: number;
+    errorCount: bigint;
+    responseTime: bigint;
+}
 export interface OcrFailureEntry {
     imageHash: string;
     errorType: string;
@@ -87,6 +109,29 @@ export interface UserSummary {
     registrationDate: Timestamp;
     listingCount: bigint;
 }
+export interface PlatformAutofillConfig {
+    fbPrefillDescription: boolean;
+    fbAutoClickLocalPickup: boolean;
+    mecariPrefillDescription: boolean;
+    lastUpdated: Timestamp;
+    mecariPrefillCondition: boolean;
+    enabled: boolean;
+    updatedBy: string;
+    mecariAutoSelectDeliveryDays: boolean;
+    mecariAutoSelectShipping: boolean;
+    mecariPrefillBrand: boolean;
+    fbPrefillPrice: boolean;
+    mecariPrefillPrice: boolean;
+    mecariShippingType?: string;
+    fbPrefillCondition: boolean;
+    fbAutoClickShipping: boolean;
+    mecariDeliveryDaysValue?: bigint;
+    fbPrefillCategory: boolean;
+    fbPrefillTitle: boolean;
+    platformName: string;
+    mecariPrefillCategory: boolean;
+    mecariPrefillTitle: boolean;
+}
 export interface UserTierSubscription {
     stripeSubscriptionId?: string;
     userId: Principal;
@@ -99,6 +144,30 @@ export interface LoyaltyStatus {
     rewardClaimedForTiers: Array<TierName>;
     currentTier: TierName;
     refuelCount: bigint;
+}
+export interface IntegrationStatus {
+    configPresent: boolean;
+    name: string;
+    errorMessage?: string;
+    lastTestResult?: boolean;
+    lastTestAt?: Timestamp;
+    connected: boolean;
+}
+export interface FbListing {
+    id: string;
+    title: string;
+    imageUrls: Array<string>;
+    description?: string;
+    category?: string;
+    price?: string;
+}
+export interface ComponentStatus {
+    status: Variant_warning_healthy_error_offline;
+    metrics: ComponentMetrics;
+    name: string;
+    lastCheck: Timestamp;
+    message: string;
+    category: string;
 }
 export interface BackupListingEntry {
     id: bigint;
@@ -117,13 +186,11 @@ export interface BackupListingEntry {
     images: Array<BackupImageEntry>;
     archivedAt?: Timestamp;
 }
-export interface FbListing {
-    id: string;
-    title: string;
-    imageUrls: Array<string>;
-    description?: string;
-    category?: string;
-    price?: string;
+export interface AutofillValidation {
+    valid: boolean;
+    errors: Array<string>;
+    warnings: Array<string>;
+    platformReady: boolean;
 }
 export type ResendResult = {
     __kind__: "ok";
@@ -147,6 +214,17 @@ export type GetProfileResult = {
     __kind__: "err";
     err: string;
 };
+export interface AutofillHealthStatus {
+    successRate: number;
+    isHealthy: boolean;
+    enabled: boolean;
+    totalAttempts: bigint;
+    lastTestResult?: string;
+    lastTestAt?: Timestamp;
+    totalSuccessful: bigint;
+    activeSessions: bigint;
+    platformName: string;
+}
 export type MarkReadResult = {
     __kind__: "ok";
     ok: null;
@@ -162,14 +240,6 @@ export interface InAppNotification {
     createdAt: Timestamp;
     isRead: boolean;
     message: string;
-}
-export interface AuditLogEntry {
-    id: bigint;
-    action: string;
-    timestamp: Timestamp;
-    details: string;
-    adminId: UserId;
-    targetUserId?: UserId;
 }
 export interface BackupImageEntry {
     originalUrl: string;
@@ -224,6 +294,14 @@ export interface SiteSettings {
 export interface RefuelEntry {
     tierAtRefuel: TierName;
     date: bigint;
+}
+export interface AuditLogEntry {
+    id: bigint;
+    action: string;
+    timestamp: Timestamp;
+    details: string;
+    adminId: UserId;
+    targetUserId?: UserId;
 }
 export interface AppVersion {
     id: bigint;
@@ -341,6 +419,16 @@ export interface UpdateListingArgs {
     category?: string;
     price?: string;
 }
+export interface SystemIssue {
+    id: string;
+    resolved: boolean;
+    title: string;
+    description: string;
+    affectedComponent: string;
+    suggestedFix: string;
+    severity: Variant_warning_info_error_critical;
+    discoveredAt: Timestamp;
+}
 export type ScrapeResult = {
     __kind__: "ok";
     ok: ScrapedListing;
@@ -349,19 +437,19 @@ export type ScrapeResult = {
     err: string;
 };
 export type ListingId = bigint;
-export interface GasPackage {
-    gasAmount: bigint;
-    name: string;
-    stripeProductId: string;
-    priceUSD: number;
-    packageId: bigint;
-}
 export interface PaymentBannerState {
     expiresAt?: bigint;
     bannerType: string;
     userId: Principal;
     createdAt: bigint;
     message: string;
+}
+export interface GasPackage {
+    gasAmount: bigint;
+    name: string;
+    stripeProductId: string;
+    priceUSD: number;
+    packageId: bigint;
 }
 export interface CreateListingArgs {
     tierLevel?: bigint;
@@ -441,6 +529,7 @@ export interface Listing {
     userId: UserId;
     createdAt: Timestamp;
     description: string;
+    platform?: string;
     sourceUrl?: string;
     pinned: boolean;
     expirationDate: Timestamp;
@@ -448,7 +537,9 @@ export interface Listing {
     pinnedAt?: Timestamp;
     restoredAt?: Timestamp;
     category?: string;
+    brand?: string;
     price?: string;
+    condition?: string;
     archivedAt?: Timestamp;
 }
 export interface SiteAnalytics {
@@ -461,15 +552,15 @@ export interface SiteAnalytics {
     totalActiveListings: bigint;
     avgListingsPerUser: number;
 }
-export type ImageId = bigint;
-export interface ExtensionVersion {
-    downloadUrl: string;
-    releaseNotes: string;
-    version: string;
-    releasedAt: Timestamp;
-    buildNumber: bigint;
-    isForceUpdate: boolean;
+export interface SystemDiagnostics {
+    recommendations: Array<string>;
+    criticalFailures: Array<string>;
+    components: Array<ComponentStatus>;
+    issues: Array<SystemIssue>;
+    timestamp: Timestamp;
+    overallStatus: Variant_warning_healthy_critical;
 }
+export type ImageId = bigint;
 export interface GasPurchase {
     id: bigint;
     status: GasPurchaseStatus;
@@ -478,6 +569,15 @@ export interface GasPurchase {
     createdAt: Timestamp;
     stripePaymentIntentId: string;
     priceUSD: number;
+}
+export interface ExtensionVersion {
+    downloadUrl: string;
+    releaseNotes: string;
+    version: string;
+    releasedAt: Timestamp;
+    supportedPlatforms: Array<string>;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
 }
 export interface CreateVersionArgs {
     versionLabel: string;
@@ -543,6 +643,14 @@ export enum GasPurchaseStatus {
     completed = "completed",
     failed = "failed"
 }
+export enum ItemCondition {
+    new_ = "new",
+    fair = "fair",
+    good = "good",
+    poor = "poor",
+    likeNew = "likeNew",
+    unknown_ = "unknown"
+}
 export enum ListingStatus {
     active = "active",
     archived = "archived"
@@ -568,10 +676,33 @@ export enum PaymentMethod {
     crypto = "crypto",
     paypal = "paypal"
 }
+export enum Platform {
+    facebookMarketplace = "facebookMarketplace",
+    offerUp = "offerUp",
+    unknown_ = "unknown",
+    mecari = "mecari"
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
+}
+export enum Variant_warning_healthy_critical {
+    warning = "warning",
+    healthy = "healthy",
+    critical = "critical"
+}
+export enum Variant_warning_healthy_error_offline {
+    warning = "warning",
+    healthy = "healthy",
+    error = "error",
+    offline = "offline"
+}
+export enum Variant_warning_info_error_critical {
+    warning = "warning",
+    info = "info",
+    error = "error",
+    critical = "critical"
 }
 export enum VerificationStatus {
     verified = "verified",
@@ -826,9 +957,31 @@ export interface backendInterface {
     deleteListing(id: ListingId): Promise<void>;
     detectMarketplaceSource(url: string): Promise<MarketplaceSource>;
     dismissPaymentBanner(): Promise<void>;
+    downloadDataSnapshot(backupId: string): Promise<{
+        metadata: {
+            created: Timestamp;
+            size: bigint;
+            backupType: string;
+        };
+        data: string;
+    } | null>;
+    downloadVersionBackupAsJson(backupId: string): Promise<{
+        data: string;
+        size: bigint;
+        filename: string;
+        backupType: string;
+        timestamp: Timestamp;
+    } | null>;
     exportAllUsersData(): Promise<{
         imageUrls: Array<string>;
         jsonData: string;
+    }>;
+    exportSystemReport(): Promise<{
+        issuesJson: string;
+        componentsJson: string;
+        recommendationsJson: string;
+        timestamp: Timestamp;
+        overallStatus: string;
     }>;
     exportUserData(userId: string): Promise<{
         imageUrls: Array<string>;
@@ -852,8 +1005,11 @@ export interface backendInterface {
         userCount: bigint;
     }>;
     getAdminSettings(): Promise<SiteSettings>;
+    getAllAutofillConfigs(): Promise<Array<PlatformAutofillConfig>>;
     getAllConfig(): Promise<Array<ConfigEntry>>;
     getAuditLog(): Promise<Array<AuditLogEntry>>;
+    getAutofillConfig(platform: string): Promise<PlatformAutofillConfig | null>;
+    getAutofillHealthStatus(): Promise<Array<AutofillHealthStatus>>;
     getBackupDownloadInfo(token: string): Promise<BackupHistoryRecord | null>;
     getBackupHistory(): Promise<Array<BackupHistoryRecord>>;
     getBulkGasDiscounts(): Promise<Array<BulkGasDiscount>>;
@@ -870,6 +1026,7 @@ export interface backendInterface {
     }>;
     getGasPackages(): Promise<Array<GasPackage>>;
     getHealthStatus(): Promise<HealthStatus>;
+    getIntegrationStatus(): Promise<Array<IntegrationStatus>>;
     getLatestExtensionVersion(): Promise<ExtensionUpdateCheck | null>;
     getListing(id: ListingId): Promise<Listing | null>;
     getLoyaltyStatus(): Promise<LoyaltyStatus>;
@@ -935,6 +1092,7 @@ export interface backendInterface {
         publishableKey: string;
     }>;
     getSupportTicket(id: bigint): Promise<SupportTicket | null>;
+    getSystemDiagnostics(): Promise<SystemDiagnostics>;
     getSystemHealthStatus(): Promise<{
         stripe: {
             status: string;
@@ -975,6 +1133,14 @@ export interface backendInterface {
     getUnreadAdminNotificationCount(): Promise<bigint>;
     getUserNotifications(): Promise<Array<InAppNotification>>;
     getVerificationStatus(): Promise<VerificationRecord | null>;
+    getVersionBackupIndex(): Promise<{
+        latestSnapshot?: string;
+        manualSnapshots: bigint;
+        totalSnapshots: bigint;
+        autoSnapshots: bigint;
+        oldestSnapshot?: string;
+        totalDataSize: bigint;
+    }>;
     getVersionSnapshotList(): Promise<Array<VersionBackupSummary>>;
     initConfigFromPaymentConfig(): Promise<void>;
     initiateCryptoPayment(tierId: bigint, discountCode: string | null): Promise<{
@@ -1026,12 +1192,28 @@ export interface backendInterface {
     isCallerAdmin(): Promise<boolean>;
     listAdminNotifications(): Promise<Array<AdminNotification>>;
     listAllUsers(): Promise<Array<UserSummary>>;
+    listBackupsForDownload(): Promise<Array<{
+        id: string;
+        created: Timestamp;
+        size: bigint;
+        filename: string;
+        backupType: string;
+        listingCount: bigint;
+        userCount: bigint;
+    }>>;
     listFavoritedListings(): Promise<Array<Listing>>;
     listImages(listingId: ListingId): Promise<Array<Image>>;
     listListings(): Promise<Array<Listing>>;
     listSupportTickets(): Promise<Array<SupportTicket>>;
     listVersionBackups(): Promise<Array<VersionBackupSummary>>;
     listVersionHistory(): Promise<Array<AppVersion>>;
+    logAutofillSession(platform: string, fieldsAttempted: bigint, fieldsSuccessful: bigint, errors: Array<string>): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     markAdminNotificationRead(id: bigint): Promise<void>;
     markAllAdminNotificationsRead(): Promise<void>;
     markAllNotificationsRead(): Promise<void>;
@@ -1066,6 +1248,18 @@ export interface backendInterface {
     } | {
         __kind__: "err";
         err: string;
+    } | {
+        __kind__: "validationError";
+        validationError: {
+            errors: Array<string>;
+            platformReady: boolean;
+        };
+    } | {
+        __kind__: "validationWarning";
+        validationWarning: {
+            warnings: Array<string>;
+            draftId: DraftListingId;
+        };
     }>;
     registerUserProfile(username: string, email: string): Promise<SetUsernameResult>;
     removeImage(imageId: ImageId): Promise<void>;
@@ -1086,6 +1280,7 @@ export interface backendInterface {
     }>;
     restoreFromJsonBlob(jsonBlob: string): Promise<RestoreResult>;
     restoreFromVersionBackup(backupId: string): Promise<RestoreResult>;
+    restoreFromVersionBackupWithSafety(backupId: string): Promise<RestoreResult>;
     restoreFromZipBackup(entries: Array<BackupListingEntry>): Promise<ZipRestoreResult>;
     restoreListing(listingId: ListingId): Promise<{
         __kind__: "ok";
@@ -1114,9 +1309,17 @@ export interface backendInterface {
         err: string;
     }>;
     scrapeListing(url: string): Promise<ScrapeResult>;
+    searchVersionSnapshots(backupTypeFilter: string | null, minUserCount: bigint | null, maxUserCount: bigint | null): Promise<Array<VersionBackupSummary>>;
     setAutoRenewal(enabled: boolean, tierId: bigint): Promise<{
         __kind__: "ok";
         ok: GasWallet;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    setAutofillPlatformEnabled(platform: string, enabled: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
     } | {
         __kind__: "err";
         err: string;
@@ -1131,6 +1334,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    testAutofill(platform: string): Promise<AutofillTestResult>;
     toggleListingFavorited(listingId: ListingId): Promise<{
         __kind__: "ok";
         ok: boolean;
@@ -1351,8 +1555,23 @@ export interface backendInterface {
         err: string;
     }>;
     updateAdminSettings(args: UpdateSettingsArgs): Promise<SiteSettings>;
+    updateFacebookAutofillSettings(prefillTitle: boolean, prefillDescription: boolean, prefillPrice: boolean, prefillCategory: boolean, prefillCondition: boolean, autoClickLocalPickup: boolean, autoClickShipping: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     updateListing(args: UpdateListingArgs): Promise<Listing>;
+    updateMecariAutofillSettings(prefillTitle: boolean, prefillDescription: boolean, prefillPrice: boolean, prefillBrand: boolean, prefillCategory: boolean, prefillCondition: boolean, autoSelectDeliveryDays: boolean, deliveryDaysValue: bigint | null, autoSelectShipping: boolean, shippingType: string | null): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     updateMyProfile(args: UpdateProfileArgs): Promise<UpdateProfileResult>;
+    validateAutofillData(data: ExtensionListingData): Promise<AutofillValidation>;
     validateBackupIntegrity(backupId: string): Promise<{
         valid: boolean;
         error?: string;

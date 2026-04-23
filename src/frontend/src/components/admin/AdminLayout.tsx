@@ -38,6 +38,7 @@ const NAV_ITEMS = [
   { label: "Payments", path: "/admin/payments", icon: CreditCard },
   { label: "Cleanup", path: "/admin/cleanup", icon: Trash2 },
   { label: "Debugger", path: "/admin/debugger", icon: Terminal },
+  { label: "Autofill", path: "/admin/autofill", icon: Zap },
   { label: "Broadcast", path: "/admin/notifications", icon: Bell },
   { label: "Activity", path: "/admin/activity", icon: Activity },
   { label: "Support", path: "/admin/support", icon: HeadphonesIcon },

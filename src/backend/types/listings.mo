@@ -25,6 +25,10 @@ module {
     pinned : Bool;
     favorited : Bool;
     pinnedAt : ?Common.Timestamp;
+    // Platform-specific autofill fields — optional for backward compat
+    condition : ?Text;
+    brand     : ?Text;
+    platform  : ?Text;
   };
 
   public type CreateListingArgs = {

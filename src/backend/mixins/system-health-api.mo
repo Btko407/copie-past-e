@@ -404,6 +404,9 @@ mixin (
                         expirationDate;
                         tierLevel        = 1;
                         category         = parseStringField(listingJson, "category");
+                        condition        = null;
+                        brand            = null;
+                        platform         = null;
                         archivedAt       = null;
                         archivedManually = false;
                         restoredAt       = ?now;

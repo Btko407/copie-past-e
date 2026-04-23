@@ -1,6 +1,6 @@
 import type { backendInterface } from "../backend.d";
-import { ExternalBlob, UserRole, ListingStatus, DiscountType, GasPurchaseStatus, PaymentMethod, MarketplaceSource, VerificationStatus } from "../backend";
-import type { Image, Listing, SiteSettings, SiteAnalytics, AppVersion, UserSummary, UserTierSubscription, TierConfig, DiscountCode, PaymentRecord, BulkGasDiscount, UserProfile, VerificationRecord, GetProfileResult, SetUsernameResult, ScrapeResult, ResendResult, VerifyEmailResult, InAppNotification, NotificationType, MarkReadResult, UpdateProfileResult, AuditLogEntry } from "../backend";
+import { ExternalBlob, UserRole, ListingStatus, DiscountType, GasPurchaseStatus, PaymentMethod, MarketplaceSource, VerificationStatus, Variant_warning_healthy_critical } from "../backend";
+import type { Image, Listing, SiteSettings, SiteAnalytics, AppVersion, UserSummary, UserTierSubscription, TierConfig, DiscountCode, PaymentRecord, BulkGasDiscount, UserProfile, VerificationRecord, GetProfileResult, SetUsernameResult, ScrapeResult, ResendResult, VerifyEmailResult, InAppNotification, NotificationType, MarkReadResult, UpdateProfileResult, AuditLogEntry, RestoreResult, VersionBackupSummary, ExtensionListingData, ComponentStatus, SystemIssue } from "../backend";
 import type { PaymentStatus } from "../declarations/backend.did.d";
 
 const mockPrincipal = {
@@ -825,4 +825,74 @@ export const mockBackend: backendInterface = {
     keysConfigured: false,
     missingKeys: [] as string[],
   }),
+  downloadDataSnapshot: async (_backupId: string) => null as { metadata: { created: bigint; size: bigint; backupType: string }; data: string } | null,
+  getVersionBackupIndex: async () => ({
+    latestSnapshot: undefined as string | undefined,
+    manualSnapshots: BigInt(0),
+    totalSnapshots: BigInt(0),
+    autoSnapshots: BigInt(0),
+    oldestSnapshot: undefined as string | undefined,
+    totalDataSize: BigInt(0),
+  }),
+  restoreFromVersionBackupWithSafety: async (_backupId: string): Promise<RestoreResult> => ({
+    errorMessage: undefined,
+    preSaveBackupId: "",
+    usersRestored: BigInt(0),
+    listingsRestored: BigInt(0),
+    success: false,
+  }),
+  searchVersionSnapshots: async (_filter: string | null, _min: bigint | null, _max: bigint | null): Promise<VersionBackupSummary[]> => [],
+  // ── Autofill Config API ──
+  getAllAutofillConfigs: async () => [],
+  getAutofillConfig: async (_platform: string) => null,
+  getAutofillHealthStatus: async () => [],
+  setAutofillPlatformEnabled: async (_platform: string, _enabled: boolean) => ({ __kind__: "ok" as const, ok: "" }),
+  updateFacebookAutofillSettings: async (
+    _prefillTitle: boolean, _prefillDescription: boolean, _prefillPrice: boolean,
+    _prefillCategory: boolean, _prefillCondition: boolean,
+    _autoClickLocalPickup: boolean, _autoClickShipping: boolean,
+  ) => ({ __kind__: "ok" as const, ok: "" }),
+  updateMecariAutofillSettings: async (
+    _prefillTitle: boolean, _prefillDescription: boolean, _prefillPrice: boolean,
+    _prefillBrand: boolean, _prefillCategory: boolean, _prefillCondition: boolean,
+    _autoSelectDeliveryDays: boolean, _deliveryDaysValue: bigint | null,
+    _autoSelectShipping: boolean, _shippingType: string | null,
+  ) => ({ __kind__: "ok" as const, ok: "" }),
+  testAutofill: async (_platform: string) => ({
+    fieldsFailed: [] as string[],
+    duration: BigInt(0),
+    platform: _platform,
+    message: "Mock test",
+    success: true,
+    fieldsPrepped: [] as string[],
+  }),
+  logAutofillSession: async (
+    _platform: string, _fieldsAttempted: bigint, _fieldsSuccessful: bigint, _errors: string[],
+  ) => ({ __kind__: "ok" as const, ok: "" }),
+  validateAutofillData: async (_data: ExtensionListingData) => ({
+    valid: true,
+    errors: [] as string[],
+    warnings: [] as string[],
+    platformReady: true,
+  }),
+  // ── System Diagnostics API ──
+  getSystemDiagnostics: async () => ({
+    recommendations: [] as string[],
+    criticalFailures: [] as string[],
+    components: [] as ComponentStatus[],
+    issues: [] as SystemIssue[],
+    timestamp: BigInt(Date.now() * 1_000_000),
+    overallStatus: Variant_warning_healthy_critical.healthy,
+  }),
+  getIntegrationStatus: async () => [],
+  exportSystemReport: async () => ({
+    issuesJson: "[]",
+    componentsJson: "[]",
+    recommendationsJson: "[]",
+    timestamp: BigInt(Date.now() * 1_000_000),
+    overallStatus: "healthy",
+  }),
+  // ── Backup Download API ──
+  downloadVersionBackupAsJson: async (_backupId: string) => null,
+  listBackupsForDownload: async () => [],
 };

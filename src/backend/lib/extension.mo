@@ -43,13 +43,29 @@ module {
     null;
   };
 
+  /// Derived input type for creating a draft listing from extension data.
+  /// Platform-specific fields are already resolved before calling this function.
+  public type DraftInput = {
+    title                : Text;
+    description          : ?Text;
+    price                : ?Text;
+    imageUrls            : [Text];
+    category             : ?Text;
+    sourceUrl            : ?Text;
+    condition            : ?Text;
+    brand                : ?Text;
+    platform             : ?Text;
+    deliveryDays         : ?Nat;
+    localPickupAvailable : ?Bool;
+  };
+
   /// Create a draft (not yet active/published) listing from extension data.
   /// The listing is created with #active status and a 30-day review window.
   public func createDraftListing(
     listings       : Map.Map<Common.ListingId, ListingTypes.Listing>,
     listingCounter : { var value : Nat },
     userId         : Common.UserId,
-    data           : Types.ExtensionListingData,
+    data           : DraftInput,
     now            : Int,
   ) : Types.DraftListingId {
     listingCounter.value += 1;
@@ -59,21 +75,24 @@ module {
     let listing : ListingTypes.Listing = {
       id;
       userId;
-      title       = data.title;
-      description = switch (data.description) { case (?d) d; case null "" };
-      price       = data.price;
-      sourceUrl   = data.sourceUrl;
-      createdAt   = now;
-      status      = #active;
+      title            = data.title;
+      description      = switch (data.description) { case (?d) d; case null "" };
+      price            = data.price;
+      sourceUrl        = data.sourceUrl;
+      createdAt        = now;
+      status           = #active;
       expirationDate;
-      tierLevel   = 1;
-      category    = data.category;
-      archivedAt  = null;
+      tierLevel        = 1;
+      category         = data.category;
+      condition        = data.condition;
+      brand            = data.brand;
+      platform         = data.platform;
+      archivedAt       = null;
       archivedManually = false;
-      restoredAt  = null;
-      pinned      = false;
-      pinnedAt    = null;
-      favorited   = false;
+      restoredAt       = null;
+      pinned           = false;
+      pinnedAt         = null;
+      favorited        = false;
     };
     listings.add(id, listing);
     id;

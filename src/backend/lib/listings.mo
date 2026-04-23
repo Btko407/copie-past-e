@@ -38,6 +38,9 @@ module {
       expirationDate = now + daysNs;
       tierLevel;
       category = args.category;
+      condition = null;
+      brand = null;
+      platform = null;
       archivedAt = null;
       archivedManually = false;
       restoredAt = null;

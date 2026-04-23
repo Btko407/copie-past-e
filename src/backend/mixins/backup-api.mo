@@ -750,4 +750,233 @@ mixin (
     let jsonData = "{\"users\":[" # userJsons.values().join(",") # "]}";
     { jsonData; imageUrls }
   };
+
+  /// Restore all data from a version backup with automatic pre-restore snapshot.
+  /// Functionally equivalent to restoreFromVersionBackup but exposes the pre-restore
+  /// snapshot ID in the result so the caller can display a rollback link.
+  public shared ({ caller }) func restoreFromVersionBackupWithSafety(
+    backupId : Text,
+  ) : async BackupTypes.RestoreResult {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return {
+        success          = false;
+        usersRestored    = 0;
+        listingsRestored = 0;
+        preSaveBackupId  = "";
+        errorMessage     = ?"Unauthorized: admin only";
+      };
+    };
+    let now = Time.now();
+
+    // Create pre-restore safety snapshot
+    let preSnapshot = BackupLib.createVersionSnapshot(
+      versionBackups, profiles, listings, subscriptions, notifications,
+      siteSettings, appVersions, "version-snapshot-pre-restore",
+      caller.toText(),
+      ?("PRE-RESTORE SAFETY SNAPSHOT — Rolling back to: " # backupId),
+      now,
+    );
+
+    // Validate target backup exists
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool { b.id == backupId })) {
+      case null {
+        return {
+          success          = false;
+          usersRestored    = 0;
+          listingsRestored = 0;
+          preSaveBackupId  = preSnapshot.id;
+          errorMessage     = ?"Target backup not found";
+        };
+      };
+      case (?_) {};
+    };
+
+    // Execute restore and attach the pre-restore snapshot ID
+    let result = BackupLib.restoreFromVersionBackup(
+      versionBackups, backupId, profiles, usernameIndex, listings, listingCounter,
+      subscriptions, notifications, siteSettings, appVersions, false,
+      caller.toText(), now,
+    );
+    { result with preSaveBackupId = preSnapshot.id }
+  };
+
+  /// Get version backup index with aggregate stats (counts, latest/oldest IDs, total size).
+  /// Admin-only.
+  public query ({ caller }) func getVersionBackupIndex() : async {
+    totalSnapshots : Nat;
+    autoSnapshots  : Nat;
+    manualSnapshots : Nat;
+    latestSnapshot : ?Text;
+    oldestSnapshot : ?Text;
+    totalDataSize  : Nat;
+  } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return {
+        totalSnapshots  = 0;
+        autoSnapshots   = 0;
+        manualSnapshots = 0;
+        latestSnapshot  = null;
+        oldestSnapshot  = null;
+        totalDataSize   = 0;
+      };
+    };
+    var autoCount    = 0;
+    var manualCount  = 0;
+    var latestId     : ?Text = null;
+    var oldestId     : ?Text = null;
+    var latestTime   : Common.Timestamp = 0;
+    var oldestTime   : Common.Timestamp = 9_999_999_999_999_999_999;
+    var totalSize    : Nat = 0;
+
+    for (b in versionBackups.values()) {
+      totalSize += b.backupData.size();
+      if (b.backupType.startsWith(#text "version-snapshot-auto")) {
+        autoCount += 1;
+      } else if (b.backupType.startsWith(#text "version-snapshot-manual")) {
+        manualCount += 1;
+      };
+      if (b.createdAt > latestTime) {
+        latestTime := b.createdAt;
+        latestId   := ?b.id;
+      };
+      if (b.createdAt < oldestTime) {
+        oldestTime := b.createdAt;
+        oldestId   := ?b.id;
+      };
+    };
+
+    {
+      totalSnapshots  = versionBackups.size();
+      autoSnapshots   = autoCount;
+      manualSnapshots = manualCount;
+      latestSnapshot  = latestId;
+      oldestSnapshot  = oldestId;
+      totalDataSize   = totalSize;
+    }
+  };
+
+  /// Download the raw JSON blob for a specific version backup.
+  /// Returns the data and lightweight metadata; null if not found or unauthorized.
+  public query ({ caller }) func downloadDataSnapshot(backupId : Text) : async ?{
+    data         : Text;
+    metadata     : { size : Nat; created : Common.Timestamp; backupType : Text };
+  } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return null;
+    };
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool { b.id == backupId })) {
+      case null { null };
+      case (?b) {
+        ?{
+          data         = b.backupData;
+          metadata     = {
+            size       = b.backupData.size();
+            created    = b.createdAt;
+            backupType = b.backupType;
+          };
+        }
+      };
+    };
+  };
+
+  /// Search version backup summaries by optional type prefix and user-count range.
+  /// All filters are optional — omit to return all summaries.
+  /// Admin-only.
+  public query ({ caller }) func searchVersionSnapshots(
+    backupTypeFilter : ?Text,
+    minUserCount     : ?Nat,
+    maxUserCount     : ?Nat,
+  ) : async [BackupTypes.VersionBackupSummary] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return [];
+    };
+    let summaries = BackupLib.listVersionBackupSummaries(versionBackups);
+    summaries.values()
+      .filter(func(s : BackupTypes.VersionBackupSummary) : Bool {
+        let typeMatch = switch (backupTypeFilter) {
+          case null      { true };
+          case (?filter) { s.backupType.contains(#text filter) };
+        };
+        let userCountMatch = switch (minUserCount, maxUserCount) {
+          case (null, null)   { true };
+          case (?min, null)   { s.userCount >= min };
+          case (null, ?max)   { s.userCount <= max };
+          case (?min, ?max)   { s.userCount >= min and s.userCount <= max };
+        };
+        typeMatch and userCountMatch
+      })
+      .toArray()
+  };
+
+  // ── Backup JSON Download endpoints ────────────────────────────────────────
+
+  /// Download a version backup as a JSON file payload.
+  /// Returns filename, raw data, byte size, timestamp, and type — or null if not found / unauthorized.
+  /// Admin-only.
+  public query ({ caller }) func downloadVersionBackupAsJson(
+    backupId : Text,
+  ) : async ?{
+    filename   : Text;
+    data       : Text;
+    size       : Nat;
+    timestamp  : Common.Timestamp;
+    backupType : Text;
+  } {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return null;
+    };
+    switch (versionBackups.find(func(b : BackupTypes.VersionBackup) : Bool {
+      b.id == backupId
+    })) {
+      case null    { null };
+      case (?b) {
+        ?{
+          filename   = "copie-paste-backup-" # backupId # ".json";
+          data       = b.backupData;
+          size       = b.backupData.size();
+          timestamp  = b.createdAt;
+          backupType = b.backupType;
+        }
+      };
+    };
+  };
+
+  /// List all version backups with lightweight download metadata.
+  /// Avoids returning the full JSON blob — callers use downloadVersionBackupAsJson to fetch data.
+  /// Admin-only.
+  public query ({ caller }) func listBackupsForDownload() : async [{
+    id         : Text;
+    filename   : Text;
+    size       : Nat;
+    created    : Common.Timestamp;
+    backupType : Text;
+    userCount  : Nat;
+    listingCount : Nat;
+  }] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      return [];
+    };
+    let summaries = BackupLib.listVersionBackupSummaries(versionBackups);
+    summaries.values()
+      .map(func(s : BackupTypes.VersionBackupSummary) : {
+        id           : Text;
+        filename     : Text;
+        size         : Nat;
+        created      : Common.Timestamp;
+        backupType   : Text;
+        userCount    : Nat;
+        listingCount : Nat;
+      } {
+        {
+          id           = s.id;
+          filename     = "copie-paste-backup-" # s.id # ".json";
+          size         = s.sizeKb * 1024;
+          created      = s.createdAt;
+          backupType   = s.backupType;
+          userCount    = s.userCount;
+          listingCount = s.listingCount;
+        }
+      })
+      .toArray()
+  };
 };

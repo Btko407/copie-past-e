@@ -1,35 +1,72 @@
 import Common "common";
+
 module {
   /// ID of a draft listing created by the browser extension webhook.
   public type DraftListingId = Nat;
 
-  /// Payload sent by the browser extension when the user activates it on a
-  /// Facebook Marketplace or OfferUp listing page.
+  /// Platform-specific condition enum
+  public type ItemCondition = {
+    #new;
+    #likeNew;
+    #good;
+    #fair;
+    #poor;
+    #unknown;
+  };
+
+  /// Platform identifier
+  public type Platform = {
+    #facebookMarketplace;
+    #mecari;
+    #offerUp;
+    #unknown;
+  };
+
+  /// Complete payload sent by browser extension v1.3+
+  /// Now includes ALL fields needed for complete autofill
   public type ExtensionListingData = {
-    title       : Text;
-    description : ?Text;
-    price       : ?Text;
-    imageUrls   : [Text];
-    category    : ?Text;
-    sourceUrl   : ?Text;
-    condition   : ?Text;
-    brand       : ?Text;
-    platform    : ?Text;
-    deliveryDays     : ?Nat;
-    localPickupAvailable : ?Bool;
+    // ── CORE FIELDS (all platforms) ──
+    title           : Text;
+    description     : ?Text;
+    price           : ?Text;
+    imageUrls       : [Text];
+    platform        : Platform;
+    sourceUrl       : ?Text;
+
+    // ── FACEBOOK MARKETPLACE SPECIFIC ──
+    fbCategory      : ?Text;
+    fbCondition     : ?ItemCondition;
+    fbLocalPickup   : ?Bool;
+    fbShipping      : ?Bool;
+
+    // ── MECARI SPECIFIC ──
+    mecariCategory     : ?Text;
+    mecariCondition    : ?ItemCondition;
+    mecariBrand        : ?Text;
+    mecariDeliveryDays : ?Nat;
+    mecariShippingType : ?Text;
+
+    // ── OFFERUP SPECIFIC ──
+    offerUpCategory  : ?Text;
+    offerUpCondition : ?ItemCondition;
+
+    // ── FILE METADATA ──
+    imageFileTypes  : [Text];
+    totalImageSize  : ?Nat;
   };
 
-  /// A versioned release of the browser extension.
+  /// Versioned release of browser extension
   public type ExtensionVersion = {
-    version      : Text;
-    buildNumber  : Nat;
-    releaseNotes : Text;
-    downloadUrl  : Text;
-    isForceUpdate : Bool;
-    releasedAt   : Common.Timestamp;
+    version            : Text;
+    buildNumber        : Nat;
+    releaseNotes       : Text;
+    downloadUrl        : Text;
+    isForceUpdate      : Bool;
+    releasedAt         : Common.Timestamp;
+    supportedPlatforms : [Text];
   };
 
-  /// Result returned by checkExtensionUpdateStatus.
+  /// Result returned by checkExtensionUpdateStatus
   public type ExtensionUpdateCheck = {
     currentVersion : Text;
     latestVersion  : Text;
@@ -38,5 +75,13 @@ module {
     buildNumber    : Nat;
     releaseNotes   : Text;
     downloadUrl    : Text;
+  };
+
+  /// Autofill validation result
+  public type AutofillValidation = {
+    valid          : Bool;
+    warnings       : [Text];
+    errors         : [Text];
+    platformReady  : Bool;
   };
 };

@@ -80,6 +80,7 @@ export const ExtensionVersion = IDL.Record({
   'releaseNotes' : IDL.Text,
   'version' : IDL.Text,
   'releasedAt' : Timestamp,
+  'supportedPlatforms' : IDL.Vec(IDL.Text),
   'buildNumber' : IDL.Nat,
   'isForceUpdate' : IDL.Bool,
 });
@@ -147,6 +148,7 @@ export const Listing = IDL.Record({
   'userId' : UserId,
   'createdAt' : Timestamp,
   'description' : IDL.Text,
+  'platform' : IDL.Opt(IDL.Text),
   'sourceUrl' : IDL.Opt(IDL.Text),
   'pinned' : IDL.Bool,
   'expirationDate' : Timestamp,
@@ -154,7 +156,9 @@ export const Listing = IDL.Record({
   'pinnedAt' : IDL.Opt(Timestamp),
   'restoredAt' : IDL.Opt(Timestamp),
   'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
+  'condition' : IDL.Opt(IDL.Text),
   'archivedAt' : IDL.Opt(Timestamp),
 });
 export const UserRole = IDL.Variant({
@@ -302,6 +306,29 @@ export const BackupListingEntry = IDL.Record({
   'images' : IDL.Vec(BackupImageEntry),
   'archivedAt' : IDL.Opt(Timestamp),
 });
+export const PlatformAutofillConfig = IDL.Record({
+  'fbPrefillDescription' : IDL.Bool,
+  'fbAutoClickLocalPickup' : IDL.Bool,
+  'mecariPrefillDescription' : IDL.Bool,
+  'lastUpdated' : Timestamp,
+  'mecariPrefillCondition' : IDL.Bool,
+  'enabled' : IDL.Bool,
+  'updatedBy' : IDL.Text,
+  'mecariAutoSelectDeliveryDays' : IDL.Bool,
+  'mecariAutoSelectShipping' : IDL.Bool,
+  'mecariPrefillBrand' : IDL.Bool,
+  'fbPrefillPrice' : IDL.Bool,
+  'mecariPrefillPrice' : IDL.Bool,
+  'mecariShippingType' : IDL.Opt(IDL.Text),
+  'fbPrefillCondition' : IDL.Bool,
+  'fbAutoClickShipping' : IDL.Bool,
+  'mecariDeliveryDaysValue' : IDL.Opt(IDL.Nat),
+  'fbPrefillCategory' : IDL.Bool,
+  'fbPrefillTitle' : IDL.Bool,
+  'platformName' : IDL.Text,
+  'mecariPrefillCategory' : IDL.Bool,
+  'mecariPrefillTitle' : IDL.Bool,
+});
 export const ConfigEntry = IDL.Record({
   'key' : IDL.Text,
   'value' : IDL.Text,
@@ -317,6 +344,17 @@ export const AuditLogEntry = IDL.Record({
   'details' : IDL.Text,
   'adminId' : UserId,
   'targetUserId' : IDL.Opt(UserId),
+});
+export const AutofillHealthStatus = IDL.Record({
+  'successRate' : IDL.Float64,
+  'isHealthy' : IDL.Bool,
+  'enabled' : IDL.Bool,
+  'totalAttempts' : IDL.Nat,
+  'lastTestResult' : IDL.Opt(IDL.Text),
+  'lastTestAt' : IDL.Opt(Timestamp),
+  'totalSuccessful' : IDL.Nat,
+  'activeSessions' : IDL.Nat,
+  'platformName' : IDL.Text,
 });
 export const BulkGasDiscount = IDL.Record({
   'minGasAmount' : IDL.Nat,
@@ -352,6 +390,14 @@ export const HealthStatus = IDL.Record({
   'keysConfigured' : IDL.Bool,
   'lastBackupAt' : Timestamp,
   'criticalKeysPresent' : IDL.Bool,
+});
+export const IntegrationStatus = IDL.Record({
+  'configPresent' : IDL.Bool,
+  'name' : IDL.Text,
+  'errorMessage' : IDL.Opt(IDL.Text),
+  'lastTestResult' : IDL.Opt(IDL.Bool),
+  'lastTestAt' : IDL.Opt(Timestamp),
+  'connected' : IDL.Bool,
 });
 export const LoyaltyStatus = IDL.Record({
   'rewardClaimedForTiers' : IDL.Vec(TierName),
@@ -419,6 +465,52 @@ export const SupportTicket = IDL.Record({
   'repliedAt' : IDL.Opt(Timestamp),
   'message' : IDL.Text,
 });
+export const ComponentMetrics = IDL.Record({
+  'successCount' : IDL.Nat,
+  'uptime' : IDL.Float64,
+  'errorCount' : IDL.Nat,
+  'responseTime' : IDL.Nat,
+});
+export const ComponentStatus = IDL.Record({
+  'status' : IDL.Variant({
+    'warning' : IDL.Null,
+    'healthy' : IDL.Null,
+    'error' : IDL.Null,
+    'offline' : IDL.Null,
+  }),
+  'metrics' : ComponentMetrics,
+  'name' : IDL.Text,
+  'lastCheck' : Timestamp,
+  'message' : IDL.Text,
+  'category' : IDL.Text,
+});
+export const SystemIssue = IDL.Record({
+  'id' : IDL.Text,
+  'resolved' : IDL.Bool,
+  'title' : IDL.Text,
+  'description' : IDL.Text,
+  'affectedComponent' : IDL.Text,
+  'suggestedFix' : IDL.Text,
+  'severity' : IDL.Variant({
+    'warning' : IDL.Null,
+    'info' : IDL.Null,
+    'error' : IDL.Null,
+    'critical' : IDL.Null,
+  }),
+  'discoveredAt' : Timestamp,
+});
+export const SystemDiagnostics = IDL.Record({
+  'recommendations' : IDL.Vec(IDL.Text),
+  'criticalFailures' : IDL.Vec(IDL.Text),
+  'components' : IDL.Vec(ComponentStatus),
+  'issues' : IDL.Vec(SystemIssue),
+  'timestamp' : Timestamp,
+  'overallStatus' : IDL.Variant({
+    'warning' : IDL.Null,
+    'healthy' : IDL.Null,
+    'critical' : IDL.Null,
+  }),
+});
 export const VerificationStatus = IDL.Variant({
   'verified' : IDL.Null,
   'expired' : IDL.Null,
@@ -484,18 +576,40 @@ export const ParsedListingResult = IDL.Record({
   'category' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
 });
+export const ItemCondition = IDL.Variant({
+  'new' : IDL.Null,
+  'fair' : IDL.Null,
+  'good' : IDL.Null,
+  'poor' : IDL.Null,
+  'likeNew' : IDL.Null,
+  'unknown' : IDL.Null,
+});
+export const Platform = IDL.Variant({
+  'facebookMarketplace' : IDL.Null,
+  'offerUp' : IDL.Null,
+  'unknown' : IDL.Null,
+  'mecari' : IDL.Null,
+});
 export const ExtensionListingData = IDL.Record({
+  'mecariCondition' : IDL.Opt(ItemCondition),
+  'totalImageSize' : IDL.Opt(IDL.Nat),
   'title' : IDL.Text,
-  'localPickupAvailable' : IDL.Opt(IDL.Bool),
+  'fbLocalPickup' : IDL.Opt(IDL.Bool),
   'imageUrls' : IDL.Vec(IDL.Text),
-  'deliveryDays' : IDL.Opt(IDL.Nat),
+  'mecariCategory' : IDL.Opt(IDL.Text),
   'description' : IDL.Opt(IDL.Text),
-  'platform' : IDL.Opt(IDL.Text),
+  'platform' : Platform,
   'sourceUrl' : IDL.Opt(IDL.Text),
-  'category' : IDL.Opt(IDL.Text),
-  'brand' : IDL.Opt(IDL.Text),
+  'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+  'fbShipping' : IDL.Opt(IDL.Bool),
+  'fbCondition' : IDL.Opt(ItemCondition),
+  'offerUpCondition' : IDL.Opt(ItemCondition),
+  'mecariShippingType' : IDL.Opt(IDL.Text),
+  'mecariBrand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
-  'condition' : IDL.Opt(IDL.Text),
+  'fbCategory' : IDL.Opt(IDL.Text),
+  'imageFileTypes' : IDL.Vec(IDL.Text),
+  'offerUpCategory' : IDL.Opt(IDL.Text),
 });
 export const DraftListingId = IDL.Nat;
 export const SetUsernameResult = IDL.Variant({
@@ -534,6 +648,14 @@ export const ScrapeResult = IDL.Variant({
   'ok' : ScrapedListing,
   'err' : IDL.Text,
 });
+export const AutofillTestResult = IDL.Record({
+  'fieldsFailed' : IDL.Vec(IDL.Text),
+  'duration' : IDL.Nat,
+  'platform' : IDL.Text,
+  'message' : IDL.Text,
+  'success' : IDL.Bool,
+  'fieldsPrepped' : IDL.Vec(IDL.Text),
+});
 export const UpdateSettingsArgs = IDL.Record({
   'maxSessionDurationMinutes' : IDL.Nat,
   'appName' : IDL.Text,
@@ -563,6 +685,12 @@ export const UpdateProfileArgs = IDL.Record({
 export const UpdateProfileResult = IDL.Variant({
   'ok' : UserProfile,
   'err' : IDL.Text,
+});
+export const AutofillValidation = IDL.Record({
+  'valid' : IDL.Bool,
+  'errors' : IDL.Vec(IDL.Text),
+  'warnings' : IDL.Vec(IDL.Text),
+  'platformReady' : IDL.Bool,
 });
 export const VerifyEmailResult = IDL.Variant({
   'ok' : IDL.Null,
@@ -845,10 +973,54 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'dismissPaymentBanner' : IDL.Func([], [], []),
+  'downloadDataSnapshot' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'metadata' : IDL.Record({
+              'created' : Timestamp,
+              'size' : IDL.Nat,
+              'backupType' : IDL.Text,
+            }),
+            'data' : IDL.Text,
+          })
+        ),
+      ],
+      ['query'],
+    ),
+  'downloadVersionBackupAsJson' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'data' : IDL.Text,
+            'size' : IDL.Nat,
+            'filename' : IDL.Text,
+            'backupType' : IDL.Text,
+            'timestamp' : Timestamp,
+          })
+        ),
+      ],
+      ['query'],
+    ),
   'exportAllUsersData' : IDL.Func(
       [],
       [IDL.Record({ 'imageUrls' : IDL.Vec(IDL.Text), 'jsonData' : IDL.Text })],
       ['query'],
+    ),
+  'exportSystemReport' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'issuesJson' : IDL.Text,
+          'componentsJson' : IDL.Text,
+          'recommendationsJson' : IDL.Text,
+          'timestamp' : Timestamp,
+          'overallStatus' : IDL.Text,
+        }),
+      ],
+      [],
     ),
   'exportUserData' : IDL.Func(
       [IDL.Text],
@@ -889,8 +1061,23 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getAdminSettings' : IDL.Func([], [SiteSettings], ['query']),
+  'getAllAutofillConfigs' : IDL.Func(
+      [],
+      [IDL.Vec(PlatformAutofillConfig)],
+      ['query'],
+    ),
   'getAllConfig' : IDL.Func([], [IDL.Vec(ConfigEntry)], ['query']),
   'getAuditLog' : IDL.Func([], [IDL.Vec(AuditLogEntry)], ['query']),
+  'getAutofillConfig' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(PlatformAutofillConfig)],
+      ['query'],
+    ),
+  'getAutofillHealthStatus' : IDL.Func(
+      [],
+      [IDL.Vec(AutofillHealthStatus)],
+      ['query'],
+    ),
   'getBackupDownloadInfo' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(BackupHistoryRecord)],
@@ -913,6 +1100,7 @@ export const idlService = IDL.Service({
     ),
   'getGasPackages' : IDL.Func([], [IDL.Vec(GasPackage)], ['query']),
   'getHealthStatus' : IDL.Func([], [HealthStatus], ['query']),
+  'getIntegrationStatus' : IDL.Func([], [IDL.Vec(IntegrationStatus)], []),
   'getLatestExtensionVersion' : IDL.Func(
       [],
       [IDL.Opt(ExtensionUpdateCheck)],
@@ -1024,6 +1212,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getSupportTicket' : IDL.Func([IDL.Nat], [IDL.Opt(SupportTicket)], ['query']),
+  'getSystemDiagnostics' : IDL.Func([], [SystemDiagnostics], []),
   'getSystemHealthStatus' : IDL.Func(
       [],
       [
@@ -1074,6 +1263,20 @@ export const idlService = IDL.Service({
   'getVerificationStatus' : IDL.Func(
       [],
       [IDL.Opt(VerificationRecord)],
+      ['query'],
+    ),
+  'getVersionBackupIndex' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'latestSnapshot' : IDL.Opt(IDL.Text),
+          'manualSnapshots' : IDL.Nat,
+          'totalSnapshots' : IDL.Nat,
+          'autoSnapshots' : IDL.Nat,
+          'oldestSnapshot' : IDL.Opt(IDL.Text),
+          'totalDataSize' : IDL.Nat,
+        }),
+      ],
       ['query'],
     ),
   'getVersionSnapshotList' : IDL.Func(
@@ -1144,6 +1347,23 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'listAllUsers' : IDL.Func([], [IDL.Vec(UserSummary)], ['query']),
+  'listBackupsForDownload' : IDL.Func(
+      [],
+      [
+        IDL.Vec(
+          IDL.Record({
+            'id' : IDL.Text,
+            'created' : Timestamp,
+            'size' : IDL.Nat,
+            'filename' : IDL.Text,
+            'backupType' : IDL.Text,
+            'listingCount' : IDL.Nat,
+            'userCount' : IDL.Nat,
+          })
+        ),
+      ],
+      ['query'],
+    ),
   'listFavoritedListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
   'listImages' : IDL.Func([ListingId], [IDL.Vec(Image)], ['query']),
   'listListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
@@ -1154,6 +1374,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'listVersionHistory' : IDL.Func([], [IDL.Vec(AppVersion)], ['query']),
+  'logAutofillSession' : IDL.Func(
+      [IDL.Text, IDL.Nat, IDL.Nat, IDL.Vec(IDL.Text)],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'markAllAdminNotificationsRead' : IDL.Func([], [], []),
   'markAllNotificationsRead' : IDL.Func([], [], []),
@@ -1188,7 +1413,20 @@ export const idlService = IDL.Service({
     ),
   'receiveExtensionData' : IDL.Func(
       [ExtensionListingData, IDL.Text],
-      [IDL.Variant({ 'ok' : DraftListingId, 'err' : IDL.Text })],
+      [
+        IDL.Variant({
+          'ok' : DraftListingId,
+          'err' : IDL.Text,
+          'validationError' : IDL.Record({
+            'errors' : IDL.Vec(IDL.Text),
+            'platformReady' : IDL.Bool,
+          }),
+          'validationWarning' : IDL.Record({
+            'warnings' : IDL.Vec(IDL.Text),
+            'draftId' : DraftListingId,
+          }),
+        }),
+      ],
       [],
     ),
   'registerUserProfile' : IDL.Func(
@@ -1210,6 +1448,11 @@ export const idlService = IDL.Service({
     ),
   'restoreFromJsonBlob' : IDL.Func([IDL.Text], [RestoreResult], []),
   'restoreFromVersionBackup' : IDL.Func([IDL.Text], [RestoreResult], []),
+  'restoreFromVersionBackupWithSafety' : IDL.Func(
+      [IDL.Text],
+      [RestoreResult],
+      [],
+    ),
   'restoreFromZipBackup' : IDL.Func(
       [IDL.Vec(BackupListingEntry)],
       [ZipRestoreResult],
@@ -1237,9 +1480,19 @@ export const idlService = IDL.Service({
       [],
     ),
   'scrapeListing' : IDL.Func([IDL.Text], [ScrapeResult], []),
+  'searchVersionSnapshots' : IDL.Func(
+      [IDL.Opt(IDL.Text), IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
+      [IDL.Vec(VersionBackupSummary)],
+      ['query'],
+    ),
   'setAutoRenewal' : IDL.Func(
       [IDL.Bool, IDL.Nat],
       [IDL.Variant({ 'ok' : GasWallet, 'err' : IDL.Text })],
+      [],
+    ),
+  'setAutofillPlatformEnabled' : IDL.Func(
+      [IDL.Text, IDL.Bool],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
   'setConfig' : IDL.Func(
@@ -1254,6 +1507,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
+  'testAutofill' : IDL.Func([IDL.Text], [AutofillTestResult], []),
   'toggleListingFavorited' : IDL.Func(
       [ListingId],
       [IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text })],
@@ -1534,8 +1788,34 @@ export const idlService = IDL.Service({
       [],
     ),
   'updateAdminSettings' : IDL.Func([UpdateSettingsArgs], [SiteSettings], []),
+  'updateFacebookAutofillSettings' : IDL.Func(
+      [IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'updateListing' : IDL.Func([UpdateListingArgs], [Listing], []),
+  'updateMecariAutofillSettings' : IDL.Func(
+      [
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Opt(IDL.Nat),
+        IDL.Bool,
+        IDL.Opt(IDL.Text),
+      ],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'updateMyProfile' : IDL.Func([UpdateProfileArgs], [UpdateProfileResult], []),
+  'validateAutofillData' : IDL.Func(
+      [ExtensionListingData],
+      [AutofillValidation],
+      ['query'],
+    ),
   'validateBackupIntegrity' : IDL.Func(
       [IDL.Text],
       [
@@ -1647,6 +1927,7 @@ export const idlFactory = ({ IDL }) => {
     'releaseNotes' : IDL.Text,
     'version' : IDL.Text,
     'releasedAt' : Timestamp,
+    'supportedPlatforms' : IDL.Vec(IDL.Text),
     'buildNumber' : IDL.Nat,
     'isForceUpdate' : IDL.Bool,
   });
@@ -1714,6 +1995,7 @@ export const idlFactory = ({ IDL }) => {
     'userId' : UserId,
     'createdAt' : Timestamp,
     'description' : IDL.Text,
+    'platform' : IDL.Opt(IDL.Text),
     'sourceUrl' : IDL.Opt(IDL.Text),
     'pinned' : IDL.Bool,
     'expirationDate' : Timestamp,
@@ -1721,7 +2003,9 @@ export const idlFactory = ({ IDL }) => {
     'pinnedAt' : IDL.Opt(Timestamp),
     'restoredAt' : IDL.Opt(Timestamp),
     'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
+    'condition' : IDL.Opt(IDL.Text),
     'archivedAt' : IDL.Opt(Timestamp),
   });
   const UserRole = IDL.Variant({
@@ -1869,6 +2153,29 @@ export const idlFactory = ({ IDL }) => {
     'images' : IDL.Vec(BackupImageEntry),
     'archivedAt' : IDL.Opt(Timestamp),
   });
+  const PlatformAutofillConfig = IDL.Record({
+    'fbPrefillDescription' : IDL.Bool,
+    'fbAutoClickLocalPickup' : IDL.Bool,
+    'mecariPrefillDescription' : IDL.Bool,
+    'lastUpdated' : Timestamp,
+    'mecariPrefillCondition' : IDL.Bool,
+    'enabled' : IDL.Bool,
+    'updatedBy' : IDL.Text,
+    'mecariAutoSelectDeliveryDays' : IDL.Bool,
+    'mecariAutoSelectShipping' : IDL.Bool,
+    'mecariPrefillBrand' : IDL.Bool,
+    'fbPrefillPrice' : IDL.Bool,
+    'mecariPrefillPrice' : IDL.Bool,
+    'mecariShippingType' : IDL.Opt(IDL.Text),
+    'fbPrefillCondition' : IDL.Bool,
+    'fbAutoClickShipping' : IDL.Bool,
+    'mecariDeliveryDaysValue' : IDL.Opt(IDL.Nat),
+    'fbPrefillCategory' : IDL.Bool,
+    'fbPrefillTitle' : IDL.Bool,
+    'platformName' : IDL.Text,
+    'mecariPrefillCategory' : IDL.Bool,
+    'mecariPrefillTitle' : IDL.Bool,
+  });
   const ConfigEntry = IDL.Record({
     'key' : IDL.Text,
     'value' : IDL.Text,
@@ -1884,6 +2191,17 @@ export const idlFactory = ({ IDL }) => {
     'details' : IDL.Text,
     'adminId' : UserId,
     'targetUserId' : IDL.Opt(UserId),
+  });
+  const AutofillHealthStatus = IDL.Record({
+    'successRate' : IDL.Float64,
+    'isHealthy' : IDL.Bool,
+    'enabled' : IDL.Bool,
+    'totalAttempts' : IDL.Nat,
+    'lastTestResult' : IDL.Opt(IDL.Text),
+    'lastTestAt' : IDL.Opt(Timestamp),
+    'totalSuccessful' : IDL.Nat,
+    'activeSessions' : IDL.Nat,
+    'platformName' : IDL.Text,
   });
   const BulkGasDiscount = IDL.Record({
     'minGasAmount' : IDL.Nat,
@@ -1919,6 +2237,14 @@ export const idlFactory = ({ IDL }) => {
     'keysConfigured' : IDL.Bool,
     'lastBackupAt' : Timestamp,
     'criticalKeysPresent' : IDL.Bool,
+  });
+  const IntegrationStatus = IDL.Record({
+    'configPresent' : IDL.Bool,
+    'name' : IDL.Text,
+    'errorMessage' : IDL.Opt(IDL.Text),
+    'lastTestResult' : IDL.Opt(IDL.Bool),
+    'lastTestAt' : IDL.Opt(Timestamp),
+    'connected' : IDL.Bool,
   });
   const LoyaltyStatus = IDL.Record({
     'rewardClaimedForTiers' : IDL.Vec(TierName),
@@ -1986,6 +2312,52 @@ export const idlFactory = ({ IDL }) => {
     'repliedAt' : IDL.Opt(Timestamp),
     'message' : IDL.Text,
   });
+  const ComponentMetrics = IDL.Record({
+    'successCount' : IDL.Nat,
+    'uptime' : IDL.Float64,
+    'errorCount' : IDL.Nat,
+    'responseTime' : IDL.Nat,
+  });
+  const ComponentStatus = IDL.Record({
+    'status' : IDL.Variant({
+      'warning' : IDL.Null,
+      'healthy' : IDL.Null,
+      'error' : IDL.Null,
+      'offline' : IDL.Null,
+    }),
+    'metrics' : ComponentMetrics,
+    'name' : IDL.Text,
+    'lastCheck' : Timestamp,
+    'message' : IDL.Text,
+    'category' : IDL.Text,
+  });
+  const SystemIssue = IDL.Record({
+    'id' : IDL.Text,
+    'resolved' : IDL.Bool,
+    'title' : IDL.Text,
+    'description' : IDL.Text,
+    'affectedComponent' : IDL.Text,
+    'suggestedFix' : IDL.Text,
+    'severity' : IDL.Variant({
+      'warning' : IDL.Null,
+      'info' : IDL.Null,
+      'error' : IDL.Null,
+      'critical' : IDL.Null,
+    }),
+    'discoveredAt' : Timestamp,
+  });
+  const SystemDiagnostics = IDL.Record({
+    'recommendations' : IDL.Vec(IDL.Text),
+    'criticalFailures' : IDL.Vec(IDL.Text),
+    'components' : IDL.Vec(ComponentStatus),
+    'issues' : IDL.Vec(SystemIssue),
+    'timestamp' : Timestamp,
+    'overallStatus' : IDL.Variant({
+      'warning' : IDL.Null,
+      'healthy' : IDL.Null,
+      'critical' : IDL.Null,
+    }),
+  });
   const VerificationStatus = IDL.Variant({
     'verified' : IDL.Null,
     'expired' : IDL.Null,
@@ -2048,18 +2420,40 @@ export const idlFactory = ({ IDL }) => {
     'category' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
   });
+  const ItemCondition = IDL.Variant({
+    'new' : IDL.Null,
+    'fair' : IDL.Null,
+    'good' : IDL.Null,
+    'poor' : IDL.Null,
+    'likeNew' : IDL.Null,
+    'unknown' : IDL.Null,
+  });
+  const Platform = IDL.Variant({
+    'facebookMarketplace' : IDL.Null,
+    'offerUp' : IDL.Null,
+    'unknown' : IDL.Null,
+    'mecari' : IDL.Null,
+  });
   const ExtensionListingData = IDL.Record({
+    'mecariCondition' : IDL.Opt(ItemCondition),
+    'totalImageSize' : IDL.Opt(IDL.Nat),
     'title' : IDL.Text,
-    'localPickupAvailable' : IDL.Opt(IDL.Bool),
+    'fbLocalPickup' : IDL.Opt(IDL.Bool),
     'imageUrls' : IDL.Vec(IDL.Text),
-    'deliveryDays' : IDL.Opt(IDL.Nat),
+    'mecariCategory' : IDL.Opt(IDL.Text),
     'description' : IDL.Opt(IDL.Text),
-    'platform' : IDL.Opt(IDL.Text),
+    'platform' : Platform,
     'sourceUrl' : IDL.Opt(IDL.Text),
-    'category' : IDL.Opt(IDL.Text),
-    'brand' : IDL.Opt(IDL.Text),
+    'mecariDeliveryDays' : IDL.Opt(IDL.Nat),
+    'fbShipping' : IDL.Opt(IDL.Bool),
+    'fbCondition' : IDL.Opt(ItemCondition),
+    'offerUpCondition' : IDL.Opt(ItemCondition),
+    'mecariShippingType' : IDL.Opt(IDL.Text),
+    'mecariBrand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
-    'condition' : IDL.Opt(IDL.Text),
+    'fbCategory' : IDL.Opt(IDL.Text),
+    'imageFileTypes' : IDL.Vec(IDL.Text),
+    'offerUpCategory' : IDL.Opt(IDL.Text),
   });
   const DraftListingId = IDL.Nat;
   const SetUsernameResult = IDL.Variant({
@@ -2095,6 +2489,14 @@ export const idlFactory = ({ IDL }) => {
     'price' : IDL.Opt(IDL.Text),
   });
   const ScrapeResult = IDL.Variant({ 'ok' : ScrapedListing, 'err' : IDL.Text });
+  const AutofillTestResult = IDL.Record({
+    'fieldsFailed' : IDL.Vec(IDL.Text),
+    'duration' : IDL.Nat,
+    'platform' : IDL.Text,
+    'message' : IDL.Text,
+    'success' : IDL.Bool,
+    'fieldsPrepped' : IDL.Vec(IDL.Text),
+  });
   const UpdateSettingsArgs = IDL.Record({
     'maxSessionDurationMinutes' : IDL.Nat,
     'appName' : IDL.Text,
@@ -2124,6 +2526,12 @@ export const idlFactory = ({ IDL }) => {
   const UpdateProfileResult = IDL.Variant({
     'ok' : UserProfile,
     'err' : IDL.Text,
+  });
+  const AutofillValidation = IDL.Record({
+    'valid' : IDL.Bool,
+    'errors' : IDL.Vec(IDL.Text),
+    'warnings' : IDL.Vec(IDL.Text),
+    'platformReady' : IDL.Bool,
   });
   const VerifyEmailResult = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
@@ -2418,6 +2826,37 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'dismissPaymentBanner' : IDL.Func([], [], []),
+    'downloadDataSnapshot' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'metadata' : IDL.Record({
+                'created' : Timestamp,
+                'size' : IDL.Nat,
+                'backupType' : IDL.Text,
+              }),
+              'data' : IDL.Text,
+            })
+          ),
+        ],
+        ['query'],
+      ),
+    'downloadVersionBackupAsJson' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'data' : IDL.Text,
+              'size' : IDL.Nat,
+              'filename' : IDL.Text,
+              'backupType' : IDL.Text,
+              'timestamp' : Timestamp,
+            })
+          ),
+        ],
+        ['query'],
+      ),
     'exportAllUsersData' : IDL.Func(
         [],
         [
@@ -2427,6 +2866,19 @@ export const idlFactory = ({ IDL }) => {
           }),
         ],
         ['query'],
+      ),
+    'exportSystemReport' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'issuesJson' : IDL.Text,
+            'componentsJson' : IDL.Text,
+            'recommendationsJson' : IDL.Text,
+            'timestamp' : Timestamp,
+            'overallStatus' : IDL.Text,
+          }),
+        ],
+        [],
       ),
     'exportUserData' : IDL.Func(
         [IDL.Text],
@@ -2470,8 +2922,23 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getAdminSettings' : IDL.Func([], [SiteSettings], ['query']),
+    'getAllAutofillConfigs' : IDL.Func(
+        [],
+        [IDL.Vec(PlatformAutofillConfig)],
+        ['query'],
+      ),
     'getAllConfig' : IDL.Func([], [IDL.Vec(ConfigEntry)], ['query']),
     'getAuditLog' : IDL.Func([], [IDL.Vec(AuditLogEntry)], ['query']),
+    'getAutofillConfig' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(PlatformAutofillConfig)],
+        ['query'],
+      ),
+    'getAutofillHealthStatus' : IDL.Func(
+        [],
+        [IDL.Vec(AutofillHealthStatus)],
+        ['query'],
+      ),
     'getBackupDownloadInfo' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(BackupHistoryRecord)],
@@ -2498,6 +2965,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getGasPackages' : IDL.Func([], [IDL.Vec(GasPackage)], ['query']),
     'getHealthStatus' : IDL.Func([], [HealthStatus], ['query']),
+    'getIntegrationStatus' : IDL.Func([], [IDL.Vec(IntegrationStatus)], []),
     'getLatestExtensionVersion' : IDL.Func(
         [],
         [IDL.Opt(ExtensionUpdateCheck)],
@@ -2613,6 +3081,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(SupportTicket)],
         ['query'],
       ),
+    'getSystemDiagnostics' : IDL.Func([], [SystemDiagnostics], []),
     'getSystemHealthStatus' : IDL.Func(
         [],
         [
@@ -2663,6 +3132,20 @@ export const idlFactory = ({ IDL }) => {
     'getVerificationStatus' : IDL.Func(
         [],
         [IDL.Opt(VerificationRecord)],
+        ['query'],
+      ),
+    'getVersionBackupIndex' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'latestSnapshot' : IDL.Opt(IDL.Text),
+            'manualSnapshots' : IDL.Nat,
+            'totalSnapshots' : IDL.Nat,
+            'autoSnapshots' : IDL.Nat,
+            'oldestSnapshot' : IDL.Opt(IDL.Text),
+            'totalDataSize' : IDL.Nat,
+          }),
+        ],
         ['query'],
       ),
     'getVersionSnapshotList' : IDL.Func(
@@ -2733,6 +3216,23 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listAllUsers' : IDL.Func([], [IDL.Vec(UserSummary)], ['query']),
+    'listBackupsForDownload' : IDL.Func(
+        [],
+        [
+          IDL.Vec(
+            IDL.Record({
+              'id' : IDL.Text,
+              'created' : Timestamp,
+              'size' : IDL.Nat,
+              'filename' : IDL.Text,
+              'backupType' : IDL.Text,
+              'listingCount' : IDL.Nat,
+              'userCount' : IDL.Nat,
+            })
+          ),
+        ],
+        ['query'],
+      ),
     'listFavoritedListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
     'listImages' : IDL.Func([ListingId], [IDL.Vec(Image)], ['query']),
     'listListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
@@ -2743,6 +3243,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listVersionHistory' : IDL.Func([], [IDL.Vec(AppVersion)], ['query']),
+    'logAutofillSession' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Nat, IDL.Vec(IDL.Text)],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'markAllAdminNotificationsRead' : IDL.Func([], [], []),
     'markAllNotificationsRead' : IDL.Func([], [], []),
@@ -2777,7 +3282,20 @@ export const idlFactory = ({ IDL }) => {
       ),
     'receiveExtensionData' : IDL.Func(
         [ExtensionListingData, IDL.Text],
-        [IDL.Variant({ 'ok' : DraftListingId, 'err' : IDL.Text })],
+        [
+          IDL.Variant({
+            'ok' : DraftListingId,
+            'err' : IDL.Text,
+            'validationError' : IDL.Record({
+              'errors' : IDL.Vec(IDL.Text),
+              'platformReady' : IDL.Bool,
+            }),
+            'validationWarning' : IDL.Record({
+              'warnings' : IDL.Vec(IDL.Text),
+              'draftId' : DraftListingId,
+            }),
+          }),
+        ],
         [],
       ),
     'registerUserProfile' : IDL.Func(
@@ -2799,6 +3317,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'restoreFromJsonBlob' : IDL.Func([IDL.Text], [RestoreResult], []),
     'restoreFromVersionBackup' : IDL.Func([IDL.Text], [RestoreResult], []),
+    'restoreFromVersionBackupWithSafety' : IDL.Func(
+        [IDL.Text],
+        [RestoreResult],
+        [],
+      ),
     'restoreFromZipBackup' : IDL.Func(
         [IDL.Vec(BackupListingEntry)],
         [ZipRestoreResult],
@@ -2826,9 +3349,19 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'scrapeListing' : IDL.Func([IDL.Text], [ScrapeResult], []),
+    'searchVersionSnapshots' : IDL.Func(
+        [IDL.Opt(IDL.Text), IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
+        [IDL.Vec(VersionBackupSummary)],
+        ['query'],
+      ),
     'setAutoRenewal' : IDL.Func(
         [IDL.Bool, IDL.Nat],
         [IDL.Variant({ 'ok' : GasWallet, 'err' : IDL.Text })],
+        [],
+      ),
+    'setAutofillPlatformEnabled' : IDL.Func(
+        [IDL.Text, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
     'setConfig' : IDL.Func(
@@ -2843,6 +3376,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
+    'testAutofill' : IDL.Func([IDL.Text], [AutofillTestResult], []),
     'toggleListingFavorited' : IDL.Func(
         [ListingId],
         [IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text })],
@@ -3123,11 +3657,37 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'updateAdminSettings' : IDL.Func([UpdateSettingsArgs], [SiteSettings], []),
+    'updateFacebookAutofillSettings' : IDL.Func(
+        [IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'updateListing' : IDL.Func([UpdateListingArgs], [Listing], []),
+    'updateMecariAutofillSettings' : IDL.Func(
+        [
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Opt(IDL.Nat),
+          IDL.Bool,
+          IDL.Opt(IDL.Text),
+        ],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'updateMyProfile' : IDL.Func(
         [UpdateProfileArgs],
         [UpdateProfileResult],
         [],
+      ),
+    'validateAutofillData' : IDL.Func(
+        [ExtensionListingData],
+        [AutofillValidation],
+        ['query'],
       ),
     'validateBackupIntegrity' : IDL.Func(
         [IDL.Text],

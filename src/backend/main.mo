@@ -3,6 +3,8 @@ import List "mo:core/List";
 import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
+import Int "mo:core/Int";
+import Order "mo:core/Order";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
@@ -17,6 +19,8 @@ import ProfileTypes "types/userprofile";
 import VerifyTypes "types/emailverification";
 import NotifTypes "types/notifications";
 import AppConfigTypes "types/app-config";
+import AutofillTypes "types/autofill-config";
+import DiagnosticsTypes "types/system-diagnostics";
 import ListingsLib "lib/listings";
 import TiersLib "lib/tiers";
 import GasWalletLib "lib/gas-wallet";
@@ -50,7 +54,11 @@ import SupportTicketsApi "mixins/support-tickets-api";
 import AdminNotificationsApi "mixins/admin-notifications-api";
 import MaintenanceApi "mixins/maintenance-api";
 import SystemHealthApi "mixins/system-health-api";
+import AutofillConfigApi "mixins/autofill-config-api";
+import SystemDiagnosticsApi "mixins/system-diagnostics-api";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -266,13 +274,12 @@ actor {
       // Archive expired listings
       ignore ListingsLib.archiveExpiredListings(listings, accessControlState, now);
 
-      // Notify users about listings that just got auto-archived (status == #archived, archivedAt == now within 1 hour)
+      // Notify users about listings that just got auto-archived
       for ((_, listing) in listings.entries()) {
         switch (listing.status) {
           case (#archived) {
             switch (listing.archivedAt) {
               case (?archivedAt) {
-                // Just archived in this timer cycle (within last hour) and not manually
                 if (not listing.archivedManually and now - archivedAt < DAY_NS) {
                   if (not NotifLib.hasRecentNotification(notifications, listing.userId, #listingArchived, DAY_NS, now)) {
                     ignore NotifLib.createNotification(
@@ -286,7 +293,6 @@ actor {
                     );
                   };
                 };
-                // Deletion warnings: archived > 27 days (< 3 days left in 30-day window)
                 if (now - archivedAt >= ARCHIVE_WARN_THRESHOLD_NS) {
                   if (not NotifLib.hasRecentNotification(notifications, listing.userId, #listingDeletionWarning, DAY_NS, now)) {
                     ignore NotifLib.createNotification(
@@ -295,7 +301,7 @@ actor {
                       listing.userId,
                       #listingDeletionWarning,
                       "Listing Deletion Warning",
-                      "Your archived listing '" # listing.title # "' will be permanently deleted in less than 3 days. Renew your subscription to restore it.",
+                      "Your archived listing '" # listing.title # "' will be permanently deleted in less than 3 days.",
                       now,
                     );
                   };
@@ -310,7 +316,7 @@ actor {
 
       ignore ListingsLib.deleteExpiredArchivedListings(listings, images, accessControlState, now);
 
-      // Auto-renewal: iterate all wallets that have autoRenewal=true
+      // Auto-renewal for wallets
       for ((userId, wallet) in wallets.entries()) {
         if (wallet.autoRenewal) {
           let renewed = GasWalletLib.processAutoRenewal(wallets, subscriptions, userId, now);
@@ -328,7 +334,7 @@ actor {
         };
       };
 
-      // Subscription expiry alerts: notify users expiring within 7 days (once per 24h)
+      // Subscription expiry alerts
       for ((userId, sub) in subscriptions.entries()) {
         if (sub.expirationDate > now and sub.expirationDate - now <= ALERT_THRESHOLD_NS) {
           ignore PaymentsLib.sendSubscriptionExpiryAlert(userId);
@@ -340,33 +346,58 @@ actor {
               userId,
               #subscriptionExpiry,
               "Subscription Expiring Soon",
-              "Your subscription expires in " # daysLeft.toText() # " days. Refuel your Gas Wallet to keep your listings active.",
+              "Your subscription expires in " # daysLeft.toText() # " days.",
               now,
             );
           };
         };
       };
 
-      // Adaptive version snapshot — frequency depends on user count
-      // Silently skips if not enough time has passed since last snapshot
+      // ─── ADAPTIVE VERSION SNAPSHOT WITH AUTO-CLEANUP ─────────────────
       let userCount = profiles.size();
       let HOUR_NS : Int = 3_600_000_000_000;
-      let intervalNs : Int = if (userCount > 200) {
-        HOUR_NS
-      } else if (userCount > 50) {
-        6 * HOUR_NS
-      } else if (userCount > 10) {
-        12 * HOUR_NS
-      } else {
-        24 * HOUR_NS
-      };
+
+      let (intervalNs, intervalLabel) : (Int, Text) =
+        if (userCount > 500) {
+          ((30 * 60) * 1_000_000_000, "30 minutes")
+        } else if (userCount > 200) {
+          (HOUR_NS, "1 hour")
+        } else if (userCount > 50) {
+          (6 * HOUR_NS, "6 hours")
+        } else if (userCount > 10) {
+          (12 * HOUR_NS, "12 hours")
+        } else {
+          (24 * HOUR_NS, "24 hours")
+        };
+
       if (now - lastAutoSnapshotTime.value >= intervalNs) {
         lastAutoSnapshotTime.value := now;
         ignore BackupLib.createVersionSnapshot(
           versionBackups, profiles, listings, subscriptions, notifications,
           siteSettings, appVersions, "version-snapshot-auto", "auto-adaptive",
-          ?("Adaptive auto snapshot — " # userCount.toText() # " users"), now,
+          ?("Adaptive snapshot — " # userCount.toText() # " users — interval: " # intervalLabel),
+          now,
         );
+
+        // ─── AUTO-CLEANUP: Cap auto snapshots at 50 ─────────────────
+        let autoSnapshots = versionBackups.filter(func(b : BackupTypes.VersionBackup) : Bool {
+          b.backupType.startsWith(#text "version-snapshot-auto")
+        });
+
+        if (autoSnapshots.size() > 50) {
+          let sorted = autoSnapshots.sort(func(a : BackupTypes.VersionBackup, b : BackupTypes.VersionBackup) : Order.Order { Int.compare(a.createdAt, b.createdAt) });
+
+          switch (sorted.first()) {
+            case (?oldest) {
+              let keep = versionBackups.filter(func(b : BackupTypes.VersionBackup) : Bool {
+                b.id != oldest.id
+              });
+              versionBackups.clear();
+              versionBackups.append(keep);
+            };
+            case null {};
+          };
+        };
       };
     },
   );
@@ -574,29 +605,17 @@ actor {
     usernameIndex,
   );
 
-  // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
-  // On every upgrade, sync critical data to stable backup maps so they survive
-  // any future upgrade that might lose in-flight state.
-  system func preupgrade() {
-    appConfigBackup     := appConfig;
-    profilesBackup      := profiles;
-    subscriptionsBackup := subscriptions;
-    listingsBackup      := listings;
-  };
+  // ── Autofill Config ───────────────────────────────────────────────────────
+  include AutofillConfigApi(
+    accessControlState,
+  );
 
-  // After upgrade, restore critical data if the main collections were lost.
-  system func postupgrade() {
-    if (appConfig.isEmpty() and not appConfigBackup.isEmpty()) {
-      for ((k, v) in appConfigBackup.entries()) { appConfig.add(k, v) };
-    };
-    if (profiles.isEmpty() and not profilesBackup.isEmpty()) {
-      for ((k, v) in profilesBackup.entries()) { profiles.add(k, v) };
-    };
-    if (subscriptions.isEmpty() and not subscriptionsBackup.isEmpty()) {
-      for ((k, v) in subscriptionsBackup.entries()) { subscriptions.add(k, v) };
-    };
-    if (listings.isEmpty() and not listingsBackup.isEmpty()) {
-      for ((k, v) in listingsBackup.entries()) { listings.add(k, v) };
-    };
-  };
+  // ── System Diagnostics ────────────────────────────────────────────────────
+  include SystemDiagnosticsApi(
+    accessControlState,
+    appConfig,
+  );
+
+  // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
 };
+

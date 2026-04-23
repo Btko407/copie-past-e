@@ -1,4 +1,4 @@
-// Version: 1.0.0
+// Version: 3.0.0
 type AdminNotification__666542155 =
   {
     createdAt : Timestamp__301639476;
@@ -38,6 +38,18 @@ type AuditLogEntry__505067381 =
     id : Nat;
     targetUserId : ?UserId__158757552;
     timestamp : Timestamp__301639476
+  };
+type AutofillSession__209482107 =
+  {
+    completedAt : ?Timestamp__301639476;
+    createdAt : Timestamp__301639476;
+    errors : [Text];
+    fieldsAttempted : Nat;
+    fieldsSuccessful : Nat;
+    platform : Text;
+    sessionId : Text;
+    testMode : Bool;
+    userId : UserId__158757552
   };
 type BackupHistoryRecord__662471703 =
   {
@@ -92,6 +104,7 @@ type ExtensionVersion__1001368693 =
     isForceUpdate : Bool;
     releaseNotes : Text;
     releasedAt : Timestamp__301639476;
+    supportedPlatforms : [Text];
     version : Text
   };
 type ExternalBlob__246066408 = Blob;
@@ -171,7 +184,9 @@ type Listing__798123527 =
   {
     archivedAt : ?Timestamp__301639476;
     archivedManually : Bool;
+    brand : ?Text;
     category : ?Text;
+    condition : ?Text;
     createdAt : Timestamp__301639476;
     description : Text;
     expirationDate : Timestamp__301639476;
@@ -179,6 +194,7 @@ type Listing__798123527 =
     id : ListingId__58075594;
     pinned : Bool;
     pinnedAt : ?Timestamp__301639476;
+    platform : ?Text;
     price : ?Text;
     restoredAt : ?Timestamp__301639476;
     sourceUrl : ?Text;
@@ -216,6 +232,36 @@ type OcrFailureEntry__941651084 =
     imageHash : Text;
     timestamp : Int;
     userPrincipal : Text
+  };
+type OldExtensionVersion__473447854 =
+  {
+    buildNumber : Nat;
+    downloadUrl : Text;
+    isForceUpdate : Bool;
+    releaseNotes : Text;
+    releasedAt : Int;
+    version : Text
+  };
+type OldListingStatus__662853161 = {#active; #archived};
+type OldListing__294277369 =
+  {
+    archivedAt : ?Int;
+    archivedManually : Bool;
+    category : ?Text;
+    createdAt : Int;
+    description : Text;
+    expirationDate : Int;
+    favorited : Bool;
+    id : Nat;
+    pinned : Bool;
+    pinnedAt : ?Int;
+    price : ?Text;
+    restoredAt : ?Int;
+    sourceUrl : ?Text;
+    status : OldListingStatus__662853161;
+    tierLevel : Nat;
+    title : Text;
+    userId : Principal
   };
 type PaymentBannerState__567153087 =
   {
@@ -262,6 +308,30 @@ type PendingSession__206498609 =
     sessionId : Text;
     tierDays : Nat;
     tierId : Nat
+  };
+type PlatformAutofillConfig__616518466 =
+  {
+    enabled : Bool;
+    fbAutoClickLocalPickup : Bool;
+    fbAutoClickShipping : Bool;
+    fbPrefillCategory : Bool;
+    fbPrefillCondition : Bool;
+    fbPrefillDescription : Bool;
+    fbPrefillPrice : Bool;
+    fbPrefillTitle : Bool;
+    lastUpdated : Timestamp__301639476;
+    mecariAutoSelectDeliveryDays : Bool;
+    mecariAutoSelectShipping : Bool;
+    mecariDeliveryDaysValue : ?Nat;
+    mecariPrefillBrand : Bool;
+    mecariPrefillCategory : Bool;
+    mecariPrefillCondition : Bool;
+    mecariPrefillDescription : Bool;
+    mecariPrefillPrice : Bool;
+    mecariPrefillTitle : Bool;
+    mecariShippingType : ?Text;
+    platformName : Text;
+    updatedBy : Text
   };
 type RefuelEntry__738623034 =
   {date : Int; tierAtRefuel : TierName__274346593};
@@ -364,7 +434,7 @@ type WebhookEvent__346015857 =
     stripeCustomerId : ?Text;
     userId : ?Text
   };
-actor {
+actor ({
   stable ALERT_THRESHOLD_NS : Int;
   stable ARCHIVE_WARN_THRESHOLD_NS : Int;
   stable BACKUP_TIER_ID : Nat;
@@ -544,6 +614,394 @@ actor {
       var blocks : [var [var ?AuditLogEntry__505067381]];
       var elementIndex : Nat__490723111
     };
+  stable autofillConfigs :
+    {
+      var root : Node__46230540<Text, PlatformAutofillConfig__616518466>;
+      var size : Nat__490723111
+    };
+  stable autofillSessionCounter : {var value : Nat};
+  stable autofillSessions :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?AutofillSession__209482107]];
+      var elementIndex : Nat__490723111
+    };
+  stable backupCounter : {var value : Nat};
+  stable backupHistory :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?BackupHistoryRecord__662471703]];
+      var elementIndex : Nat__490723111
+    };
+  stable backups :
+    {
+      var root : Node__46230540<Nat, BackupRecord__451323854>;
+      var size : Nat__490723111
+    };
+  stable claimedRewards :
+    {
+      var root :
+        Node__46230540<UserId__158757552,
+                        List__415060402<TierName__274346593>>;
+      var size : Nat__490723111
+    };
+  stable discountCounter : {var value : Nat};
+  stable discounts :
+    {
+      var root : Node__46230540<Nat, DiscountCode__1005510210>;
+      var size : Nat__490723111
+    };
+  stable emailIndex :
+    {
+      var root : Node__46230540<Text, UserId__158757552>;
+      var size : Nat__490723111
+    };
+  in extensionVersions : List__415060402<OldExtensionVersion__473447854>;
+  stable failedWebhookEvents :
+    {
+      var root : Node__46230540<Text, FailedWebhookEvent__773709489>;
+      var size : Nat__490723111
+    };
+  stable gasPackages :
+    {
+      var root : Node__46230540<Nat, GasPackage__333961523>;
+      var size : Nat__490723111
+    };
+  stable gasPurchaseCounter : {var value : Nat};
+  stable gasPurchases :
+    {
+      var root : Node__46230540<Nat, GasPurchase__516523631>;
+      var size : Nat__490723111
+    };
+  stable geminiConfig : {var current : ?GeminiConfig__532271986};
+  stable imageCounter : {var value : Nat};
+  stable images :
+    {
+      var root : Node__46230540<ImageId__216201135, Image__340455961>;
+      var size : Nat__490723111
+    };
+  stable lastAutoSnapshotTime : {var value : Int};
+  stable listingCounter : {var value : Nat};
+  in listings : Map__605269027<Nat, OldListing__294277369>;
+  in var listingsBackup : Map__605269027<Nat, OldListing__294277369>;
+  stable lowFuelNotificationSentFor :
+    {
+      var root : Node__46230540<UserId__158757552, Timestamp__301639476>;
+      var size : Nat__490723111
+    };
+  stable notifCounter : {var value : Nat};
+  stable notifications :
+    {
+      var root :
+        Node__46230540<UserId__158757552,
+                        List__415060402<InAppNotification__120803294>>;
+      var size : Nat__490723111
+    };
+  stable ocrFailureLog :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?OcrFailureEntry__941651084]];
+      var elementIndex : Nat__490723111
+    };
+  stable paymentBanners :
+    {
+      var root : Node__46230540<Text, PaymentBannerState__567153087>;
+      var size : Nat__490723111
+    };
+  stable paymentConfig : {var current : ?PaymentConfig__85431752};
+  stable paymentCounter : {var value : Nat};
+  stable payments :
+    {
+      var root : Node__46230540<Nat, PaymentRecord__879948694>;
+      var size : Nat__490723111
+    };
+  stable pendingSessions :
+    {
+      var root : Node__46230540<Text, PendingSession__206498609>;
+      var size : Nat__490723111
+    };
+  stable processedStripeEvents :
+    {var root : Node__46230540<Text, Int>; var size : Nat__490723111};
+  stable profiles :
+    {
+      var root : Node__46230540<UserId__158757552, UserProfile__513675666>;
+      var size : Nat__490723111
+    };
+  stable var profilesBackup :
+    {
+      var root : Node__46230540<UserId__158757552, UserProfile__513675666>;
+      var size : Nat__490723111
+    };
+  stable refuelHistory :
+    {
+      var root :
+        Node__46230540<UserId__158757552,
+                        List__415060402<RefuelEntry__738623034>>;
+      var size : Nat__490723111
+    };
+  stable siteSettings : {var current : ?SiteSettings__435530660};
+  stable stripeCheckoutRateLimit :
+    {
+      var root : Node__46230540<Text, List__415060402<Int>>;
+      var size : Nat__490723111
+    };
+  stable subscriptions :
+    {
+      var root :
+        Node__46230540<UserId__158757552, UserTierSubscription__97090275>;
+      var size : Nat__490723111
+    };
+  stable var subscriptionsBackup :
+    {
+      var root :
+        Node__46230540<UserId__158757552, UserTierSubscription__97090275>;
+      var size : Nat__490723111
+    };
+  stable supportTickets :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?SupportTicket__87649939]];
+      var elementIndex : Nat__490723111
+    };
+  stable ticketCounter : {var value : Nat};
+  stable tiers :
+    {
+      var root : Node__46230540<Nat, TierConfig__70379422>;
+      var size : Nat__490723111
+    };
+  stable userLastLogins :
+    {
+      var root : Node__46230540<UserId__158757552, Timestamp__301639476>;
+      var size : Nat__490723111
+    };
+  stable userRegistrations :
+    {
+      var root : Node__46230540<UserId__158757552, Timestamp__301639476>;
+      var size : Nat__490723111
+    };
+  stable usernameIndex :
+    {
+      var root : Node__46230540<Text, UserId__158757552>;
+      var size : Nat__490723111
+    };
+  stable verificationRecords :
+    {
+      var root :
+        Node__46230540<UserId__158757552, VerificationRecord__485329711>;
+      var size : Nat__490723111
+    };
+  stable verifiedStripeSessionIds :
+    {var root : Node__92254746<Text>; var size : Nat__490723111};
+  stable versionBackups :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?VersionBackup__87914238]];
+      var elementIndex : Nat__490723111
+    };
+  stable versionCounter : {var value : Nat};
+  stable wallets :
+    {
+      var root : Node__46230540<UserId__158757552, GasWallet__840817631>;
+      var size : Nat__490723111
+    };
+  stable webhookEventLog :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?WebhookEvent__346015857]];
+      var elementIndex : Nat__490723111
+    }
+}, {
+  stable ALERT_THRESHOLD_NS : Int;
+  stable ARCHIVE_WARN_THRESHOLD_NS : Int;
+  stable BACKUP_TIER_ID : Nat;
+  stable BASE64_CHARS : [Char];
+  stable DAYS_NS : Int;
+  stable DAY_NS : Int;
+  stable EMAIL_VERIFICATION_ENABLED : Bool;
+  stable HOUR_NS : Int;
+  stable IC_HTTP :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable var IC_MANAGEMENT :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable var IC_MANAGEMENT_BACKUP :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable var IC_MANAGEMENT_GAS :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable var IC_MANAGEMENT_OCR :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable IC_MANAGEMENT_SCRAPER :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable var IC_MANAGEMENT_STRIPE :
+    actor {
+      http_request :
+        shared {
+                 body : ?Blob;
+                 headers : [{name : Text; value : Text}];
+                 is_replicated : ?Bool;
+                 max_response_bytes : ?Nat64;
+                 method : {#get; #head; #post};
+                 url : Text
+               } ->
+          async
+            {
+              body : Blob;
+              headers : [{name : Text; value : Text}];
+              status : Nat
+            }
+    };
+  stable OCR_FAILURE_LOG_MAX : Nat;
+  stable SMART_BACKUP_PRICE_USD : Float;
+  stable var STRIPE_SECRET_KEY : Text;
+  stable STRIPE_SECRET_KEY_GAS : Text;
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable adminActionCounter : {var value : Nat};
+  stable adminNotifCounter : {var value : Nat};
+  stable adminNotifs :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?AdminNotification__666542155]];
+      var elementIndex : Nat__490723111
+    };
+  stable adminTierActions :
+    {
+      var root : Node__46230540<Nat, AdminTierAction__46819461>;
+      var size : Nat__490723111
+    };
+  stable appConfig :
+    {
+      var root : Node__46230540<Text, ConfigEntry__967475232>;
+      var size : Nat__490723111
+    };
+  stable var appConfigBackup :
+    {
+      var root : Node__46230540<Text, ConfigEntry__967475232>;
+      var size : Nat__490723111
+    };
+  stable appVersions :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?AppVersion__592610022]];
+      var elementIndex : Nat__490723111
+    };
+  stable auditCounter : {var value : Nat};
+  stable auditLog :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?AuditLogEntry__505067381]];
+      var elementIndex : Nat__490723111
+    };
+  stable autofillConfigs :
+    {
+      var root : Node__46230540<Text, PlatformAutofillConfig__616518466>;
+      var size : Nat__490723111
+    };
+  stable autofillSessionCounter : {var value : Nat};
+  stable autofillSessions :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?AutofillSession__209482107]];
+      var elementIndex : Nat__490723111
+    };
   stable backupCounter : {var value : Nat};
   stable backupHistory :
     {
@@ -576,9 +1034,8 @@ actor {
     };
   stable extensionVersions :
     {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?ExtensionVersion__1001368693]];
-      var elementIndex : Nat__490723111
+      var root : Node__46230540<Text, ExtensionVersion__1001368693>;
+      var size : Nat__490723111
     };
   stable failedWebhookEvents :
     {
@@ -741,4 +1198,4 @@ actor {
       var blocks : [var [var ?WebhookEvent__346015857]];
       var elementIndex : Nat__490723111
     }
-};
+}) ;

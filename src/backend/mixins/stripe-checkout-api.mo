@@ -485,45 +485,39 @@ mixin (
   };
 
   /// Verify a completed Stripe checkout session and grant subscription days ADDITIVELY.
-  /// Called by the frontend after the user returns from the Stripe-hosted payment page.
-  /// The session must match the pending session stored during createStripeCheckoutSession.
-  /// Automatically retries up to 3 times on network or non-2xx errors.
+  /// Automatically retries failed verification up to 3 times.
+  /// Once verified, session is marked as complete (idempotent).
   public shared ({ caller }) func verifyAndGrantPayment(
     sessionId : Text,
   ) : async { #ok : Text; #err : Text } {
     let secretKey = switch (stripeCheckoutSecretKey()) {
-      case null { return #err("Stripe not configured.") };
+      case null { return #err("Stripe not configured. Add your secret key in admin > Payments.") };
       case (?k) { k };
     };
 
     let userId = caller.toText();
 
-    // Verify a pending session exists for this user
     let pending = switch (pendingSessions.get(userId)) {
       case null { return #err("No pending payment found. Please start checkout again.") };
       case (?s) { s };
     };
 
-    // Verify the session ID matches what was stored
     if (pending.sessionId != sessionId) {
       return #err("Session ID mismatch. Please do not modify the URL.");
     };
 
-    // Idempotency guard: if this session was already verified and days granted,
-    // return success immediately without re-granting.
     if (verifiedStripeSessionIds.contains(sessionId)) {
       return #ok("Payment already verified. Your subscription days have been applied. You can close this window.");
     };
 
-    // Call Stripe API to verify payment status — retry up to 3 times
     var attempt : Nat = 0;
     var verified : Bool = false;
     var responseText : Text = "";
-    var lastError : Text = "Unknown error";
+    var httpError : ?Text = null;
 
-    label retryLoop loop {
-      if (attempt >= 3) break retryLoop;
+    label attemptLoop loop {
       attempt += 1;
+      if (attempt > 3) break attemptLoop;
 
       try {
         let response = await (with cycles = 20_949_972_000) icManagementStripe().http_request({
@@ -542,28 +536,31 @@ mixin (
           };
         });
 
-        let bodyText = switch (response.body.decodeUtf8()) {
+        responseText := switch (response.body.decodeUtf8()) {
           case null {
-            lastError := "Could not read Stripe response (attempt " # attempt.toText() # "/3)";
-            continue retryLoop;
+            httpError := ?"Could not read Stripe response";
+            ""
           };
           case (?t) { t };
         };
 
         if (response.status >= 200 and response.status < 300) {
-          responseText := bodyText;
           verified := true;
-          break retryLoop;
+          break attemptLoop;
         } else {
-          lastError := "Stripe error: status " # response.status.toText() # " (attempt " # attempt.toText() # "/3)";
+          httpError := ?("Stripe error: status " # response.status.toText());
         };
       } catch (e) {
-        lastError := "Network error (attempt " # attempt.toText() # "/3): " # e.message();
+        httpError := ?("Network error (attempt " # attempt.toText() # "/3): " # e.message());
       };
     };
 
     if (not verified) {
-      return #err("Payment verification failed after 3 attempts: " # lastError);
+      let errDetail = switch (httpError) {
+        case (?err) { err };
+        case null { "Unknown error" };
+      };
+      return #err("Payment verification failed after 3 attempts: " # errDetail);
     };
 
     let paymentStatus = extractJsonStringField(responseText, "payment_status");
@@ -595,11 +592,10 @@ mixin (
         updatedAt = now;
       });
 
-      // Send success notification
       ignore NotifLib.createNotification(
         notifications, notifCounter, caller,
         #refuelSuccess,
-        "DeLorean Refueled! ⚡",
+        "DeLorean Refueled!",
         "Your DeLorean has been refueled! " # pending.tierDays.toText() # " days added to your subscription.",
         now,
       );
