@@ -1,23 +1,24 @@
 {
-  "overview": "Copie Past-e is a SaaS web app for archiving, reusing, and posting marketplace listings, optimized for speed with a retro-futuristic dark UI. Users can import listings via Smart Photo OCR (Gemini), Smart Text Paste, or Manual Entry, and post to Facebook Marketplace via a Chrome extension.",
+  "overview": "Copie Past-e is a production-grade cross-listing platform for resellers. Create one master listing and prepare platform-specific drafts for Facebook Marketplace, Mercari, eBay, Poshmark, Depop, and Etsy. The Chrome extension autofills each platform's form so you can manually post anywhere with one click — your data, your control.",
   "features": [
-    "Smart Photo OCR via Gemini (extension-based or canister-based fallback)",
-    "Chrome extension with Gemini API key storage and OCR intercept",
-    "Facebook Marketplace auto-fill via extension",
-    "Tiered subscriptions with Stripe payments on ICP",
-    "Admin panel with user management, analytics, backup/restore, and debugger",
-    "Mobile-responsive UI with retro-futuristic BTTF theme"
+    "Master Listing as single source of truth — one item, all platforms",
+    "Platform-specific draft editor with real-time field validation and character limits",
+    "Chrome extension autofill for 6 marketplaces (Facebook, Mercari, eBay, Poshmark, Depop, Etsy)",
+    "Manual-only posting — extension fills forms, you decide when to submit",
+    "Platform filter tabs on dashboard showing draft and posting status per marketplace",
+    "Audit trail tracking all listing and draft changes",
+    "Admin panel with audit log, stats, and system diagnostics",
+    "Cross-listing analytics with per-platform breakdowns"
   ],
   "category": "productivity",
   "tags": [
+    "cross-listing",
+    "reselling",
     "marketplace",
-    "listings",
     "chrome-extension",
-    "ocr",
-    "gemini",
+    "inventory",
     "icp",
-    "motoko",
-    "saas"
+    "motoko"
   ],
-  "last_updated": "2026-04-12T05:30:33.573Z"
+  "last_updated": "2026-04-24T13:17:25.334Z"
 }

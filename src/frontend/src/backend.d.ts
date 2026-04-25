@@ -14,6 +14,470 @@ export class ExternalBlob {
     static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
     withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
 }
+export interface UserCleanupSummary {
+    hasExpiredListings: boolean;
+    userId: Principal;
+    email: string;
+    archivedListingCount: bigint;
+    oldestActiveExpirationDate?: Timestamp;
+    activeListingCount: bigint;
+}
+export interface PlatformListingDraft {
+    status: DraftStatus;
+    lastEditedAt: bigint;
+    createdAt: bigint;
+    validationErrors: Array<{
+        field: string;
+        error: string;
+    }>;
+    platform: Platform__2;
+    manualPostingLog: Array<ManualPostEntry>;
+    isValid: boolean;
+    platformFields: PlatformFields;
+    draftId: string;
+    completenessPercent: bigint;
+}
+export interface VersionBackup {
+    id: string;
+    versionLabel: string;
+    createdAt: Timestamp;
+    createdBy: string;
+    isStable: boolean;
+    backupData: string;
+    backupType: string;
+    notes?: string;
+}
+export interface PlatformCapabilities {
+    supportsAutoSync: boolean;
+    supportsCondition: boolean;
+    maxPhotos: bigint;
+    maxTitleLength: bigint;
+    supportsShipping: boolean;
+    priceFormat: string;
+    supportedCategories: Array<string>;
+    apiAvailable: boolean;
+    maxDescriptionLength: bigint;
+    name: string;
+    supportsBulkListing: boolean;
+    supportsLocalPickup: boolean;
+    requiresCategory: boolean;
+    supportsBrand: boolean;
+}
+export interface HealthStatus {
+    status: string;
+    backupCount: bigint;
+    keysConfigured: boolean;
+    lastBackupAt: Timestamp;
+    criticalKeysPresent: boolean;
+}
+export interface DepopFields {
+    title: string;
+    size?: string;
+    description: string;
+    category?: string;
+    brand?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+    condition?: string;
+}
+export interface OcrFailureEntry {
+    imageHash: string;
+    errorType: string;
+    userPrincipal: string;
+    timestamp: bigint;
+    errorReason: string;
+}
+export interface UserSummary {
+    lastLoginDate?: Timestamp;
+    userId: string;
+    role: string;
+    imageCount: bigint;
+    registrationDate: Timestamp;
+    listingCount: bigint;
+}
+export interface UserTierSubscription {
+    stripeSubscriptionId?: string;
+    userId: Principal;
+    tier: bigint;
+    autoRenewal: boolean;
+    updatedAt: bigint;
+    expirationDate: bigint;
+}
+export interface UniversalListing {
+    id: string;
+    status: ListingStatus__1;
+    soldOnPlatforms: Array<string>;
+    title: string;
+    publishSchedule?: PublishSchedule;
+    metrics: ListingMetrics;
+    userId: Principal;
+    createdAt: bigint;
+    publishedAt?: bigint;
+    description: string;
+    pricingRules: PricingRules;
+    quantitySold: bigint;
+    quantity: bigint;
+    category?: string;
+    brand?: string;
+    lastSyncAt?: bigint;
+    price?: string;
+    photos: Array<Uint8Array>;
+    targetPlatforms: Array<PlatformTarget>;
+    condition: string;
+}
+export interface LoyaltyStatus {
+    rewardClaimedForTiers: Array<TierName>;
+    currentTier: TierName;
+    refuelCount: bigint;
+}
+export interface PoshmarkFields {
+    title: string;
+    size?: string;
+    description: string;
+    category?: string;
+    brand?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+    condition?: string;
+}
+export type ResendResult = {
+    __kind__: "ok";
+    ok: {
+        resendCount: bigint;
+        cooldownSecondsRemaining: bigint;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface ZipRestoreResult {
+    errorMessage?: string;
+    listingsRestored: bigint;
+    success: boolean;
+}
+export type GetProfileResult = {
+    __kind__: "ok";
+    ok: UserProfile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface PublishSchedule {
+    scheduledTime?: bigint;
+    scheduleType: Variant_scheduled_batch_immediate;
+    batchNumber?: bigint;
+    itemsPerBatch?: bigint;
+}
+export interface MasterListing {
+    id: string;
+    status: ListingStatus__2;
+    title: string;
+    platformDrafts: Array<PlatformListingDraft>;
+    userId: Principal;
+    createdAt: bigint;
+    tags: Array<string>;
+    description: string;
+    auditLog: Array<AuditEntry>;
+    updatedAt: bigint;
+    pinned: boolean;
+    expirationDate?: bigint;
+    pinnedAt?: bigint;
+    category?: string;
+    archivedReason?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+    favoriteCount: bigint;
+    archivedAt?: bigint;
+}
+export interface ScrapedListing {
+    title?: string;
+    imageUrls: Array<string>;
+    source: MarketplaceSource;
+    description?: string;
+    sourceUrl: string;
+    category?: string;
+    price?: string;
+}
+export interface CreateMasterListingArgs {
+    title: string;
+    tags: Array<string>;
+    description: string;
+    category?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+}
+export type PlatformFields = {
+    __kind__: "poshmark";
+    poshmark: PoshmarkFields;
+} | {
+    __kind__: "ebay";
+    ebay: EbayFields;
+} | {
+    __kind__: "etsy";
+    etsy: EtsyFields;
+} | {
+    __kind__: "facebook";
+    facebook: FacebookFields;
+} | {
+    __kind__: "depop";
+    depop: DepopFields;
+} | {
+    __kind__: "mecari";
+    mecari: MecariFields;
+};
+export type UserId = Principal;
+export interface GasWallet {
+    userId: UserId;
+    autoRenewal: boolean;
+    updatedAt: Timestamp;
+    autoRenewalTierId: bigint;
+    gasBalance: bigint;
+}
+export interface ParsedListingResult {
+    title?: string;
+    description?: string;
+    category?: string;
+    price?: string;
+}
+export interface VersionBackupSummary {
+    id: string;
+    versionLabel: string;
+    createdAt: Timestamp;
+    createdBy: string;
+    isStable: boolean;
+    backupType: string;
+    notes?: string;
+    configCount: bigint;
+    sizeKb: bigint;
+    listingCount: bigint;
+    userCount: bigint;
+}
+export interface ExtensionUpdateCheck {
+    needsUpdate: boolean;
+    downloadUrl: string;
+    releaseNotes: string;
+    currentVersion: string;
+    latestVersion: string;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
+}
+export interface AppError {
+    code: ErrorCode;
+    message: string;
+}
+export interface AddImageArgs {
+    order: bigint;
+    blob: ExternalBlob;
+    listingId: ListingId;
+    altText: string;
+}
+export interface DiscountCode {
+    id: bigint;
+    active: boolean;
+    discountValue: number;
+    code: string;
+    discountType: DiscountType;
+    usageCount: bigint;
+    expirationDate: bigint;
+    tierRestriction?: bigint;
+    maxUses: bigint;
+}
+export interface ListingSnapshot {
+    title: string;
+    favorited: boolean;
+    description: string;
+    pinned: boolean;
+    category?: string;
+    price?: string;
+}
+export interface EtsyFields {
+    title: string;
+    tags: Array<string>;
+    description: string;
+    category?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+}
+export interface UpdateListingArgs {
+    id: ListingId;
+    mecariCondition?: Condition;
+    tierLevel?: bigint;
+    title: string;
+    fbLocalPickup?: boolean;
+    description: string;
+    platform?: Platform__1;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
+    category?: string;
+    mecariShippingType?: string;
+    mecariBrand?: string;
+    price?: string;
+}
+export type ScrapeResult = {
+    __kind__: "ok";
+    ok: ScrapedListing;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface CrossListingCampaign {
+    id: string;
+    status: Variant_active_completed_draft_failed;
+    listings: Array<string>;
+    userId: Principal;
+    name: string;
+    createdAt: bigint;
+    results: CampaignResults;
+    targetPlatforms: Array<string>;
+}
+export interface SystemIssue {
+    id: string;
+    resolved: boolean;
+    title: string;
+    description: string;
+    affectedComponent: string;
+    suggestedFix: string;
+    severity: Variant_warning_info_error_critical;
+    discoveredAt: Timestamp;
+}
+export type ListingId = bigint;
+export interface PaymentBannerState {
+    expiresAt?: bigint;
+    bannerType: string;
+    userId: Principal;
+    createdAt: bigint;
+    message: string;
+}
+export interface CreateListingArgs {
+    mecariCondition?: Condition;
+    tierLevel?: bigint;
+    title: string;
+    fbLocalPickup?: boolean;
+    description: string;
+    platform?: Platform__1;
+    sourceUrl?: string;
+    mecariDeliveryDays?: bigint;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
+    category?: string;
+    mecariShippingType?: string;
+    mecariBrand?: string;
+    price?: string;
+}
+export interface FbCredentials {
+    appId: string;
+    accessToken: string;
+}
+export type DraftListingId = bigint;
+export interface SupportTicket {
+    id: bigint;
+    status: string;
+    adminReply?: string;
+    username: string;
+    subject: string;
+    userId: UserId;
+    createdAt: Timestamp;
+    repliedAt?: Timestamp;
+    message: string;
+}
+export interface Listing {
+    id: ListingId;
+    mecariCondition?: Condition;
+    status: ListingStatus;
+    tierLevel: bigint;
+    title: string;
+    fbLocalPickup?: boolean;
+    favorited: boolean;
+    userId: UserId;
+    createdAt: Timestamp;
+    description: string;
+    platform?: Platform__1;
+    sourceUrl?: string;
+    mecariDeliveryDays?: bigint;
+    pinned: boolean;
+    expirationDate: Timestamp;
+    fbShipping?: boolean;
+    fbCondition?: Condition;
+    archivedManually: boolean;
+    pinnedAt?: Timestamp;
+    restoredAt?: Timestamp;
+    category?: string;
+    mecariShippingType?: string;
+    brand?: string;
+    mecariBrand?: string;
+    price?: string;
+    condition?: string;
+    archivedAt?: Timestamp;
+}
+export interface MecariFields {
+    title: string;
+    deliveryDays?: bigint;
+    description: string;
+    shippingType?: Variant_normal_fast_sameDay;
+    category?: string;
+    brand: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+    condition?: MecariCondition5Scale;
+}
+export interface ExtensionVersion {
+    downloadUrl: string;
+    releaseNotes: string;
+    version: string;
+    releasedAt: Timestamp;
+    supportedPlatforms: Array<string>;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
+}
+export interface GasPurchase {
+    id: bigint;
+    status: GasPurchaseStatus;
+    userId: UserId;
+    gasAmount: bigint;
+    createdAt: Timestamp;
+    stripePaymentIntentId: string;
+    priceUSD: number;
+}
+export interface UpdateMasterListingArgs {
+    title?: string;
+    tags?: Array<string>;
+    description?: string;
+    category?: string;
+    price?: string;
+}
+export interface OcrResult {
+    title: string;
+    description: string;
+    category: string;
+    brand: string;
+    price: string;
+    condition: string;
+}
+export interface FieldMapping {
+    weight?: string;
+    title: string;
+    condition5Scale?: string;
+    localPickup?: boolean;
+    color?: string;
+    size?: string;
+    shipping?: boolean;
+    deliveryDays?: bigint;
+    description: string;
+    shippingCost?: string;
+    shippingType?: string;
+    category?: string;
+    brand?: string;
+    dimensions?: string;
+    condition?: string;
+}
+export type VerifyEmailResult = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface AutofillTestResult {
     fieldsFailed: Array<string>;
     duration: bigint;
@@ -54,48 +518,13 @@ export interface PaymentRecord {
     amountUSD: number;
     externalOrderId?: string;
 }
-export interface UserCleanupSummary {
-    hasExpiredListings: boolean;
-    userId: Principal;
-    email: string;
-    archivedListingCount: bigint;
-    oldestActiveExpirationDate?: Timestamp;
-    activeListingCount: bigint;
+export interface AuditEntry {
+    action: string;
+    timestamp: bigint;
+    details?: string;
+    caller: Principal;
 }
 export type TierName = string;
-export interface PlatformCapabilities {
-    supportsAutoSync: boolean;
-    supportsCondition: boolean;
-    maxPhotos: bigint;
-    maxTitleLength: bigint;
-    supportsShipping: boolean;
-    priceFormat: string;
-    supportedCategories: Array<string>;
-    apiAvailable: boolean;
-    maxDescriptionLength: bigint;
-    name: string;
-    supportsBulkListing: boolean;
-    supportsLocalPickup: boolean;
-    requiresCategory: boolean;
-    supportsBrand: boolean;
-}
-export interface VersionBackup {
-    id: string;
-    versionLabel: string;
-    createdAt: Timestamp;
-    createdBy: string;
-    isStable: boolean;
-    backupData: string;
-    backupType: string;
-    notes?: string;
-}
-export interface HealthStatus {
-    status: string;
-    backupCount: bigint;
-    keysConfigured: boolean;
-    lastBackupAt: Timestamp;
-    criticalKeysPresent: boolean;
-}
 export interface BackupRecord {
     id: bigint;
     status: BackupStatus;
@@ -109,21 +538,6 @@ export interface ComponentMetrics {
     uptime: number;
     errorCount: bigint;
     responseTime: bigint;
-}
-export interface OcrFailureEntry {
-    imageHash: string;
-    errorType: string;
-    userPrincipal: string;
-    timestamp: bigint;
-    errorReason: string;
-}
-export interface UserSummary {
-    lastLoginDate?: Timestamp;
-    userId: string;
-    role: string;
-    imageCount: bigint;
-    registrationDate: Timestamp;
-    listingCount: bigint;
 }
 export interface PlatformAutofillConfig {
     fbPrefillDescription: boolean;
@@ -148,41 +562,6 @@ export interface PlatformAutofillConfig {
     mecariPrefillCategory: boolean;
     mecariPrefillTitle: boolean;
 }
-export interface UserTierSubscription {
-    stripeSubscriptionId?: string;
-    userId: Principal;
-    tier: bigint;
-    autoRenewal: boolean;
-    updatedAt: bigint;
-    expirationDate: bigint;
-}
-export interface UniversalListing {
-    id: string;
-    status: ListingStatus__1;
-    soldOnPlatforms: Array<string>;
-    title: string;
-    publishSchedule?: PublishSchedule;
-    metrics: ListingMetrics;
-    userId: Principal;
-    createdAt: bigint;
-    publishedAt?: bigint;
-    description: string;
-    pricingRules: PricingRules;
-    quantitySold: bigint;
-    quantity: bigint;
-    category?: string;
-    brand?: string;
-    lastSyncAt?: bigint;
-    price?: string;
-    photos: Array<Uint8Array>;
-    targetPlatforms: Array<PlatformTarget>;
-    condition: string;
-}
-export interface LoyaltyStatus {
-    rewardClaimedForTiers: Array<TierName>;
-    currentTier: TierName;
-    refuelCount: bigint;
-}
 export interface IntegrationStatus {
     configPresent: boolean;
     name: string;
@@ -190,14 +569,6 @@ export interface IntegrationStatus {
     lastTestResult?: boolean;
     lastTestAt?: Timestamp;
     connected: boolean;
-}
-export interface FbListing {
-    id: string;
-    title: string;
-    imageUrls: Array<string>;
-    description?: string;
-    category?: string;
-    price?: string;
 }
 export interface ComponentStatus {
     status: Variant_warning_healthy_error_offline;
@@ -224,33 +595,13 @@ export interface BackupListingEntry {
     images: Array<BackupImageEntry>;
     archivedAt?: Timestamp;
 }
-export type ResendResult = {
-    __kind__: "ok";
-    ok: {
-        resendCount: bigint;
-        cooldownSecondsRemaining: bigint;
-    };
-} | {
-    __kind__: "err";
-    err: string;
-};
-export interface ZipRestoreResult {
-    errorMessage?: string;
-    listingsRestored: bigint;
-    success: boolean;
-}
-export type GetProfileResult = {
-    __kind__: "ok";
-    ok: UserProfile;
-} | {
-    __kind__: "err";
-    err: string;
-};
-export interface PublishSchedule {
-    scheduledTime?: bigint;
-    scheduleType: Variant_scheduled_batch_immediate;
-    batchNumber?: bigint;
-    itemsPerBatch?: bigint;
+export interface FbListing {
+    id: string;
+    title: string;
+    imageUrls: Array<string>;
+    description?: string;
+    category?: string;
+    price?: string;
 }
 export interface AutofillValidation {
     valid: boolean;
@@ -273,6 +624,12 @@ export type MarkReadResult = {
     __kind__: "err";
     err: string;
 };
+export interface ManualPostEntry {
+    action: ManualPostAction;
+    message: string;
+    remoteUrl?: string;
+    timestamp: bigint;
+}
 export interface InAppNotification {
     id: bigint;
     title: string;
@@ -293,15 +650,6 @@ export type SetUsernameResult = {
     __kind__: "err";
     err: string;
 };
-export interface ScrapedListing {
-    title?: string;
-    imageUrls: Array<string>;
-    source: MarketplaceSource;
-    description?: string;
-    sourceUrl: string;
-    category?: string;
-    price?: string;
-}
 export interface RestoreResult {
     errorMessage?: string;
     preSaveBackupId: string;
@@ -309,14 +657,29 @@ export interface RestoreResult {
     listingsRestored: bigint;
     success: boolean;
 }
-export interface GasWallet {
-    userId: UserId;
-    autoRenewal: boolean;
-    updatedAt: Timestamp;
-    autoRenewalTierId: bigint;
-    gasBalance: bigint;
+export interface AutofillHealthStatus {
+    successRate: number;
+    isHealthy: boolean;
+    enabled: boolean;
+    totalAttempts: bigint;
+    lastTestResult?: string;
+    lastTestAt?: Timestamp;
+    totalSuccessful: bigint;
+    activeSessions: bigint;
+    platformName: string;
 }
-export type UserId = Principal;
+export interface AuditLogEntry {
+    id: bigint;
+    action: string;
+    timestamp: Timestamp;
+    details: string;
+    adminId: UserId;
+    targetUserId?: UserId;
+}
+export interface RefuelEntry {
+    tierAtRefuel: TierName;
+    date: bigint;
+}
 export interface SiteSettings {
     maxSessionDurationMinutes: bigint;
     appName: string;
@@ -331,18 +694,6 @@ export interface SiteSettings {
     allowedOrigins: string;
     uploadEnabled: boolean;
     maxUploadsPerHour: bigint;
-}
-export interface RefuelEntry {
-    tierAtRefuel: TierName;
-    date: bigint;
-}
-export interface AuditLogEntry {
-    id: bigint;
-    action: string;
-    timestamp: Timestamp;
-    details: string;
-    adminId: UserId;
-    targetUserId?: UserId;
 }
 export interface AppVersion {
     id: bigint;
@@ -360,24 +711,15 @@ export type UpdateProfileResult = {
     __kind__: "err";
     err: string;
 };
-export interface ParsedListingResult {
-    title?: string;
-    description?: string;
-    category?: string;
-    price?: string;
-}
-export interface VersionBackupSummary {
+export interface BackupHistoryRecord {
     id: string;
-    versionLabel: string;
-    createdAt: Timestamp;
-    createdBy: string;
-    isStable: boolean;
-    backupType: string;
-    notes?: string;
-    configCount: bigint;
-    sizeKb: bigint;
+    downloadExpiresAt: Timestamp;
+    userId: UserId;
+    imageCount: bigint;
+    exportedAt: Timestamp;
+    downloadToken: string;
     listingCount: bigint;
-    userCount: bigint;
+    paymentIntentId: string;
 }
 export interface UserProfile {
     fbWebhookToken?: string;
@@ -406,16 +748,6 @@ export interface ListingMetrics {
     avgTimeToSale?: bigint;
     likesPerPlatform: Array<[string, bigint]>;
 }
-export interface BackupHistoryRecord {
-    id: string;
-    downloadExpiresAt: Timestamp;
-    userId: UserId;
-    imageCount: bigint;
-    exportedAt: Timestamp;
-    downloadToken: string;
-    listingCount: bigint;
-    paymentIntentId: string;
-}
 export interface ConfigEntry {
     key: string;
     value: string;
@@ -425,15 +757,6 @@ export interface ConfigEntry {
     category: string;
 }
 export type Timestamp = bigint;
-export interface ExtensionUpdateCheck {
-    needsUpdate: boolean;
-    downloadUrl: string;
-    releaseNotes: string;
-    currentVersion: string;
-    latestVersion: string;
-    buildNumber: bigint;
-    isForceUpdate: boolean;
-}
 export interface CampaignResults {
     totalListingsPublished: bigint;
     publishedAt?: bigint;
@@ -444,76 +767,20 @@ export interface CampaignResults {
     avgViewsPerListing?: number;
     totalListingsSucceeded: bigint;
 }
-export interface AddImageArgs {
-    order: bigint;
-    blob: ExternalBlob;
-    listingId: ListingId;
-    altText: string;
-}
-export interface DiscountCode {
-    id: bigint;
-    active: boolean;
-    discountValue: number;
-    code: string;
-    discountType: DiscountType;
-    usageCount: bigint;
-    expirationDate: bigint;
-    tierRestriction?: bigint;
-    maxUses: bigint;
-}
-export interface ListingSnapshot {
+export interface FacebookFields {
     title: string;
-    favorited: boolean;
+    localPickup: boolean;
+    shipping: boolean;
     description: string;
-    pinned: boolean;
     category?: string;
     price?: string;
+    photos: Array<Uint8Array>;
+    condition?: FacebookCondition;
 }
 export interface UpdateProfileArgs {
     displayName?: string;
     email?: string;
     phoneNumber?: string;
-}
-export interface UpdateListingArgs {
-    id: ListingId;
-    mecariCondition?: Condition;
-    tierLevel?: bigint;
-    title: string;
-    fbLocalPickup?: boolean;
-    description: string;
-    platform?: Platform__1;
-    mecariDeliveryDays?: bigint;
-    fbShipping?: boolean;
-    fbCondition?: Condition;
-    category?: string;
-    mecariShippingType?: string;
-    mecariBrand?: string;
-    price?: string;
-}
-export interface SystemIssue {
-    id: string;
-    resolved: boolean;
-    title: string;
-    description: string;
-    affectedComponent: string;
-    suggestedFix: string;
-    severity: Variant_warning_info_error_critical;
-    discoveredAt: Timestamp;
-}
-export type ScrapeResult = {
-    __kind__: "ok";
-    ok: ScrapedListing;
-} | {
-    __kind__: "err";
-    err: string;
-};
-export type ListingId = bigint;
-export interface PaymentBannerState {
-    expiresAt?: bigint;
-    bannerType: string;
-    userId: Principal;
-    createdAt: bigint;
-    message: string;
 }
 export interface GasPackage {
     gasAmount: bigint;
@@ -522,15 +789,20 @@ export interface GasPackage {
     priceUSD: number;
     packageId: bigint;
 }
-export interface CrossListingCampaign {
-    id: string;
-    status: Variant_active_completed_draft_failed;
-    listings: Array<string>;
-    userId: Principal;
-    name: string;
-    createdAt: bigint;
-    results: CampaignResults;
-    targetPlatforms: Array<string>;
+export interface SavePlatformDraftArgs {
+    platform: Platform__2;
+    platformFields: PlatformFields;
+    photos: Array<Uint8Array>;
+}
+export interface EbayFields {
+    title: string;
+    description: string;
+    shippingCost?: string;
+    quantity: bigint;
+    category?: string;
+    price?: string;
+    photos: Array<Uint8Array>;
+    condition?: FacebookCondition;
 }
 export interface UpdateSettingsArgs {
     maxSessionDurationMinutes: bigint;
@@ -544,10 +816,6 @@ export interface UpdateSettingsArgs {
     allowedOrigins: string;
     uploadEnabled: boolean;
     maxUploadsPerHour: bigint;
-}
-export interface FbCredentials {
-    appId: string;
-    accessToken: string;
 }
 export interface VerificationRecord {
     status: VerificationStatus;
@@ -566,18 +834,6 @@ export interface TierConfig {
     stripeProductId?: string;
     priceUSD: number;
 }
-export type DraftListingId = bigint;
-export interface SupportTicket {
-    id: bigint;
-    status: string;
-    adminReply?: string;
-    username: string;
-    subject: string;
-    userId: UserId;
-    createdAt: Timestamp;
-    repliedAt?: Timestamp;
-    message: string;
-}
 export interface PaymentConfig {
     stripeProPriceId?: string;
     stripeBackupPriceId?: string;
@@ -592,51 +848,6 @@ export interface PaymentConfig {
     paypalClientSecret?: string;
     stripeWebhookSecret?: string;
     stripeWalkerPriceId?: string;
-}
-export interface Listing {
-    id: ListingId;
-    mecariCondition?: Condition;
-    status: ListingStatus;
-    tierLevel: bigint;
-    title: string;
-    fbLocalPickup?: boolean;
-    favorited: boolean;
-    userId: UserId;
-    createdAt: Timestamp;
-    description: string;
-    platform?: Platform__1;
-    sourceUrl?: string;
-    mecariDeliveryDays?: bigint;
-    pinned: boolean;
-    expirationDate: Timestamp;
-    fbShipping?: boolean;
-    fbCondition?: Condition;
-    archivedManually: boolean;
-    pinnedAt?: Timestamp;
-    restoredAt?: Timestamp;
-    category?: string;
-    mecariShippingType?: string;
-    brand?: string;
-    mecariBrand?: string;
-    price?: string;
-    condition?: string;
-    archivedAt?: Timestamp;
-}
-export interface CreateListingArgs {
-    mecariCondition?: Condition;
-    tierLevel?: bigint;
-    title: string;
-    fbLocalPickup?: boolean;
-    description: string;
-    platform?: Platform__1;
-    sourceUrl?: string;
-    mecariDeliveryDays?: bigint;
-    fbShipping?: boolean;
-    fbCondition?: Condition;
-    category?: string;
-    mecariShippingType?: string;
-    mecariBrand?: string;
-    price?: string;
 }
 export interface SiteAnalytics {
     totalListings: bigint;
@@ -657,24 +868,6 @@ export interface SystemDiagnostics {
     overallStatus: Variant_warning_healthy_critical;
 }
 export type ImageId = bigint;
-export interface GasPurchase {
-    id: bigint;
-    status: GasPurchaseStatus;
-    userId: UserId;
-    gasAmount: bigint;
-    createdAt: Timestamp;
-    stripePaymentIntentId: string;
-    priceUSD: number;
-}
-export interface ExtensionVersion {
-    downloadUrl: string;
-    releaseNotes: string;
-    version: string;
-    releasedAt: Timestamp;
-    supportedPlatforms: Array<string>;
-    buildNumber: bigint;
-    isForceUpdate: boolean;
-}
 export interface CreateVersionArgs {
     versionLabel: string;
     description: string;
@@ -690,31 +883,12 @@ export interface AdminNotification {
     relatedUser: string;
     targetAdminId?: string;
 }
-export interface OcrResult {
-    title: string;
-    description: string;
-    category: string;
-    brand: string;
-    price: string;
-    condition: string;
-}
 export interface Image {
     id: ImageId;
     order: bigint;
     blob: ExternalBlob;
     listingId: ListingId;
     altText: string;
-}
-export interface AutofillHealthStatus {
-    successRate: number;
-    isHealthy: boolean;
-    enabled: boolean;
-    totalAttempts: bigint;
-    lastTestResult?: string;
-    lastTestAt?: Timestamp;
-    totalSuccessful: bigint;
-    activeSessions: bigint;
-    platformName: string;
 }
 export interface PlatformTarget {
     status: RemoteListingStatus;
@@ -727,30 +901,6 @@ export interface PlatformTarget {
     mappedFields: FieldMapping;
     customCategory?: string;
 }
-export interface FieldMapping {
-    weight?: string;
-    title: string;
-    condition5Scale?: string;
-    localPickup?: boolean;
-    color?: string;
-    size?: string;
-    shipping?: boolean;
-    deliveryDays?: bigint;
-    description: string;
-    shippingCost?: string;
-    shippingType?: string;
-    category?: string;
-    brand?: string;
-    dimensions?: string;
-    condition?: string;
-}
-export type VerifyEmailResult = {
-    __kind__: "ok";
-    ok: null;
-} | {
-    __kind__: "err";
-    err: string;
-};
 export interface BulkGasDiscount {
     minGasAmount: bigint;
     description: string;
@@ -772,6 +922,23 @@ export enum BackupStatus {
 export enum DiscountType {
     fixedUSD = "fixedUSD",
     percentage = "percentage"
+}
+export enum DraftStatus {
+    preparing = "preparing",
+    unsaved = "unsaved",
+    saved = "saved",
+    ready = "ready",
+    posted = "posted"
+}
+export enum ErrorCode {
+    platformNotSupported = "platformNotSupported",
+    invalidInput = "invalidInput",
+    duplicateEntry = "duplicateEntry",
+    systemError = "systemError",
+    notFound = "notFound",
+    quotaExceeded = "quotaExceeded",
+    unauthorized = "unauthorized",
+    draftNotFound = "draftNotFound"
 }
 export enum GasPurchaseStatus {
     pending = "pending",
@@ -797,10 +964,29 @@ export enum ListingStatus__1 {
     draft = "draft",
     archived = "archived"
 }
+export enum ListingStatus__2 {
+    active = "active",
+    draft = "draft",
+    archived = "archived"
+}
+export enum ManualPostAction {
+    submitted = "submitted",
+    edited = "edited",
+    error = "error",
+    saved = "saved",
+    drafted = "drafted"
+}
 export enum MarketplaceSource {
     facebookMarketplace = "facebookMarketplace",
     offerUp = "offerUp",
     unknown_ = "unknown"
+}
+export enum MecariCondition5Scale {
+    new_ = "new",
+    fair = "fair",
+    good = "good",
+    poor = "poor",
+    likeNew = "likeNew"
 }
 export enum NotificationType {
     refuelSuccess = "refuelSuccess",
@@ -830,6 +1016,14 @@ export enum Platform__1 {
     unknown_ = "unknown",
     mecari = "mecari"
 }
+export enum Platform__2 {
+    poshmark = "poshmark",
+    ebay = "ebay",
+    etsy = "etsy",
+    facebook = "facebook",
+    depop = "depop",
+    mecari = "mecari"
+}
 export enum RemoteListingStatus {
     scheduled = "scheduled",
     active = "active",
@@ -848,6 +1042,11 @@ export enum Variant_active_completed_draft_failed {
     completed = "completed",
     draft = "draft",
     failed = "failed"
+}
+export enum Variant_normal_fast_sameDay {
+    normal = "normal",
+    fast = "fast",
+    sameDay = "sameDay"
 }
 export enum Variant_scheduled_batch_immediate {
     scheduled = "scheduled",
@@ -1016,6 +1215,13 @@ export interface backendInterface {
     }>;
     adminUpsertTier(config: TierConfig): Promise<void>;
     archiveListing(listingId: ListingId): Promise<Listing>;
+    archiveMasterListing(listingId: string, reason: string | null): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     assignUserRole(userId: string, role: string): Promise<void>;
     checkAndCreateLowFuelNotification(fuelPercent: number, subscriptionExpirationTimestamp: Timestamp): Promise<InAppNotification | null>;
@@ -1074,6 +1280,13 @@ export interface backendInterface {
         err: string;
     }>;
     createListing(args: CreateListingArgs): Promise<Listing>;
+    createMasterListing(args: CreateMasterListingArgs): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     createStripeCheckoutSession(priceId: string, userId: string): Promise<{
         __kind__: "ok";
         ok: string;
@@ -1223,11 +1436,30 @@ export interface backendInterface {
     getIntegrationStatus(): Promise<Array<IntegrationStatus>>;
     getLatestExtensionVersion(): Promise<ExtensionUpdateCheck | null>;
     getListing(id: ListingId): Promise<Listing | null>;
+    getListingsByPlatform(platform: Platform__2): Promise<{
+        __kind__: "ok";
+        ok: Array<MasterListing>;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     getLoyaltyStatus(): Promise<LoyaltyStatus>;
     getMaintenanceMode(): Promise<{
         eta: string;
         isActive: boolean;
         message: string;
+    }>;
+    getMasterListing(listingId: string): Promise<{
+        __kind__: "ok";
+        ok: MasterListing;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
+    getMasterListingStats(): Promise<{
+        totalListings: bigint;
+        totalDrafts: bigint;
+        totalUsers: bigint;
     }>;
     getMyBackups(): Promise<Array<BackupRecord>>;
     getMyFbCredentials(): Promise<FbCredentials | null>;
@@ -1327,6 +1559,13 @@ export interface backendInterface {
     getTiers(): Promise<Array<TierConfig>>;
     getUniversalListing(listingId: string): Promise<UniversalListing | null>;
     getUnreadAdminNotificationCount(): Promise<bigint>;
+    getUserMasterListings(): Promise<{
+        __kind__: "ok";
+        ok: Array<MasterListing>;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     getUserNotifications(): Promise<Array<InAppNotification>>;
     getUserUniversalListings(): Promise<Array<UniversalListing>>;
     getVerificationStatus(): Promise<VerificationRecord | null>;
@@ -1411,6 +1650,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    logManualPosting(listingId: string, platform: Platform__2, remoteUrl: string | null): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     markAdminNotificationRead(id: bigint): Promise<void>;
     markAllAdminNotificationsRead(): Promise<void>;
     markAllNotificationsRead(): Promise<void>;
@@ -1423,6 +1669,13 @@ export interface backendInterface {
     }>;
     markBackupAsStable(backupId: string): Promise<boolean>;
     markNotificationRead(notificationId: bigint): Promise<MarkReadResult>;
+    markUniversalListingReady(listingId: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     ocrScanImage(imageBase64: string): Promise<{
         __kind__: "ok";
         ok: OcrResult;
@@ -1446,13 +1699,6 @@ export interface backendInterface {
         listingCount: bigint;
         userCount: bigint;
     } | null>;
-    publishUniversalListing(listingId: string): Promise<{
-        __kind__: "ok";
-        ok: string;
-    } | {
-        __kind__: "err";
-        err: string;
-    }>;
     receiveExtensionData(data: ExtensionListingData, webhookToken: string): Promise<{
         __kind__: "ok";
         ok: DraftListingId;
@@ -1518,6 +1764,13 @@ export interface backendInterface {
     } | {
         __kind__: "err";
         err: string;
+    }>;
+    savePlatformDraft(listingId: string, args: SavePlatformDraftArgs): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: AppError;
     }>;
     scrapeListing(url: string): Promise<ScrapeResult>;
     searchVersionSnapshots(backupTypeFilter: string | null, minUserCount: bigint | null, maxUserCount: bigint | null): Promise<Array<VersionBackupSummary>>;
@@ -1774,6 +2027,13 @@ export interface backendInterface {
         err: string;
     }>;
     updateListing(args: UpdateListingArgs): Promise<Listing>;
+    updateMasterListing(listingId: string, args: UpdateMasterListingArgs): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: AppError;
+    }>;
     updateMecariAutofillSettings(prefillTitle: boolean, prefillDescription: boolean, prefillPrice: boolean, prefillBrand: boolean, prefillCategory: boolean, prefillCondition: boolean, autoSelectDeliveryDays: boolean, deliveryDaysValue: bigint | null, autoSelectShipping: boolean, shippingType: string | null): Promise<{
         __kind__: "ok";
         ok: string;

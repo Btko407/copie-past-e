@@ -29,8 +29,8 @@ mixin (
       supportedCategories = [];
       priceFormat = "$X.XX";
       supportsBulkListing = true;
-      supportsAutoSync = true;
-      apiAvailable = true;
+      supportsAutoSync = false;
+      apiAvailable = false;
     },
     {
       name = "mecari";
@@ -44,9 +44,9 @@ mixin (
       requiresCategory = true;
       supportedCategories = [];
       priceFormat = "$X";
-      supportsBulkListing = true;
-      supportsAutoSync = true;
-      apiAvailable = true;
+      supportsBulkListing = false;
+      supportsAutoSync = false;
+      apiAvailable = false;
     },
     {
       name = "ebay";
@@ -60,9 +60,9 @@ mixin (
       requiresCategory = true;
       supportedCategories = [];
       priceFormat = "$X.XX";
-      supportsBulkListing = true;
-      supportsAutoSync = true;
-      apiAvailable = true;
+      supportsBulkListing = false;
+      supportsAutoSync = false;
+      apiAvailable = false;
     },
     {
       name = "poshmark";
@@ -108,9 +108,9 @@ mixin (
       requiresCategory = true;
       supportedCategories = [];
       priceFormat = "$X.XX";
-      supportsBulkListing = true;
+      supportsBulkListing = false;
       supportsAutoSync = false;
-      apiAvailable = true;
+      apiAvailable = false;
     },
   ];
 
@@ -121,7 +121,6 @@ mixin (
     if (text.size() <= maxLen) {
       text
     } else {
-      // Build a substring by iterating chars
       var count = 0;
       var result = "";
       for (c in text.toIter()) {
@@ -213,6 +212,9 @@ mixin (
       platform = platformName;
       enabled = true;
       listingId = null;
+      // REMOVED: status = #active (publishing) → now always #scheduled until user manually posts
+      // REASON: Violates Manual-Only-Autofill + No-Direct-Publishing directive
+      // REPLACEMENT: Users post manually via Chrome extension (autofill only)
       status = #scheduled;
       mappedFields = {
         title = mappedTitle;
@@ -240,7 +242,9 @@ mixin (
 
   // ── PUBLIC API ────────────────────────────────────────────────────────────────
 
-  /// Create a universal listing targeting multiple platforms
+  /// Create a universal listing targeting multiple platforms.
+  /// Stores the listing with platform-mapped fields for Chrome extension autofill.
+  /// NOTE: No direct publishing — all posting is manual via the Chrome extension.
   public shared ({ caller }) func createUniversalListing(
     title : Text,
     description : Text,
@@ -303,7 +307,6 @@ mixin (
     // Build platform targets
     let builtTargets = List.empty<UniversalTypes.PlatformTarget>();
     for (platformName in targetPlatforms.values()) {
-      // Look up platform-specific custom price
       let customPrice : ?Text = do {
         var found : ?Text = null;
         for ((pName, pPrice) in pricingRules.platformPrices.values()) {
@@ -386,7 +389,7 @@ mixin (
     };
 
     universalListings.add(listing);
-    #ok("Universal listing created: " # listingId # ". Publishing to " # targetPlatforms.size().toText() # " platform(s).")
+    #ok("Universal listing created: " # listingId # ". Drafts prepared for " # targetPlatforms.size().toText() # " platform(s). Use the Chrome extension to autofill forms manually.")
   };
 
   /// Get a universal listing by ID (owner or admin only)
@@ -422,39 +425,38 @@ mixin (
     platformCapabilitiesData
   };
 
-  /// Publish a universal listing — marks it and all platform targets as active
-  public shared ({ caller }) func publishUniversalListing(listingId : Text) : async { #ok : Text; #err : Text } {
+  // REMOVED: publishUniversalListing (marks platform targets as #active immediately)
+  // REASON: Violates Manual-Only-Autofill + No-Direct-Publishing directive
+  // REPLACEMENT: Users post manually via Chrome extension (autofill only)
+  // The function below replaces it — it only marks the listing status as #active
+  // locally on Copie Past-e to indicate the user has prepared it for posting.
+  /// Mark a universal listing as prepared/ready — does NOT publish to any platform.
+  /// Use the Chrome extension to autofill the form and submit manually.
+  public shared ({ caller }) func markUniversalListingReady(listingId : Text) : async { #ok : Text; #err : Text } {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       return #err("Unauthorized: Must be logged in");
     };
 
-    let now = Time.now();
     var found = false;
-    var platformCount = 0;
 
     universalListings.mapInPlace(func(l : UniversalTypes.UniversalListing) : UniversalTypes.UniversalListing {
       if (l.id == listingId and l.userId == caller) {
         found := true;
-        platformCount := l.targetPlatforms.size();
-        let updatedTargets = l.targetPlatforms.map(
-          func(pt : UniversalTypes.PlatformTarget) : UniversalTypes.PlatformTarget {
-            { pt with status = #active; publishedAt = ?now; syncedAt = ?now }
-          }
-        );
-        { l with status = #active; publishedAt = ?now; lastSyncAt = ?now; targetPlatforms = updatedTargets }
+        { l with status = #active }
       } else {
         l
       }
     });
 
     if (found) {
-      #ok("Published to " # platformCount.toText() # " platform(s)")
+      #ok("Listing marked as ready. Use the Chrome extension to autofill forms and post manually.")
     } else {
       #err("Listing not found or unauthorized")
     }
   };
 
-  /// Mark a listing as sold — delists from all platforms automatically
+  /// Mark a listing as sold — updates local status only.
+  /// Does NOT delist from any external platform automatically.
   public shared ({ caller }) func markAsSOLD(listingId : Text) : async { #ok : Text; #err : Text } {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       return #err("Unauthorized: Must be logged in");
@@ -479,7 +481,7 @@ mixin (
     });
 
     if (found) {
-      #ok("Delisted from all " # platformCount.toText() # " platform(s)")
+      #ok("Marked as sold on " # platformCount.toText() # " platform draft(s). Remember to manually delist from each marketplace.")
     } else {
       #err("Listing not found or unauthorized")
     }

@@ -16,6 +16,8 @@ import {
   Check,
   Copy,
   Loader2,
+  Pencil,
+  Plus,
   RefreshCw,
   Trash2,
   X,
@@ -26,6 +28,12 @@ import { toast } from "sonner";
 import type { Listing } from "../backend";
 import { ListingStatus } from "../backend";
 import { useClipboard } from "../hooks/useClipboard";
+import {
+  ALL_PLATFORMS,
+  PLATFORM_CONFIG,
+  type Platform,
+  type PlatformDraftSummary,
+} from "../types/masterListing";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,19 +135,143 @@ function ConfirmOverlay({
   );
 }
 
+// ─── Platform Draft Badges ────────────────────────────────────────────────────
+
+interface PlatformDraftBadgesProps {
+  drafts: PlatformDraftSummary[];
+}
+
+function draftBadgeClass(status: PlatformDraftSummary["status"]): string {
+  switch (status) {
+    case "posted":
+      return "bg-green-900/40 border border-green-500/50 text-green-300";
+    case "saved":
+    case "ready":
+      return "bg-blue-900/40 border border-blue-500/50 text-blue-200";
+    case "preparing":
+      return "bg-amber-900/40 border border-amber-500/50 text-amber-300";
+    default:
+      return "bg-muted/40 border border-border/40 text-muted-foreground";
+  }
+}
+
+function PlatformDraftBadges({ drafts }: PlatformDraftBadgesProps) {
+  const saved = drafts.filter((d) => d.status !== "unsaved");
+  if (saved.length === 0) return null;
+
+  const visible = saved.slice(0, 4);
+  const extra = saved.length - 4;
+
+  return (
+    <div className="flex flex-wrap gap-1 px-1 pt-0.5">
+      {visible.map((d) => {
+        const cfg = PLATFORM_CONFIG[d.platform];
+        return (
+          <span
+            key={d.draftId}
+            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-semibold leading-none ${draftBadgeClass(d.status)}`}
+            title={`${cfg.name} — ${d.status}`}
+          >
+            {cfg.icon}{" "}
+            <span className="hidden sm:inline">{cfg.name.slice(0, 3)}</span>
+            {d.status === "posted" && (
+              <span className="ml-0.5 text-green-400">✓</span>
+            )}
+          </span>
+        );
+      })}
+      {extra > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-muted/40 border border-border/40 text-muted-foreground">
+          +{extra}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Draft Actions Menu ───────────────────────────────────────────────────────
+
+interface DraftActionsMenuProps {
+  drafts: PlatformDraftSummary[];
+  onEditDraft: (platform: Platform) => void;
+  onClose: () => void;
+}
+
+function DraftActionsMenu({
+  drafts,
+  onEditDraft,
+  onClose,
+}: DraftActionsMenuProps) {
+  const draftMap = new Map(drafts.map((d) => [d.platform, d]));
+
+  return (
+    <div className="absolute bottom-full right-0 mb-1 z-50 min-w-[160px] bg-card border border-border/60 rounded-lg shadow-xl overflow-hidden">
+      <div className="px-2.5 py-1.5 border-b border-border/30">
+        <p className="text-[10px] font-display font-bold text-muted-foreground uppercase tracking-widest">
+          Draft Actions
+        </p>
+      </div>
+      <div className="py-1 max-h-48 overflow-y-auto">
+        {ALL_PLATFORMS.map((platform) => {
+          const cfg = PLATFORM_CONFIG[platform];
+          const existing = draftMap.get(platform);
+          return (
+            <button
+              key={platform}
+              type="button"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs text-foreground hover:bg-primary/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditDraft(platform);
+                onClose();
+              }}
+              data-ocid={`draft_actions.${platform}.${existing ? "edit_button" : "button"}`}
+            >
+              {existing ? (
+                <Pencil className="h-3 w-3 text-primary shrink-0" />
+              ) : (
+                <Plus className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+              <span className="font-mono">
+                {cfg.icon} {existing ? "Edit" : "Add"} {cfg.name}
+              </span>
+              {existing?.status === "posted" && (
+                <span className="ml-auto text-green-400 text-[9px] font-bold">
+                  ✓
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface ListingCardProps {
   listing: Listing;
   index: number;
+  /** Optional platform drafts — enables draft badge row and Draft Actions menu */
+  platformDrafts?: PlatformDraftSummary[];
+  /** Called when user clicks Add/Edit draft for a platform */
+  onEditDraft?: (platform: Platform) => void;
 }
 
-export function ListingCard({ listing, index }: ListingCardProps) {
+export function ListingCard({
+  listing,
+  index,
+  platformDrafts,
+  onEditDraft,
+}: ListingCardProps) {
   const navigate = useNavigate();
   const { copy, copiedId } = useClipboard();
   const [imageError, setImageError] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDraftMenu, setShowDraftMenu] = useState(false);
+  const draftMenuRef = useRef<HTMLDivElement>(null);
 
   // Optimistic local state — seeded from backend value, reverted on error
   const [optimisticPinned, setOptimisticPinned] = useState<boolean | null>(
@@ -164,6 +296,23 @@ export function ListingCard({ listing, index }: ListingCardProps) {
   const isDeleting = permanentDeleteListing.isPending;
   const isArchived = listing.status === ListingStatus.archived;
   const isCopied = copiedId === listing.id.toString();
+
+  const hasDrafts = !!platformDrafts;
+
+  // Close draft menu on outside click
+  useEffect(() => {
+    if (!showDraftMenu) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        draftMenuRef.current &&
+        !draftMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowDraftMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showDraftMenu]);
 
   // Resolved display state — optimistic wins over backend value
   const isPinned =
@@ -235,12 +384,10 @@ export function ListingCard({ listing, index }: ListingCardProps) {
 
   function handlePinClick(e: React.MouseEvent) {
     e.stopPropagation();
-    // Optimistic update
     const next = !isPinned;
     setOptimisticPinned(next);
     togglePin.mutate(listing.id, {
       onError: () => {
-        // Revert
         setOptimisticPinned(isPinned);
         toast.error("Failed to update pin.");
       },
@@ -249,12 +396,10 @@ export function ListingCard({ listing, index }: ListingCardProps) {
 
   function handleFavoriteClick(e: React.MouseEvent) {
     e.stopPropagation();
-    // Optimistic update
     const next = !isFavorited;
     setOptimisticFavorited(next);
     toggleFavorite.mutate(listing.id, {
       onError: () => {
-        // Revert
         setOptimisticFavorited(isFavorited);
         toast.error("Failed to update favorite.");
       },
@@ -262,7 +407,7 @@ export function ListingCard({ listing, index }: ListingCardProps) {
   }
 
   function handleCardClick() {
-    if (showArchiveConfirm || showDeleteConfirm) return;
+    if (showArchiveConfirm || showDeleteConfirm || showDraftMenu) return;
     navigate({ to: "/listing/$id", params: { id: listing.id.toString() } });
   }
 
@@ -386,6 +531,31 @@ export function ListingCard({ listing, index }: ListingCardProps) {
 
           {/* Action buttons */}
           <div className="flex gap-1 relative">
+            {/* Draft actions menu button — only when platformDrafts prop provided */}
+            {hasDrafts && onEditDraft && (
+              <div className="relative" ref={draftMenuRef}>
+                <button
+                  type="button"
+                  className="h-7 px-1.5 rounded text-[11px] flex items-center gap-0.5 bg-primary/70 text-primary-foreground hover:bg-primary/90 transition-smooth font-display font-bold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDraftMenu((prev) => !prev);
+                  }}
+                  aria-label="Manage platform drafts"
+                  data-ocid="listing-card.draft_actions.open_modal_button"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                {showDraftMenu && (
+                  <DraftActionsMenu
+                    drafts={platformDrafts ?? []}
+                    onEditDraft={onEditDraft}
+                    onClose={() => setShowDraftMenu(false)}
+                  />
+                )}
+              </div>
+            )}
+
             {!isArchived && (
               <button
                 type="button"
@@ -455,7 +625,7 @@ export function ListingCard({ listing, index }: ListingCardProps) {
         </div>
       </div>
 
-      {/* Title below image */}
+      {/* Title + price + platform draft badges below image */}
       <div className="px-1 pt-1.5 pb-0.5 bg-card">
         <p className="font-display text-[11px] font-semibold text-foreground line-clamp-1 leading-tight group-hover:text-primary transition-colors duration-200">
           {listing.title}
@@ -465,6 +635,8 @@ export function ListingCard({ listing, index }: ListingCardProps) {
             {listing.price}
           </p>
         )}
+        {/* Platform draft badges — only when platformDrafts prop provided */}
+        {hasDrafts && <PlatformDraftBadges drafts={platformDrafts ?? []} />}
       </div>
     </motion.article>
   );

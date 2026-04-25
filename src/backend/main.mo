@@ -57,6 +57,8 @@ import SystemHealthApi "mixins/system-health-api";
 import AutofillConfigApi "mixins/autofill-config-api";
 import SystemDiagnosticsApi "mixins/system-diagnostics-api";
 import UniversalListingApi "mixins/universal-listing-api";
+import MasterListingApi "mixins/master-listing-api";
+import MasterListingTypes "types/master-listing";
 
 
 
@@ -619,6 +621,12 @@ actor {
 
   // ── Universal Cross-Listing ───────────────────────────────────────────────
   include UniversalListingApi(accessControlState);
+
+  // ── Master Listing + Platform Drafts (Golden Master Build) ───────────────
+  // masterListings: Text (listingId) -> MasterListing
+  // Enhanced orthogonal persistence — no stable keyword needed.
+  let masterListings = Map.empty<Text, MasterListingTypes.MasterListing>();
+  include MasterListingApi(accessControlState, masterListings);
 
   // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
 };

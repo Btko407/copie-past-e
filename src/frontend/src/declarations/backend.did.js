@@ -182,6 +182,20 @@ export const Listing = IDL.Record({
   'condition' : IDL.Opt(IDL.Text),
   'archivedAt' : IDL.Opt(Timestamp),
 });
+export const ErrorCode = IDL.Variant({
+  'platformNotSupported' : IDL.Null,
+  'invalidInput' : IDL.Null,
+  'duplicateEntry' : IDL.Null,
+  'systemError' : IDL.Null,
+  'notFound' : IDL.Null,
+  'quotaExceeded' : IDL.Null,
+  'unauthorized' : IDL.Null,
+  'draftNotFound' : IDL.Null,
+});
+export const AppError = IDL.Record({
+  'code' : ErrorCode,
+  'message' : IDL.Text,
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -272,6 +286,14 @@ export const CreateListingArgs = IDL.Record({
   'mecariShippingType' : IDL.Opt(IDL.Text),
   'mecariBrand' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
+});
+export const CreateMasterListingArgs = IDL.Record({
+  'title' : IDL.Text,
+  'tags' : IDL.Vec(IDL.Text),
+  'description' : IDL.Text,
+  'category' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
 });
 export const CreateVersionArgs = IDL.Record({
   'versionLabel' : IDL.Text,
@@ -468,6 +490,167 @@ export const IntegrationStatus = IDL.Record({
   'lastTestResult' : IDL.Opt(IDL.Bool),
   'lastTestAt' : IDL.Opt(Timestamp),
   'connected' : IDL.Bool,
+});
+export const Platform__2 = IDL.Variant({
+  'poshmark' : IDL.Null,
+  'ebay' : IDL.Null,
+  'etsy' : IDL.Null,
+  'facebook' : IDL.Null,
+  'depop' : IDL.Null,
+  'mecari' : IDL.Null,
+});
+export const ListingStatus__2 = IDL.Variant({
+  'active' : IDL.Null,
+  'draft' : IDL.Null,
+  'archived' : IDL.Null,
+});
+export const DraftStatus = IDL.Variant({
+  'preparing' : IDL.Null,
+  'unsaved' : IDL.Null,
+  'saved' : IDL.Null,
+  'ready' : IDL.Null,
+  'posted' : IDL.Null,
+});
+export const ManualPostAction = IDL.Variant({
+  'submitted' : IDL.Null,
+  'edited' : IDL.Null,
+  'error' : IDL.Null,
+  'saved' : IDL.Null,
+  'drafted' : IDL.Null,
+});
+export const ManualPostEntry = IDL.Record({
+  'action' : ManualPostAction,
+  'message' : IDL.Text,
+  'remoteUrl' : IDL.Opt(IDL.Text),
+  'timestamp' : IDL.Int,
+});
+export const PoshmarkFields = IDL.Record({
+  'title' : IDL.Text,
+  'size' : IDL.Opt(IDL.Text),
+  'description' : IDL.Text,
+  'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'condition' : IDL.Opt(IDL.Text),
+});
+export const FacebookCondition = IDL.Variant({
+  'new' : IDL.Null,
+  'fair' : IDL.Null,
+  'good' : IDL.Null,
+  'poor' : IDL.Null,
+  'likeNew' : IDL.Null,
+});
+export const EbayFields = IDL.Record({
+  'title' : IDL.Text,
+  'description' : IDL.Text,
+  'shippingCost' : IDL.Opt(IDL.Text),
+  'quantity' : IDL.Nat,
+  'category' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'condition' : IDL.Opt(FacebookCondition),
+});
+export const EtsyFields = IDL.Record({
+  'title' : IDL.Text,
+  'tags' : IDL.Vec(IDL.Text),
+  'description' : IDL.Text,
+  'category' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+});
+export const FacebookFields = IDL.Record({
+  'title' : IDL.Text,
+  'localPickup' : IDL.Bool,
+  'shipping' : IDL.Bool,
+  'description' : IDL.Text,
+  'category' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'condition' : IDL.Opt(FacebookCondition),
+});
+export const DepopFields = IDL.Record({
+  'title' : IDL.Text,
+  'size' : IDL.Opt(IDL.Text),
+  'description' : IDL.Text,
+  'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'condition' : IDL.Opt(IDL.Text),
+});
+export const MecariCondition5Scale = IDL.Variant({
+  'new' : IDL.Null,
+  'fair' : IDL.Null,
+  'good' : IDL.Null,
+  'poor' : IDL.Null,
+  'likeNew' : IDL.Null,
+});
+export const MecariFields = IDL.Record({
+  'title' : IDL.Text,
+  'deliveryDays' : IDL.Opt(IDL.Nat),
+  'description' : IDL.Text,
+  'shippingType' : IDL.Opt(
+    IDL.Variant({
+      'normal' : IDL.Null,
+      'fast' : IDL.Null,
+      'sameDay' : IDL.Null,
+    })
+  ),
+  'category' : IDL.Opt(IDL.Text),
+  'brand' : IDL.Text,
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'condition' : IDL.Opt(MecariCondition5Scale),
+});
+export const PlatformFields = IDL.Variant({
+  'poshmark' : PoshmarkFields,
+  'ebay' : EbayFields,
+  'etsy' : EtsyFields,
+  'facebook' : FacebookFields,
+  'depop' : DepopFields,
+  'mecari' : MecariFields,
+});
+export const PlatformListingDraft = IDL.Record({
+  'status' : DraftStatus,
+  'lastEditedAt' : IDL.Int,
+  'createdAt' : IDL.Int,
+  'validationErrors' : IDL.Vec(
+    IDL.Record({ 'field' : IDL.Text, 'error' : IDL.Text })
+  ),
+  'platform' : Platform__2,
+  'manualPostingLog' : IDL.Vec(ManualPostEntry),
+  'isValid' : IDL.Bool,
+  'platformFields' : PlatformFields,
+  'draftId' : IDL.Text,
+  'completenessPercent' : IDL.Nat,
+});
+export const AuditEntry = IDL.Record({
+  'action' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'details' : IDL.Opt(IDL.Text),
+  'caller' : IDL.Principal,
+});
+export const MasterListing = IDL.Record({
+  'id' : IDL.Text,
+  'status' : ListingStatus__2,
+  'title' : IDL.Text,
+  'platformDrafts' : IDL.Vec(PlatformListingDraft),
+  'userId' : IDL.Principal,
+  'createdAt' : IDL.Int,
+  'tags' : IDL.Vec(IDL.Text),
+  'description' : IDL.Text,
+  'auditLog' : IDL.Vec(AuditEntry),
+  'updatedAt' : IDL.Int,
+  'pinned' : IDL.Bool,
+  'expirationDate' : IDL.Opt(IDL.Int),
+  'pinnedAt' : IDL.Opt(IDL.Int),
+  'category' : IDL.Opt(IDL.Text),
+  'archivedReason' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'favoriteCount' : IDL.Nat,
+  'archivedAt' : IDL.Opt(IDL.Int),
 });
 export const LoyaltyStatus = IDL.Record({
   'rewardClaimedForTiers' : IDL.Vec(TierName),
@@ -800,6 +983,11 @@ export const ZipRestoreResult = IDL.Record({
   'listingsRestored' : IDL.Nat,
   'success' : IDL.Bool,
 });
+export const SavePlatformDraftArgs = IDL.Record({
+  'platform' : Platform__2,
+  'platformFields' : PlatformFields,
+  'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+});
 export const ScrapedListing = IDL.Record({
   'title' : IDL.Opt(IDL.Text),
   'imageUrls' : IDL.Vec(IDL.Text),
@@ -848,6 +1036,13 @@ export const UpdateListingArgs = IDL.Record({
   'category' : IDL.Opt(IDL.Text),
   'mecariShippingType' : IDL.Opt(IDL.Text),
   'mecariBrand' : IDL.Opt(IDL.Text),
+  'price' : IDL.Opt(IDL.Text),
+});
+export const UpdateMasterListingArgs = IDL.Record({
+  'title' : IDL.Opt(IDL.Text),
+  'tags' : IDL.Opt(IDL.Vec(IDL.Text)),
+  'description' : IDL.Opt(IDL.Text),
+  'category' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
 });
 export const UpdateProfileArgs = IDL.Record({
@@ -1044,6 +1239,11 @@ export const idlService = IDL.Service({
     ),
   'adminUpsertTier' : IDL.Func([TierConfig], [], []),
   'archiveListing' : IDL.Func([ListingId], [Listing], []),
+  'archiveMasterListing' : IDL.Func(
+      [IDL.Text, IDL.Opt(IDL.Text)],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+      [],
+    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'assignUserRole' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'checkAndCreateLowFuelNotification' : IDL.Func(
@@ -1096,6 +1296,11 @@ export const idlService = IDL.Service({
       [],
     ),
   'createListing' : IDL.Func([CreateListingArgs], [Listing], []),
+  'createMasterListing' : IDL.Func(
+      [CreateMasterListingArgs],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+      [],
+    ),
   'createStripeCheckoutSession' : IDL.Func(
       [IDL.Text, IDL.Text],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
@@ -1329,6 +1534,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getListing' : IDL.Func([ListingId], [IDL.Opt(Listing)], ['query']),
+  'getListingsByPlatform' : IDL.Func(
+      [Platform__2],
+      [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
+      ['query'],
+    ),
   'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
   'getMaintenanceMode' : IDL.Func(
       [],
@@ -1337,6 +1547,22 @@ export const idlService = IDL.Service({
           'eta' : IDL.Text,
           'isActive' : IDL.Bool,
           'message' : IDL.Text,
+        }),
+      ],
+      ['query'],
+    ),
+  'getMasterListing' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : MasterListing, 'err' : AppError })],
+      ['query'],
+    ),
+  'getMasterListingStats' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'totalListings' : IDL.Nat,
+          'totalDrafts' : IDL.Nat,
+          'totalUsers' : IDL.Nat,
         }),
       ],
       ['query'],
@@ -1487,6 +1713,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getUnreadAdminNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'getUserMasterListings' : IDL.Func(
+      [],
+      [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
+      ['query'],
+    ),
   'getUserNotifications' : IDL.Func(
       [],
       [IDL.Vec(InAppNotification)],
@@ -1616,6 +1847,11 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
+  'logManualPosting' : IDL.Func(
+      [IDL.Text, Platform__2, IDL.Opt(IDL.Text)],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+      [],
+    ),
   'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'markAllAdminNotificationsRead' : IDL.Func([], [], []),
   'markAllNotificationsRead' : IDL.Func([], [], []),
@@ -1626,6 +1862,11 @@ export const idlService = IDL.Service({
     ),
   'markBackupAsStable' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'markNotificationRead' : IDL.Func([IDL.Nat], [MarkReadResult], []),
+  'markUniversalListingReady' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'ocrScanImage' : IDL.Func(
       [IDL.Text],
       [IDL.Variant({ 'ok' : OcrResult, 'err' : IDL.Text })],
@@ -1652,11 +1893,6 @@ export const idlService = IDL.Service({
         ),
       ],
       ['query'],
-    ),
-  'publishUniversalListing' : IDL.Func(
-      [IDL.Text],
-      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
-      [],
     ),
   'receiveExtensionData' : IDL.Func(
       [ExtensionListingData, IDL.Text],
@@ -1724,6 +1960,11 @@ export const idlService = IDL.Service({
   'saveFbCredentials' : IDL.Func(
       [IDL.Text, IDL.Text],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'savePlatformDraft' : IDL.Func(
+      [IDL.Text, SavePlatformDraftArgs],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
       [],
     ),
   'scrapeListing' : IDL.Func([IDL.Text], [ScrapeResult], []),
@@ -2041,6 +2282,11 @@ export const idlService = IDL.Service({
       [],
     ),
   'updateListing' : IDL.Func([UpdateListingArgs], [Listing], []),
+  'updateMasterListing' : IDL.Func(
+      [IDL.Text, UpdateMasterListingArgs],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+      [],
+    ),
   'updateMecariAutofillSettings' : IDL.Func(
       [
         IDL.Bool,
@@ -2276,6 +2522,17 @@ export const idlFactory = ({ IDL }) => {
     'condition' : IDL.Opt(IDL.Text),
     'archivedAt' : IDL.Opt(Timestamp),
   });
+  const ErrorCode = IDL.Variant({
+    'platformNotSupported' : IDL.Null,
+    'invalidInput' : IDL.Null,
+    'duplicateEntry' : IDL.Null,
+    'systemError' : IDL.Null,
+    'notFound' : IDL.Null,
+    'quotaExceeded' : IDL.Null,
+    'unauthorized' : IDL.Null,
+    'draftNotFound' : IDL.Null,
+  });
+  const AppError = IDL.Record({ 'code' : ErrorCode, 'message' : IDL.Text });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -2366,6 +2623,14 @@ export const idlFactory = ({ IDL }) => {
     'mecariShippingType' : IDL.Opt(IDL.Text),
     'mecariBrand' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
+  });
+  const CreateMasterListingArgs = IDL.Record({
+    'title' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
+    'description' : IDL.Text,
+    'category' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
   });
   const CreateVersionArgs = IDL.Record({
     'versionLabel' : IDL.Text,
@@ -2562,6 +2827,167 @@ export const idlFactory = ({ IDL }) => {
     'lastTestResult' : IDL.Opt(IDL.Bool),
     'lastTestAt' : IDL.Opt(Timestamp),
     'connected' : IDL.Bool,
+  });
+  const Platform__2 = IDL.Variant({
+    'poshmark' : IDL.Null,
+    'ebay' : IDL.Null,
+    'etsy' : IDL.Null,
+    'facebook' : IDL.Null,
+    'depop' : IDL.Null,
+    'mecari' : IDL.Null,
+  });
+  const ListingStatus__2 = IDL.Variant({
+    'active' : IDL.Null,
+    'draft' : IDL.Null,
+    'archived' : IDL.Null,
+  });
+  const DraftStatus = IDL.Variant({
+    'preparing' : IDL.Null,
+    'unsaved' : IDL.Null,
+    'saved' : IDL.Null,
+    'ready' : IDL.Null,
+    'posted' : IDL.Null,
+  });
+  const ManualPostAction = IDL.Variant({
+    'submitted' : IDL.Null,
+    'edited' : IDL.Null,
+    'error' : IDL.Null,
+    'saved' : IDL.Null,
+    'drafted' : IDL.Null,
+  });
+  const ManualPostEntry = IDL.Record({
+    'action' : ManualPostAction,
+    'message' : IDL.Text,
+    'remoteUrl' : IDL.Opt(IDL.Text),
+    'timestamp' : IDL.Int,
+  });
+  const PoshmarkFields = IDL.Record({
+    'title' : IDL.Text,
+    'size' : IDL.Opt(IDL.Text),
+    'description' : IDL.Text,
+    'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'condition' : IDL.Opt(IDL.Text),
+  });
+  const FacebookCondition = IDL.Variant({
+    'new' : IDL.Null,
+    'fair' : IDL.Null,
+    'good' : IDL.Null,
+    'poor' : IDL.Null,
+    'likeNew' : IDL.Null,
+  });
+  const EbayFields = IDL.Record({
+    'title' : IDL.Text,
+    'description' : IDL.Text,
+    'shippingCost' : IDL.Opt(IDL.Text),
+    'quantity' : IDL.Nat,
+    'category' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'condition' : IDL.Opt(FacebookCondition),
+  });
+  const EtsyFields = IDL.Record({
+    'title' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
+    'description' : IDL.Text,
+    'category' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  });
+  const FacebookFields = IDL.Record({
+    'title' : IDL.Text,
+    'localPickup' : IDL.Bool,
+    'shipping' : IDL.Bool,
+    'description' : IDL.Text,
+    'category' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'condition' : IDL.Opt(FacebookCondition),
+  });
+  const DepopFields = IDL.Record({
+    'title' : IDL.Text,
+    'size' : IDL.Opt(IDL.Text),
+    'description' : IDL.Text,
+    'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'condition' : IDL.Opt(IDL.Text),
+  });
+  const MecariCondition5Scale = IDL.Variant({
+    'new' : IDL.Null,
+    'fair' : IDL.Null,
+    'good' : IDL.Null,
+    'poor' : IDL.Null,
+    'likeNew' : IDL.Null,
+  });
+  const MecariFields = IDL.Record({
+    'title' : IDL.Text,
+    'deliveryDays' : IDL.Opt(IDL.Nat),
+    'description' : IDL.Text,
+    'shippingType' : IDL.Opt(
+      IDL.Variant({
+        'normal' : IDL.Null,
+        'fast' : IDL.Null,
+        'sameDay' : IDL.Null,
+      })
+    ),
+    'category' : IDL.Opt(IDL.Text),
+    'brand' : IDL.Text,
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'condition' : IDL.Opt(MecariCondition5Scale),
+  });
+  const PlatformFields = IDL.Variant({
+    'poshmark' : PoshmarkFields,
+    'ebay' : EbayFields,
+    'etsy' : EtsyFields,
+    'facebook' : FacebookFields,
+    'depop' : DepopFields,
+    'mecari' : MecariFields,
+  });
+  const PlatformListingDraft = IDL.Record({
+    'status' : DraftStatus,
+    'lastEditedAt' : IDL.Int,
+    'createdAt' : IDL.Int,
+    'validationErrors' : IDL.Vec(
+      IDL.Record({ 'field' : IDL.Text, 'error' : IDL.Text })
+    ),
+    'platform' : Platform__2,
+    'manualPostingLog' : IDL.Vec(ManualPostEntry),
+    'isValid' : IDL.Bool,
+    'platformFields' : PlatformFields,
+    'draftId' : IDL.Text,
+    'completenessPercent' : IDL.Nat,
+  });
+  const AuditEntry = IDL.Record({
+    'action' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'details' : IDL.Opt(IDL.Text),
+    'caller' : IDL.Principal,
+  });
+  const MasterListing = IDL.Record({
+    'id' : IDL.Text,
+    'status' : ListingStatus__2,
+    'title' : IDL.Text,
+    'platformDrafts' : IDL.Vec(PlatformListingDraft),
+    'userId' : IDL.Principal,
+    'createdAt' : IDL.Int,
+    'tags' : IDL.Vec(IDL.Text),
+    'description' : IDL.Text,
+    'auditLog' : IDL.Vec(AuditEntry),
+    'updatedAt' : IDL.Int,
+    'pinned' : IDL.Bool,
+    'expirationDate' : IDL.Opt(IDL.Int),
+    'pinnedAt' : IDL.Opt(IDL.Int),
+    'category' : IDL.Opt(IDL.Text),
+    'archivedReason' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'favoriteCount' : IDL.Nat,
+    'archivedAt' : IDL.Opt(IDL.Int),
   });
   const LoyaltyStatus = IDL.Record({
     'rewardClaimedForTiers' : IDL.Vec(TierName),
@@ -2891,6 +3317,11 @@ export const idlFactory = ({ IDL }) => {
     'listingsRestored' : IDL.Nat,
     'success' : IDL.Bool,
   });
+  const SavePlatformDraftArgs = IDL.Record({
+    'platform' : Platform__2,
+    'platformFields' : PlatformFields,
+    'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  });
   const ScrapedListing = IDL.Record({
     'title' : IDL.Opt(IDL.Text),
     'imageUrls' : IDL.Vec(IDL.Text),
@@ -2936,6 +3367,13 @@ export const idlFactory = ({ IDL }) => {
     'category' : IDL.Opt(IDL.Text),
     'mecariShippingType' : IDL.Opt(IDL.Text),
     'mecariBrand' : IDL.Opt(IDL.Text),
+    'price' : IDL.Opt(IDL.Text),
+  });
+  const UpdateMasterListingArgs = IDL.Record({
+    'title' : IDL.Opt(IDL.Text),
+    'tags' : IDL.Opt(IDL.Vec(IDL.Text)),
+    'description' : IDL.Opt(IDL.Text),
+    'category' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
   });
   const UpdateProfileArgs = IDL.Record({
@@ -3140,6 +3578,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminUpsertTier' : IDL.Func([TierConfig], [], []),
     'archiveListing' : IDL.Func([ListingId], [Listing], []),
+    'archiveMasterListing' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'assignUserRole' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'checkAndCreateLowFuelNotification' : IDL.Func(
@@ -3196,6 +3639,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'createListing' : IDL.Func([CreateListingArgs], [Listing], []),
+    'createMasterListing' : IDL.Func(
+        [CreateMasterListingArgs],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+        [],
+      ),
     'createStripeCheckoutSession' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
@@ -3444,6 +3892,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getListing' : IDL.Func([ListingId], [IDL.Opt(Listing)], ['query']),
+    'getListingsByPlatform' : IDL.Func(
+        [Platform__2],
+        [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
+        ['query'],
+      ),
     'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
     'getMaintenanceMode' : IDL.Func(
         [],
@@ -3452,6 +3905,22 @@ export const idlFactory = ({ IDL }) => {
             'eta' : IDL.Text,
             'isActive' : IDL.Bool,
             'message' : IDL.Text,
+          }),
+        ],
+        ['query'],
+      ),
+    'getMasterListing' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : MasterListing, 'err' : AppError })],
+        ['query'],
+      ),
+    'getMasterListingStats' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'totalListings' : IDL.Nat,
+            'totalDrafts' : IDL.Nat,
+            'totalUsers' : IDL.Nat,
           }),
         ],
         ['query'],
@@ -3606,6 +4075,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getUnreadAdminNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUserMasterListings' : IDL.Func(
+        [],
+        [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
+        ['query'],
+      ),
     'getUserNotifications' : IDL.Func(
         [],
         [IDL.Vec(InAppNotification)],
@@ -3735,6 +4209,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
+    'logManualPosting' : IDL.Func(
+        [IDL.Text, Platform__2, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+        [],
+      ),
     'markAdminNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'markAllAdminNotificationsRead' : IDL.Func([], [], []),
     'markAllNotificationsRead' : IDL.Func([], [], []),
@@ -3745,6 +4224,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'markBackupAsStable' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'markNotificationRead' : IDL.Func([IDL.Nat], [MarkReadResult], []),
+    'markUniversalListingReady' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'ocrScanImage' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'ok' : OcrResult, 'err' : IDL.Text })],
@@ -3771,11 +4255,6 @@ export const idlFactory = ({ IDL }) => {
           ),
         ],
         ['query'],
-      ),
-    'publishUniversalListing' : IDL.Func(
-        [IDL.Text],
-        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
-        [],
       ),
     'receiveExtensionData' : IDL.Func(
         [ExtensionListingData, IDL.Text],
@@ -3843,6 +4322,11 @@ export const idlFactory = ({ IDL }) => {
     'saveFbCredentials' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'savePlatformDraft' : IDL.Func(
+        [IDL.Text, SavePlatformDraftArgs],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
         [],
       ),
     'scrapeListing' : IDL.Func([IDL.Text], [ScrapeResult], []),
@@ -4160,6 +4644,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'updateListing' : IDL.Func([UpdateListingArgs], [Listing], []),
+    'updateMasterListing' : IDL.Func(
+        [IDL.Text, UpdateMasterListingArgs],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
+        [],
+      ),
     'updateMecariAutofillSettings' : IDL.Func(
         [
           IDL.Bool,

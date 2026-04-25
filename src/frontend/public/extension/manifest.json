@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Copie Past-e Smart Post",
-  "version": "1.2.0",
-  "description": "Auto-fill marketplace listings from Copie Past-e",
+  "version": "1.3.0",
+  "description": "Auto-fill marketplace listings from Copie Past-e. Manual posting only.",
   "permissions": ["storage", "tabs", "activeTab", "scripting"],
   "host_permissions": [
     "https://www.facebook.com/*",
     "https://www.mercari.com/*",
+    "https://www.ebay.com/*",
+    "https://poshmark.com/*",
+    "https://www.depop.com/*",
+    "https://www.etsy.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],
   "background": { "service_worker": "background.js" },
@@ -19,6 +23,26 @@
     {
       "matches": ["https://www.mercari.com/sell/*"],
       "js": ["content-mercari.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.ebay.com/*"],
+      "js": ["content-ebay.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://poshmark.com/*"],
+      "js": ["content-poshmark.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.depop.com/*"],
+      "js": ["content-depop.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.etsy.com/*"],
+      "js": ["content-etsy.js"],
       "run_at": "document_idle"
     },
     {

@@ -1,28 +1,31 @@
 // Copie Past-e Smart Post — Background Service Worker (Manifest V3)
-// Version: 1.2.0
-// Receives SMART_POST messages, saves listing data, opens marketplace tab.
+// Version: 1.3.0
+// Manual-Only: ZERO auto-submit logic. Extension only autofills forms.
 // Supports Gemini OCR scan via GEMINI_OCR_SCAN handler.
 
-"use strict";
-
-// ── Marketplace URLs ────────────────────────────────────────────────────────
+// ── Marketplace URLs ─────────────────────────────────────────────────────────
+// Used for SMART_POST (open tab) — autofill is handled by content scripts.
 
 const PLATFORM_URLS = {
   facebook: "https://www.facebook.com/marketplace/create/item",
   mercari:  "https://www.mercari.com/sell/",
+  ebay:     "https://www.ebay.com/sl/sell",
+  poshmark: "https://poshmark.com/create-listing",
+  depop:    "https://www.depop.com/sell/",
+  etsy:     "https://www.etsy.com/sell",
 };
 
-// ── onInstalled ─────────────────────────────────────────────────────────────
+// ── onInstalled ──────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
-    console.log("[Copie Past-e] Extension installed — Smart Post ready.");
+    console.log("[Copie Past-e] Extension installed — Manual Autofill v1.3 ready.");
   } else if (details.reason === "update") {
     console.log(`[Copie Past-e] Extension updated to v${chrome.runtime.getManifest().version}`);
   }
 });
 
-// ── Gemini API key storage ─────────────────────────────────────────────────
+// ── Gemini API key storage ───────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'SAVE_GEMINI_KEY') {
@@ -46,7 +49,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// ── Gemini OCR scan handler (GEMINI_OCR_SCAN) ───────────────────────────────
+// ── Gemini OCR scan handler (GEMINI_OCR_SCAN) ────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== 'GEMINI_OCR_SCAN') return false;
@@ -84,7 +87,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     try {
       const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + apiKey,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -109,17 +112,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return;
       }
       if (!response.ok) {
-        sendResponse({ error: 'Gemini error: HTTP ' + response.status });
+        sendResponse({ error: `Gemini error: HTTP ${response.status}` });
         return;
       }
 
       const data = await response.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-      // ── Robust JSON parsing with retry ─────────────────────────────────────
-      function stripFences(text) {
-        return text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-      }
+      // ── Robust JSON parsing with retry ──────────────────────────────────────
+      const stripFences = (text) =>
+        text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
 
       let parsed = null;
       let parseError = null;
@@ -143,7 +145,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return;
       }
 
-      // ── Normalize output — always emit all 6 fields ──────────────────────
+      // ── Normalize output — always emit all 6 fields ───────────────────────
       const normalized = {
         title:       String(parsed.title       || '').trim(),
         price:       String(parsed.price       || '').trim(),
@@ -163,7 +165,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ success: true, data: normalized });
 
     } catch (err) {
-      sendResponse({ error: 'OCR failed: ' + err.message });
+      sendResponse({ error: `OCR failed: ${err.message}` });
     }
   });
 
@@ -171,6 +173,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 // ── SMART_POST handler ───────────────────────────────────────────────────────
+// Opens the marketplace tab so the user can manually post via extension autofill.
+// NOTE: No form.submit() calls — manual posting only, always.
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "SMART_POST") return false;
@@ -185,12 +189,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   const targetUrl = PLATFORM_URLS[platform];
   if (!targetUrl) {
-    console.warn("[Copie Past-e] Unknown platform:", platform);
+    console.warn(`[Copie Past-e] Unknown platform: ${platform}`);
     sendResponse({ success: false, error: `Unknown platform: ${platform}` });
     return false;
   }
 
-  // Normalize: always use "images" key for Facebook content script
+  // Normalize: always use "images" key for content scripts
   const normalizedListing = { ...listing };
   if (!normalizedListing.images && normalizedListing.photos) {
     normalizedListing.images = normalizedListing.photos;
@@ -200,7 +204,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     console.warn("[Copie Past-e] SMART_POST: no images in payload — continuing without images.");
   }
 
-  // Ensure all expected fields are present
+  // Build normalized payload for all platforms
   const payload = {
     title:       normalizedListing.title       || '',
     description: normalizedListing.description || '',
@@ -211,21 +215,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     images:      normalizedListing.images      || [],
   };
 
-  // Save listing to storage for content script to pick up
-  chrome.storage.local.set({ pendingPost: payload }, () => {
+  // Save draft to platform-keyed storage for popup / content script to use
+  const storageKey = `draft_${platform}`;
+  chrome.storage.local.set({ pendingPost: payload, [storageKey]: payload }, () => {
     if (chrome.runtime.lastError) {
       console.error("[Copie Past-e] Storage error:", chrome.runtime.lastError);
       sendResponse({ success: false, error: chrome.runtime.lastError.message });
       return;
     }
 
-    // Open marketplace tab
+    // Open marketplace tab — user will use the popup to autofill manually
     chrome.tabs.create({ url: targetUrl }, (tab) => {
       if (chrome.runtime.lastError) {
         console.error("[Copie Past-e] Tab create error:", chrome.runtime.lastError);
         sendResponse({ success: false, error: chrome.runtime.lastError.message });
       } else {
-        console.log(`[Copie Past-e] Opened ${platform} tab (id: ${tab.id})`);
+        console.log(`[Copie Past-e] Opened ${platform} tab (id: ${tab.id}) — awaiting manual autofill.`);
         sendResponse({ success: true, tabId: tab.id });
       }
     });

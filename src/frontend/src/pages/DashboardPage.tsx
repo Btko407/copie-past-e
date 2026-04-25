@@ -1,13 +1,16 @@
 import { Layout } from "@/components/Layout";
 import { ListingCard } from "@/components/ListingCard";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
+import { MasterListingForm } from "@/components/MasterListingForm";
 import { PaymentBanners } from "@/components/PaymentBanners";
+import { PlatformDraftModal } from "@/components/PlatformDraftModal";
 import { LowFuelWarningBanner, RefuelBanner } from "@/components/RefuelBanner";
 import { TimeCircuitsCountdown } from "@/components/TimeCircuitsCountdown";
 import { UniversalListingForm } from "@/components/UniversalListingForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useGetUserMasterListings } from "@/hooks/useGetUserMasterListings";
 import { useFavoritedListings, useListings } from "@/hooks/useListings";
 import { useCheckLowFuelNotification } from "@/hooks/useNotifications";
 import { useGetMySubscription, useGetTiers } from "@/hooks/useTiers";
@@ -17,7 +20,10 @@ import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Listing } from "../backend";
 import { ListingStatus } from "../backend";
+import type { MasterListing } from "../backend";
 import { computeFuelFromExpiry } from "../components/GasFuelTank";
+import type { Platform, PlatformDraftSummary } from "../types/masterListing";
+import { ALL_PLATFORMS, PLATFORM_CONFIG } from "../types/masterListing";
 import { NewListingModal } from "./NewListingModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -25,6 +31,7 @@ import { NewListingModal } from "./NewListingModal";
 type TabKey = "active" | "archived" | "favorites";
 type SortOption = "newest" | "oldest";
 type DateFilter = "all" | "today" | "week" | "month";
+type PlatformFilter = "all" | Platform;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +78,53 @@ function filterByDateRange(listings: Listing[], filter: DateFilter): Listing[] {
         return true;
     }
   });
+}
+
+/** Convert backend DraftStatus variant to our frontend union */
+function toDraftStatus(raw: string): PlatformDraftSummary["status"] {
+  switch (raw) {
+    case "saved":
+      return "saved";
+    case "preparing":
+      return "preparing";
+    case "ready":
+      return "ready";
+    case "posted":
+      return "posted";
+    default:
+      return "unsaved";
+  }
+}
+
+/** Map a backend PlatformListingDraft to PlatformDraftSummary */
+function toDraftSummary(
+  d: MasterListing["platformDrafts"][number],
+): PlatformDraftSummary | null {
+  // platform comes as Platform__2 enum value string
+  const platformRaw =
+    typeof d.platform === "string"
+      ? d.platform
+      : typeof d.platform === "object"
+        ? (Object.keys(d.platform as Record<string, unknown>)[0] ?? "")
+        : "";
+
+  if (!ALL_PLATFORMS.includes(platformRaw as Platform)) return null;
+
+  const statusRaw =
+    typeof d.status === "string"
+      ? d.status
+      : typeof d.status === "object"
+        ? (Object.keys(d.status as Record<string, unknown>)[0] ?? "")
+        : "";
+
+  return {
+    draftId: d.draftId,
+    platform: platformRaw as Platform,
+    status: toDraftStatus(statusRaw),
+    completenessPercent: Number(d.completenessPercent),
+    isValid: d.isValid,
+    lastEditedAt: d.lastEditedAt,
+  };
 }
 
 // ─── Compact Countdown Banner (mobile) ────────────────────────────────────────
@@ -215,6 +269,177 @@ function ListingsGrid({ listings }: ListingsGridProps) {
   );
 }
 
+// ─── Master Listings Grid ─────────────────────────────────────────────────────
+
+interface MasterListingsGridProps {
+  masterListings: MasterListing[];
+  onEditDraft: (
+    listingId: string,
+    platform: Platform,
+    masterListing: {
+      title: string;
+      description: string;
+      price?: string | null;
+      category?: string | null;
+      tags?: string[];
+    },
+    existingDraft?: {
+      platformFields: Record<string, unknown>;
+      status: string;
+      completenessPercent: number;
+      isValid: boolean;
+    } | null,
+  ) => void;
+}
+
+function MasterListingsGrid({
+  masterListings,
+  onEditDraft,
+}: MasterListingsGridProps) {
+  if (masterListings.length === 0) return null;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="font-display text-xs font-bold text-foreground/80 uppercase tracking-widest">
+          Master Listings
+        </h2>
+        <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-mono rounded">
+          {masterListings.length}
+        </span>
+      </div>
+      <div
+        className="grid grid-cols-3 gap-1.5"
+        data-ocid="master-listings-grid"
+      >
+        {masterListings.map((ml, index) => {
+          const drafts = ml.platformDrafts
+            .map(toDraftSummary)
+            .filter((d): d is PlatformDraftSummary => d !== null);
+
+          // Build a synthetic Listing-compatible shape for display
+          const syntheticListing: Listing = {
+            id: BigInt(0), // unused — we override click via onEditDraft
+            status: ListingStatus.active,
+            tierLevel: BigInt(1),
+            title: ml.title,
+            favorited: ml.pinned,
+            userId: ml.userId,
+            createdAt: ml.createdAt,
+            description: ml.description,
+            platform: undefined,
+            pinned: ml.pinned,
+            expirationDate: ml.expirationDate ?? BigInt(0),
+            archivedManually: false,
+          };
+
+          return (
+            <ListingCard
+              key={ml.id}
+              listing={syntheticListing}
+              index={index}
+              platformDrafts={drafts}
+              onEditDraft={(platform) => {
+                const matchingDraft = ml.platformDrafts.find((d) => {
+                  const pRaw =
+                    typeof d.platform === "string"
+                      ? d.platform
+                      : typeof d.platform === "object"
+                        ? (Object.keys(
+                            d.platform as Record<string, unknown>,
+                          )[0] ?? "")
+                        : "";
+                  return pRaw === platform;
+                });
+                const existingDraft = matchingDraft
+                  ? {
+                      platformFields: matchingDraft.platformFields as Record<
+                        string,
+                        unknown
+                      >,
+                      status:
+                        typeof matchingDraft.status === "string"
+                          ? matchingDraft.status
+                          : (Object.keys(
+                              matchingDraft.status as Record<string, unknown>,
+                            )[0] ?? ""),
+                      completenessPercent: Number(
+                        matchingDraft.completenessPercent,
+                      ),
+                      isValid: matchingDraft.isValid,
+                    }
+                  : null;
+                onEditDraft(
+                  ml.id,
+                  platform,
+                  {
+                    title: ml.title,
+                    description: ml.description,
+                    price: ml.price?.[0] ?? null,
+                    category: ml.category?.[0] ?? null,
+                    tags: ml.tags ?? [],
+                  },
+                  existingDraft,
+                );
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Platform Filter Bar (for master listings) ────────────────────────────────
+
+interface PlatformFilterBarProps {
+  active: PlatformFilter;
+  onChange: (p: PlatformFilter) => void;
+}
+
+function PlatformFilterBar({ active, onChange }: PlatformFilterBarProps) {
+  return (
+    <div
+      className="overflow-x-auto whitespace-nowrap scrollbar-none pb-1"
+      data-ocid="master-platform-filter-bar"
+    >
+      <div className="inline-flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange("all")}
+          className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth shrink-0 ${
+            active === "all"
+              ? "bg-primary/20 text-primary border border-primary/50"
+              : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+          }`}
+          data-ocid="master-platform-filter.all.tab"
+        >
+          All Listings
+        </button>
+        {ALL_PLATFORMS.map((p) => {
+          const cfg = PLATFORM_CONFIG[p];
+          const isActive = active === p;
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onChange(p)}
+              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth shrink-0 ${
+                isActive
+                  ? "bg-primary/20 text-primary border border-primary/50"
+                  : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+              }`}
+              data-ocid={`master-platform-filter.${p}.tab`}
+            >
+              {cfg.icon} {cfg.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab Bar ──────────────────────────────────────────────────────────────────
 
 interface TabBarProps {
@@ -313,6 +538,8 @@ export function DashboardPage() {
   const { data: listings, isLoading: listingsLoading } = useListings();
   const { data: favoritedListings, isLoading: favoritesLoading } =
     useFavoritedListings();
+  const { data: masterListingsRaw, isLoading: masterListingsLoading } =
+    useGetUserMasterListings();
   const { data: subscription } = useGetMySubscription();
   const { data: tiers } = useGetTiers();
   const checkLowFuel = useCheckLowFuelNotification();
@@ -321,19 +548,38 @@ export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [lowFuelBannerDismissed, setLowFuelBannerDismissed] = useState(false);
-  const [platformFilter, setPlatformFilter] = useState<
-    "all" | "facebook" | "mecari"
-  >("all");
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  const [masterPlatformFilter, setMasterPlatformFilter] =
+    useState<PlatformFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [newListingModalOpen, setNewListingModalOpen] = useState(false);
+  const [showMasterForm, setShowMasterForm] = useState(false);
   const [universalListingModalOpen, setUniversalListingModalOpen] =
     useState(false);
+  const [draftModal, setDraftModal] = useState<{
+    listingId: string;
+    platform: Platform;
+    masterListing?: {
+      title: string;
+      description: string;
+      price?: string | null;
+      category?: string | null;
+      tags?: string[];
+    };
+    existingDraft?: {
+      platformFields: Record<string, unknown>;
+      status: string;
+      completenessPercent: number;
+      isValid: boolean;
+    } | null;
+  } | null>(null);
 
   const lowFuelCheckFiredRef = useRef(false);
 
   const allListings = listings ?? [];
   const allFavorited = favoritedListings ?? [];
+  const masterListings: MasterListing[] = masterListingsRaw ?? [];
 
   // Subscription info
   const now = Date.now();
@@ -416,6 +662,22 @@ export function DashboardPage() {
     });
   }, [allFavorited]);
 
+  // Filtered master listings by platform
+  const filteredMasterListings = useMemo(() => {
+    if (masterPlatformFilter === "all") return masterListings;
+    return masterListings.filter((ml) =>
+      ml.platformDrafts.some((d) => {
+        const pRaw =
+          typeof d.platform === "string"
+            ? d.platform
+            : typeof d.platform === "object"
+              ? (Object.keys(d.platform as Record<string, unknown>)[0] ?? "")
+              : "";
+        return pRaw === masterPlatformFilter && d.status !== "unsaved";
+      }),
+    );
+  }, [masterListings, masterPlatformFilter]);
+
   function filterBySearch(items: Listing[]): Listing[] {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return items;
@@ -483,7 +745,7 @@ export function DashboardPage() {
             </Button>
             <Button
               size="sm"
-              onClick={() => setUniversalListingModalOpen(true)}
+              onClick={() => setShowMasterForm(true)}
               className="h-8 gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow-sm font-display font-bold tracking-wide text-xs"
               data-ocid="new-listing-btn"
             >
@@ -594,29 +856,36 @@ export function DashboardPage() {
               className="flex gap-2 flex-wrap"
               data-ocid="platform-filter-bar"
             >
-              {(["all", "facebook", "mecari"] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatformFilter(p)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                    platformFilter === p
-                      ? p === "all"
+              <button
+                type="button"
+                onClick={() => setPlatformFilter("all")}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                  platformFilter === "all"
+                    ? "bg-primary/20 text-primary border border-primary/50"
+                    : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+                }`}
+                data-ocid="platform-filter.all.tab"
+              >
+                All
+              </button>
+              {ALL_PLATFORMS.map((p) => {
+                const cfg = PLATFORM_CONFIG[p];
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlatformFilter(p)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                      platformFilter === p
                         ? "bg-primary/20 text-primary border border-primary/50"
-                        : p === "facebook"
-                          ? "bg-blue-600/20 text-blue-300 border border-blue-500/50"
-                          : "bg-pink-600/20 text-pink-300 border border-pink-500/50"
-                      : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-                  }`}
-                  data-ocid={`platform-filter.${p}.tab`}
-                >
-                  {p === "all"
-                    ? "All"
-                    : p === "facebook"
-                      ? "📘 Facebook"
-                      : "🏯 Mecari"}
-                </button>
-              ))}
+                        : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
+                    }`}
+                    data-ocid={`platform-filter.${p}.tab`}
+                  >
+                    {cfg.icon} {cfg.name}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Sort + Date filter row */}
@@ -675,16 +944,67 @@ export function DashboardPage() {
         ) : (
           <ListingsGrid listings={visibleListings} />
         )}
+
+        {/* ── Master Listings Section ─────────────────────────────────────── */}
+        {activeTab === "active" && (
+          <div className="mt-8 space-y-3" data-ocid="master-listings-section">
+            <div className="h-px bg-border/30" />
+
+            {/* Platform filter tabs for master listings */}
+            <PlatformFilterBar
+              active={masterPlatformFilter}
+              onChange={setMasterPlatformFilter}
+            />
+
+            {masterListingsLoading ? (
+              <SkeletonGrid />
+            ) : (
+              <MasterListingsGrid
+                masterListings={filteredMasterListings}
+                onEditDraft={(
+                  listingId,
+                  platform,
+                  masterListingData,
+                  existingDraft,
+                ) =>
+                  setDraftModal({
+                    listingId,
+                    platform,
+                    masterListing: masterListingData,
+                    existingDraft,
+                  })
+                }
+              />
+            )}
+          </div>
+        )}
       </div>
 
+      {/* ── Modals ──────────────────────────────────────────────────────────── */}
       <NewListingModal
         isOpen={newListingModalOpen}
         onClose={() => setNewListingModalOpen(false)}
+      />
+      <MasterListingForm
+        isOpen={showMasterForm}
+        onClose={() => setShowMasterForm(false)}
       />
       <UniversalListingForm
         isOpen={universalListingModalOpen}
         onClose={() => setUniversalListingModalOpen(false)}
       />
+
+      {/* Platform Draft Modal */}
+      {draftModal && (
+        <PlatformDraftModal
+          isOpen={!!draftModal}
+          onClose={() => setDraftModal(null)}
+          listingId={draftModal.listingId}
+          platform={draftModal.platform}
+          masterListing={draftModal.masterListing}
+          existingDraft={draftModal.existingDraft}
+        />
+      )}
     </Layout>
   );
 }

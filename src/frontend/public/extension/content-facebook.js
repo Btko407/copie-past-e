@@ -1,15 +1,34 @@
-// Copie Past-e Smart Post — Facebook Marketplace Content Script v1.2.0
+// Copie Past-e Smart Post — Facebook Marketplace Content Script v1.3.0
 // Runs on: https://www.facebook.com/marketplace/create/*
 // Reads pending listing from storage and auto-fills the React-controlled form.
 // Fill order: Category → Title → Price → Condition → Description → Brand → Images
-// Uses pollForElementPromise for every field; per-field try/catch prevents one
-// failure from blocking remaining fields or the image upload.
+//
+// ⛔ MANUAL-ONLY MANDATE: This script NEVER calls form.submit(), button.click(),
+//    or dispatches any submission-related event. The user must manually click Post.
 
 (() => {
+
+  // ── Configuration ─────────────────────────────────────────────────────────────
+  const CONFIG = {
+    DEBUG: false,            // Set true in development for verbose logging
+    PLATFORM: "facebook",
+    POLL_INTERVAL: 500,
+    POLL_TIMEOUT: 15000,
+    FIELD_TIMEOUT: 6000,
+    MAX_TITLE_LENGTH: 200,
+    MAX_DESCRIPTION_LENGTH: 5000,
+    MAX_IMAGES: 5,
+  };
+
   const LOG = "[Copie Past-e FB]";
-  const POLL_INTERVAL = 500;
-  const POLL_TIMEOUT = 15000;
-  const FIELD_TIMEOUT = 6000;
+
+  function log(...args) {
+    if (CONFIG.DEBUG) console.log(LOG, ...args);
+  }
+
+  function warn(...args) {
+    console.warn(LOG, ...args);
+  }
 
   // ── Sleep helper ─────────────────────────────────────────────────────────────
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,7 +47,7 @@
     "Jewelry & Accessories": "Jewelry & Accessories",
     "Tools & Machinery": "Tools",
     "Office Supplies": "Office Supplies",
-    "Services": null, // skip
+    "Services": null, // skip — not a valid FB Marketplace category
   };
 
   // ── Condition mapping ────────────────────────────────────────────────────────
@@ -40,26 +59,42 @@
     "Used -- Fair": "Fair",
     "Used — Normal Wear": "Good",
     "Used -- Normal Wear": "Good",
+    // Platform draft variant keys
+    "new_": "New",
+    "likeNew": "New",
+    "good": "Good",
+    "fair": "Fair",
+    "poor": "Fair",
   };
 
   // ── React input helpers ──────────────────────────────────────────────────────
 
-  function fillReactInput(element, value) {
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value"
-    ).set;
-    nativeInputValueSetter.call(element, value);
+  /** Set value on a React-controlled <input> using the native setter pattern. */
+  function setInputValue(element, value) {
+    try {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      ).set;
+      nativeInputValueSetter.call(element, value);
+    } catch (_) {
+      element.value = value;
+    }
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function fillReactTextarea(element, value) {
-    const nativeValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype,
-      "value"
-    ).set;
-    nativeValueSetter.call(element, value);
+  /** Set value on a React-controlled <textarea> using the native setter pattern. */
+  function setTextareaValue(element, value) {
+    try {
+      const nativeTextareaValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value"
+      ).set;
+      nativeTextareaValueSetter.call(element, value);
+    } catch (_) {
+      element.value = value;
+    }
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -79,13 +114,15 @@
 
   function findFirst(selectors) {
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) return el;
+      try {
+        const el = document.querySelector(sel);
+        if (el) return el;
+      } catch (_) {}
     }
     return null;
   }
 
-  // ── Poll for element ──────────────────────────────────────────────────────────
+  // ── Poll helpers ──────────────────────────────────────────────────────────────
 
   function pollForElement(selectors, onFound, timeoutMs) {
     const start = Date.now();
@@ -98,12 +135,12 @@
       }
       if (Date.now() - start > timeoutMs) {
         clearInterval(interval);
-        console.warn(LOG, "Timed out waiting for:", selectors);
+        warn("Timed out waiting for:", selectors);
       }
-    }, POLL_INTERVAL);
+    }, CONFIG.POLL_INTERVAL);
   }
 
-  function pollForElementPromise(selectors, timeoutMs = POLL_TIMEOUT) {
+  function pollForElementPromise(selectors, timeoutMs = CONFIG.POLL_TIMEOUT) {
     return new Promise((resolve) => {
       const start = Date.now();
       const interval = setInterval(() => {
@@ -117,7 +154,7 @@
           clearInterval(interval);
           resolve(null);
         }
-      }, POLL_INTERVAL);
+      }, CONFIG.POLL_INTERVAL);
     });
   }
 
@@ -150,9 +187,10 @@
     const message = document.createElement("span");
     if (!failedFields || failedFields.length === 0) {
       message.innerHTML =
-        '<span style="color:#00d4ff;font-weight:bold">⚡ Copie Past-e</span> — All fields filled by Copie Past-e. Review and click <strong>Post</strong>.';
+        '<span style="color:#00d4ff;font-weight:bold">⚡ Copie Past-e</span> — All fields filled. Review and click <strong>Post</strong>.';
     } else {
-      message.innerHTML = `<span style="color:#ffaa00;font-weight:bold">⚠️ Copie Past-e</span> — Some fields could not be filled. Please check: <strong style="color:#ffaa00">${failedFields.join(", ")}</strong>`;
+      message.innerHTML =
+        `<span style="color:#ffaa00;font-weight:bold">⚠️ Copie Past-e</span> — Could not fill: <strong style="color:#ffaa00">${failedFields.join(", ")}</strong>`;
     }
 
     const dismiss = document.createElement("button");
@@ -199,13 +237,12 @@
     }
 
     if (!fileInput) {
-      console.warn(LOG, "Could not locate file upload input.");
+      warn("Could not locate file upload input.");
       return;
     }
 
-    // Convert image URLs/base64 to File objects via DataTransfer
     const dt = new DataTransfer();
-    for (let i = 0; i < Math.min(images.length, 5); i++) {
+    for (let i = 0; i < Math.min(images.length, CONFIG.MAX_IMAGES); i++) {
       try {
         const src = images[i];
         let blob;
@@ -223,9 +260,9 @@
           blob = await resp.blob();
         }
         dt.items.add(new File([blob], `listing-photo-${i + 1}.jpg`, { type: "image/jpeg" }));
+        log(`Image ${i + 1} converted OK`);
       } catch (err) {
-        // Log and continue — one failed image must not block the rest
-        console.warn(LOG, `Failed to convert image ${i}:`, err.message);
+        warn(`Failed to convert image ${i}:`, err.message);
       }
     }
 
@@ -233,8 +270,9 @@
       fileInput.files = dt.files;
       fileInput.dispatchEvent(new Event("input", { bubbles: true }));
       fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      log(`${dt.files.length} image(s) attached to file input`);
     } else {
-      console.warn(LOG, "No images could be converted for upload.");
+      warn("No images could be converted for upload.");
     }
   }
 
@@ -245,7 +283,7 @@
 
     const fbCategory = CATEGORY_MAP[rawCategory];
     if (fbCategory === null) {
-      console.log(LOG, "Category 'Services' — skipping category fill.");
+      log("Category 'Services' — skipping category fill.");
       return true;
     }
     const target = fbCategory || rawCategory;
@@ -255,10 +293,10 @@
       '[placeholder*="category" i]',
       'select[name*="category" i]',
       'div[role="combobox"][aria-label*="category" i]',
-    ], FIELD_TIMEOUT);
+    ], CONFIG.FIELD_TIMEOUT);
 
     if (!catTrigger) {
-      console.warn(LOG, "Category trigger not found");
+      warn("Category trigger not found");
       return false;
     }
 
@@ -272,6 +310,7 @@
       if (match) {
         catTrigger.value = match.value;
         catTrigger.dispatchEvent(new Event("change", { bubbles: true }));
+        log("Category set via SELECT:", match.text);
         return true;
       }
       return false;
@@ -288,11 +327,12 @@
         target.toLowerCase().includes(text)
       ) {
         opt.click();
+        log("Category set via dropdown:", opt.textContent.trim());
         return true;
       }
     }
 
-    console.warn(LOG, "No matching category option found for:", target);
+    warn("No matching category option found for:", target);
     return false;
   }
 
@@ -308,10 +348,10 @@
       'select[name*="condition" i]',
       'div[role="combobox"][aria-label*="condition" i]',
       '[placeholder*="condition" i]',
-    ], FIELD_TIMEOUT);
+    ], CONFIG.FIELD_TIMEOUT);
 
     if (!condTrigger) {
-      console.warn(LOG, "Condition trigger not found");
+      warn("Condition trigger not found");
       return false;
     }
 
@@ -325,6 +365,7 @@
       if (match) {
         condTrigger.value = match.value;
         condTrigger.dispatchEvent(new Event("change", { bubbles: true }));
+        log("Condition set via SELECT:", match.text);
         return true;
       }
       return false;
@@ -341,163 +382,261 @@
         fbCondition.toLowerCase().includes(text)
       ) {
         opt.click();
+        log("Condition set via dropdown:", opt.textContent.trim());
         return true;
       }
     }
 
-    console.warn(LOG, "No matching condition option found for:", fbCondition);
+    warn("No matching condition option found for:", fbCondition);
     return false;
   }
 
-  // ── Main fill logic (sequential, 500ms between fields) ───────────────────────
+  // ── Main fill logic ───────────────────────────────────────────────────────────
+  //
+  // ⛔ NO form.submit() / NO button.click() / NO submit events — EVER.
+  //    User must manually review and click the platform's "Post" button.
 
   async function fillForm(listing) {
     const failedFields = [];
+    let fieldsAttempted = 0;
+    let fieldsSuccessful = 0;
+
+    log("Starting autofill for listing:", listing.title);
 
     // ── 1. Category ────────────────────────────────────────────────────────────
-    try {
-      if (listing.category) {
+    if (listing.category) {
+      fieldsAttempted++;
+      try {
         const ok = await fillCategory(listing.category);
-        if (!ok && listing.category !== "Services") failedFields.push("Category");
+        if (ok) {
+          fieldsSuccessful++;
+          log("✅ Category filled");
+        } else if (listing.category !== "Services") {
+          failedFields.push("Category");
+          warn("❌ Category failed");
+        }
+      } catch (err) {
+        warn("Error filling Category:", err.message);
+        failedFields.push("Category");
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Category:", err.message);
-      failedFields.push("Category");
+      await sleep(500);
     }
-    await sleep(500);
 
     // ── 2. Title ───────────────────────────────────────────────────────────────
-    try {
-      const titleEl = await pollForElementPromise([
-        'input[aria-label="Title"]',
-        'input[aria-label*="title" i]',
-        'input[placeholder*="title" i]',
-        'input[name="title"]',
-        'input[type="text"]:first-of-type',
-      ], FIELD_TIMEOUT);
-      if (titleEl && listing.title) {
-        fillReactInput(titleEl, listing.title);
-      } else if (listing.title) {
+    if (listing.title) {
+      fieldsAttempted++;
+      try {
+        const titleEl = await pollForElementPromise([
+          'input[aria-label="Title"]',
+          'input[aria-label*="title" i]',
+          'input[placeholder*="title" i]',
+          'input[placeholder*="What are you selling" i]',
+          'input[name="title"]',
+          'input[data-testid*="title"]',
+          'input[type="text"]:first-of-type',
+        ], CONFIG.FIELD_TIMEOUT);
+
+        if (titleEl) {
+          const titleValue = listing.title.substring(0, CONFIG.MAX_TITLE_LENGTH);
+          setInputValue(titleEl, titleValue);
+          fieldsSuccessful++;
+          log(`✅ Title filled: ${titleValue.substring(0, 40)}...`);
+        } else {
+          failedFields.push("Title");
+          warn("❌ Title input not found");
+        }
+      } catch (err) {
+        warn("Error filling Title:", err.message);
         failedFields.push("Title");
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Title:", err.message);
-      failedFields.push("Title");
+      await sleep(500);
     }
-    await sleep(500);
 
     // ── 3. Price ───────────────────────────────────────────────────────────────
-    try {
-      const priceEl = await pollForElementPromise([
-        'input[aria-label="Price"]',
-        'input[aria-label*="price" i]',
-        'input[placeholder*="price" i]',
-        'input[name="price"]',
-        'input[type="number"]',
-      ], FIELD_TIMEOUT);
-      if (priceEl && listing.price) {
-        const numericPrice = String(listing.price).replace(/[^0-9.]/g, "");
-        fillReactInput(priceEl, numericPrice);
-      } else if (listing.price) {
+    if (listing.price) {
+      fieldsAttempted++;
+      try {
+        const priceEl = await pollForElementPromise([
+          'input[aria-label="Price"]',
+          'input[aria-label*="price" i]',
+          'input[placeholder*="price" i]',
+          'input[data-testid*="price"]',
+          'input[name="price"]',
+          'input[type="number"]',
+        ], CONFIG.FIELD_TIMEOUT);
+
+        if (priceEl) {
+          const numericPrice = String(listing.price).replace(/[^0-9.]/g, "");
+          setInputValue(priceEl, numericPrice);
+          fieldsSuccessful++;
+          log("✅ Price filled:", numericPrice);
+        } else {
+          failedFields.push("Price");
+          warn("❌ Price input not found");
+        }
+      } catch (err) {
+        warn("Error filling Price:", err.message);
         failedFields.push("Price");
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Price:", err.message);
-      failedFields.push("Price");
+      await sleep(500);
     }
-    await sleep(500);
 
     // ── 4. Condition ───────────────────────────────────────────────────────────
-    try {
-      if (listing.condition) {
+    if (listing.condition) {
+      fieldsAttempted++;
+      try {
         const ok = await fillCondition(listing.condition);
-        if (!ok) failedFields.push("Condition");
+        if (ok) {
+          fieldsSuccessful++;
+          log("✅ Condition filled");
+        } else {
+          failedFields.push("Condition");
+          warn("❌ Condition failed");
+        }
+      } catch (err) {
+        warn("Error filling Condition:", err.message);
+        failedFields.push("Condition");
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Condition:", err.message);
-      failedFields.push("Condition");
+      await sleep(500);
     }
-    await sleep(500);
 
     // ── 5. Description ─────────────────────────────────────────────────────────
-    try {
-      const descEl = await pollForElementPromise([
-        'textarea[aria-label="Description"]',
-        'textarea[aria-label*="description" i]',
-        'textarea[placeholder*="description" i]',
-        'textarea[name="description"]',
-        'div[contenteditable="true"]',
-      ], FIELD_TIMEOUT);
-      if (descEl && listing.description) {
-        if (descEl.tagName === "TEXTAREA") {
-          fillReactTextarea(descEl, listing.description);
+    if (listing.description) {
+      fieldsAttempted++;
+      try {
+        const descEl = await pollForElementPromise([
+          'textarea[aria-label="Description"]',
+          'textarea[aria-label*="description" i]',
+          'textarea[placeholder*="description" i]',
+          'textarea[placeholder*="Describe" i]',
+          'textarea[data-testid*="description"]',
+          'textarea[name="description"]',
+          'div[contenteditable="true"]',
+        ], CONFIG.FIELD_TIMEOUT);
+
+        if (descEl) {
+          const descValue = listing.description.substring(0, CONFIG.MAX_DESCRIPTION_LENGTH);
+          if (descEl.tagName === "TEXTAREA") {
+            setTextareaValue(descEl, descValue);
+          } else {
+            fillContentEditable(descEl, descValue);
+          }
+          fieldsSuccessful++;
+          log("✅ Description filled");
         } else {
-          fillContentEditable(descEl, listing.description);
+          failedFields.push("Description");
+          warn("❌ Description textarea not found");
         }
-      } else if (listing.description) {
+      } catch (err) {
+        warn("Error filling Description:", err.message);
         failedFields.push("Description");
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Description:", err.message);
-      failedFields.push("Description");
+      await sleep(500);
     }
-    await sleep(500);
 
-    // ── 6. Brand (best effort) ────────────────────────────────────────────────
-    try {
-      if (listing.brand) {
+    // ── 6. Brand (best-effort, no failure recorded) ────────────────────────────
+    if (listing.brand) {
+      try {
         const brandEl = await pollForElementPromise([
           'input[aria-label*="brand" i]',
           'input[placeholder*="brand" i]',
           'input[name*="brand" i]',
-        ], FIELD_TIMEOUT);
+          'input[data-testid*="brand"]',
+        ], CONFIG.FIELD_TIMEOUT);
         if (brandEl) {
-          fillReactInput(brandEl, listing.brand);
+          setInputValue(brandEl, listing.brand);
+          log("✅ Brand filled (best-effort)");
+        } else {
+          log("ℹ️ Brand field not present on this Facebook form (best-effort)");
         }
-        // Brand is best-effort — no failedFields push on miss
+      } catch (err) {
+        warn("Error filling Brand (best-effort):", err.message);
       }
-    } catch (err) {
-      console.warn(LOG, "Error filling Brand (best effort):", err.message);
+      await sleep(500);
     }
-    await sleep(500);
 
     // ── 7. Images ──────────────────────────────────────────────────────────────
-    // Image upload failures do NOT block the banner — always continue.
     if (listing.images && listing.images.length > 0) {
       try {
         await uploadImages(listing.images);
+        log("✅ Images upload attempted");
       } catch (err) {
-        console.warn(LOG, "Image upload error:", err.message);
+        warn("Image upload error:", err.message);
       }
     }
 
-    // Clear storage and show banner (always show even if some fields failed)
+    // ── Finish ─────────────────────────────────────────────────────────────────
     chrome.storage.local.remove("pendingPost");
     showBanner(failedFields);
+
+    const success = failedFields.length === 0;
+    log(`Autofill complete. Attempted: ${fieldsAttempted}, Successful: ${fieldsSuccessful}, Failed: ${failedFields.length}`);
+
+    // Report result to extension background/popup
+    try {
+      chrome.runtime.sendMessage({
+        action: "autofillComplete",
+        platform: CONFIG.PLATFORM,
+        success,
+        fieldsAttempted,
+        fieldsSuccessful,
+        failedFields,
+      });
+    } catch (_) {
+      // Runtime may be unavailable if popup is closed — not an error
+    }
   }
 
-  // ── Boot ──────────────────────────────────────────────────────────────────────
+  // ── Message listener (popup → content script) ────────────────────────────────
+
+  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+    if (request.action === "isReady") {
+      sendResponse({ ready: true, platform: CONFIG.PLATFORM });
+      return true;
+    }
+
+    if (request.action === "autofill" && request.platform === CONFIG.PLATFORM) {
+      const listing = request.data;
+      if (!listing) {
+        sendResponse({ error: "No listing data provided" });
+        return true;
+      }
+      fillForm(listing)
+        .then(() => sendResponse({ received: true }))
+        .catch((err) => sendResponse({ error: err.message }));
+      return true; // keep channel open for async response
+    }
+  });
+
+  // ── Boot (storage-based flow) ─────────────────────────────────────────────────
 
   chrome.storage.local.get("pendingPost", (result) => {
     const listing = result.pendingPost;
     if (!listing) {
-      console.log(LOG, "No pending post — exiting.");
+      log("No pending post — exiting.");
+      return;
+    }
+    if (listing.platform && listing.platform !== CONFIG.PLATFORM) {
+      log("Post is for:", listing.platform, "— not Facebook, exiting.");
       return;
     }
 
-    console.log(LOG, "Pending post found:", listing.title);
+    log("Pending post found:", listing.title);
 
-    // Wait for form to load (poll for title input) then fill
+    // Wait for form to mount, then fill
     pollForElement(
       [
         'input[aria-label="Title"]',
         'input[aria-label*="title" i]',
         'input[placeholder*="title" i]',
+        'input[placeholder*="What are you selling" i]',
         'input[name="title"]',
         'input[type="text"]',
       ],
       () => fillForm(listing),
-      POLL_TIMEOUT
+      CONFIG.POLL_TIMEOUT
     );
   });
+
+  log("Content script loaded — manual-only autofill active.");
 })();

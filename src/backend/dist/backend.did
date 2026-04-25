@@ -139,6 +139,14 @@ type UpdateProfileArgs =
    email: opt text;
    phoneNumber: opt text;
  };
+type UpdateMasterListingArgs = 
+ record {
+   category: opt text;
+   description: opt text;
+   price: opt text;
+   tags: opt vec text;
+   title: opt text;
+ };
 type UpdateListingArgs = 
  record {
    category: opt text;
@@ -277,6 +285,12 @@ type ScrapeResult =
    err: text;
    ok: ScrapedListing;
  };
+type SavePlatformDraftArgs = 
+ record {
+   photos: vec blob;
+   platform: Platform__2;
+   platformFields: PlatformFields;
+ };
 type RestoreResult = 
  record {
    errorMessage: opt text;
@@ -330,6 +344,26 @@ type PricingRules =
                                    };
    priceMarkupPercent: opt float64;
  };
+type PoshmarkFields = 
+ record {
+   brand: opt text;
+   category: opt text;
+   condition: opt text;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   size: opt text;
+   title: text;
+ };
+type Platform__2 = 
+ variant {
+   depop;
+   ebay;
+   etsy;
+   facebook;
+   mecari;
+   poshmark;
+ };
 type Platform__1 = 
  variant {
    facebook;
@@ -348,6 +382,31 @@ type PlatformTarget =
    publishedAt: opt int;
    status: RemoteListingStatus;
    syncedAt: opt int;
+ };
+type PlatformListingDraft = 
+ record {
+   completenessPercent: nat;
+   createdAt: int;
+   draftId: text;
+   isValid: bool;
+   lastEditedAt: int;
+   manualPostingLog: vec ManualPostEntry;
+   platform: Platform__2;
+   platformFields: PlatformFields;
+   status: DraftStatus;
+   validationErrors: vec record {
+                           error: text;
+                           field: text;
+                         };
+ };
+type PlatformFields = 
+ variant {
+   depop: DepopFields;
+   ebay: EbayFields;
+   etsy: EtsyFields;
+   facebook: FacebookFields;
+   mecari: MecariFields;
+   poshmark: PoshmarkFields;
  };
 type PlatformCapabilities = 
  record {
@@ -481,6 +540,52 @@ type NotificationType =
    subscriptionExpiry;
    subscriptionRenewed;
  };
+type MecariFields = 
+ record {
+   brand: text;
+   category: opt text;
+   condition: opt MecariCondition5Scale;
+   deliveryDays: opt nat;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   shippingType: opt variant {
+                       fast;
+                       normal;
+                       sameDay;
+                     };
+   title: text;
+ };
+type MecariCondition5Scale = 
+ variant {
+   fair;
+   good;
+   likeNew;
+   new;
+   poor;
+ };
+type MasterListing = 
+ record {
+   archivedAt: opt int;
+   archivedReason: opt text;
+   auditLog: vec AuditEntry;
+   category: opt text;
+   createdAt: int;
+   description: text;
+   expirationDate: opt int;
+   favoriteCount: nat;
+   id: text;
+   photos: vec blob;
+   pinned: bool;
+   pinnedAt: opt int;
+   platformDrafts: vec PlatformListingDraft;
+   price: opt text;
+   status: ListingStatus__2;
+   tags: vec text;
+   title: text;
+   updatedAt: int;
+   userId: principal;
+ };
 type MarketplaceSource = 
  variant {
    facebookMarketplace;
@@ -492,11 +597,32 @@ type MarkReadResult =
    err: text;
    ok;
  };
+type ManualPostEntry = 
+ record {
+   action: ManualPostAction;
+   message: text;
+   remoteUrl: opt text;
+   timestamp: int;
+ };
+type ManualPostAction = 
+ variant {
+   drafted;
+   edited;
+   error;
+   saved;
+   submitted;
+ };
 type LoyaltyStatus = 
  record {
    currentTier: TierName;
    refuelCount: nat;
    rewardClaimedForTiers: vec TierName;
+ };
+type ListingStatus__2 = 
+ variant {
+   active;
+   archived;
+   draft;
  };
 type ListingStatus__1 = 
  variant {
@@ -690,6 +816,25 @@ type FbCredentials =
    accessToken: text;
    appId: text;
  };
+type FacebookFields = 
+ record {
+   category: opt text;
+   condition: opt FacebookCondition;
+   description: text;
+   localPickup: bool;
+   photos: vec blob;
+   price: opt text;
+   shipping: bool;
+   title: text;
+ };
+type FacebookCondition = 
+ variant {
+   fair;
+   good;
+   likeNew;
+   new;
+   poor;
+ };
 type ExternalBlob = blob;
 type ExtensionVersion = 
  record {
@@ -733,6 +878,45 @@ type ExtensionListingData =
    title: text;
    totalImageSize: opt nat;
  };
+type EtsyFields = 
+ record {
+   category: opt text;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   tags: vec text;
+   title: text;
+ };
+type ErrorCode = 
+ variant {
+   draftNotFound;
+   duplicateEntry;
+   invalidInput;
+   notFound;
+   platformNotSupported;
+   quotaExceeded;
+   systemError;
+   unauthorized;
+ };
+type EbayFields = 
+ record {
+   category: opt text;
+   condition: opt FacebookCondition;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   quantity: nat;
+   shippingCost: opt text;
+   title: text;
+ };
+type DraftStatus = 
+ variant {
+   posted;
+   preparing;
+   ready;
+   saved;
+   unsaved;
+ };
 type DraftListingId = nat;
 type DiscountType = 
  variant {
@@ -750,6 +934,17 @@ type DiscountCode =
    maxUses: nat;
    tierRestriction: opt nat;
    usageCount: nat;
+ };
+type DepopFields = 
+ record {
+   brand: opt text;
+   category: opt text;
+   condition: opt text;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   size: opt text;
+   title: text;
  };
 type CrossListingCampaign = 
  record {
@@ -771,6 +966,15 @@ type CreateVersionArgs =
  record {
    description: text;
    versionLabel: text;
+ };
+type CreateMasterListingArgs = 
+ record {
+   category: opt text;
+   description: text;
+   photos: vec blob;
+   price: opt text;
+   tags: vec text;
+   title: text;
  };
 type CreateListingArgs = 
  record {
@@ -931,6 +1135,13 @@ type AuditLogEntry =
    targetUserId: opt UserId;
    timestamp: Timestamp;
  };
+type AuditEntry = 
+ record {
+   action: text;
+   caller: principal;
+   details: opt text;
+   timestamp: int;
+ };
 type AppVersion = 
  record {
    createdAt: Timestamp;
@@ -940,6 +1151,11 @@ type AppVersion =
    isRollback: bool;
    settingsSnapshot: SiteSettings;
    versionLabel: text;
+ };
+type AppError = 
+ record {
+   code: ErrorCode;
+   message: text;
  };
 type AdminTierAction = 
  record {
@@ -1092,6 +1308,11 @@ service : {
                                     });
   adminUpsertTier: (config: TierConfig) -> ();
   archiveListing: (listingId: ListingId) -> (Listing);
+  archiveMasterListing: (listingId: text, reason: opt text) ->
+   (variant {
+      err: AppError;
+      ok: text;
+    });
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   assignUserRole: (userId: text, role: text) -> ();
   checkAndCreateLowFuelNotification: (fuelPercent: float64,
@@ -1139,6 +1360,11 @@ service : {
       ok: nat;
     });
   createListing: (args: CreateListingArgs) -> (Listing);
+  createMasterListing: (args: CreateMasterListingArgs) ->
+   (variant {
+      err: AppError;
+      ok: text;
+    });
   createStripeCheckoutSession: (priceId: text, userId: text) ->
    (variant {
       err: text;
@@ -1292,12 +1518,28 @@ service : {
   getIntegrationStatus: () -> (vec IntegrationStatus);
   getLatestExtensionVersion: () -> (opt ExtensionUpdateCheck) query;
   getListing: (id: ListingId) -> (opt Listing) query;
+  getListingsByPlatform: (platform: Platform__2) ->
+   (variant {
+      err: AppError;
+      ok: vec MasterListing;
+    }) query;
   getLoyaltyStatus: () -> (LoyaltyStatus) query;
   getMaintenanceMode: () ->
    (record {
       eta: text;
       isActive: bool;
       message: text;
+    }) query;
+  getMasterListing: (listingId: text) ->
+   (variant {
+      err: AppError;
+      ok: MasterListing;
+    }) query;
+  getMasterListingStats: () ->
+   (record {
+      totalDrafts: nat;
+      totalListings: nat;
+      totalUsers: nat;
     }) query;
   getMyBackups: () -> (vec BackupRecord) query;
   getMyFbCredentials: () -> (opt FbCredentials) query;
@@ -1395,6 +1637,11 @@ service : {
   getTiers: () -> (vec TierConfig) query;
   getUniversalListing: (listingId: text) -> (opt UniversalListing) query;
   getUnreadAdminNotificationCount: () -> (nat) query;
+  getUserMasterListings: () ->
+   (variant {
+      err: AppError;
+      ok: vec MasterListing;
+    }) query;
   getUserNotifications: () -> (vec InAppNotification) query;
   getUserUniversalListings: () -> (vec UniversalListing) query;
   getVerificationStatus: () -> (opt VerificationRecord) query;
@@ -1475,6 +1722,11 @@ service : {
       err: text;
       ok: text;
     });
+  logManualPosting: (listingId: text, platform: Platform__2, remoteUrl:
+   opt text) -> (variant {
+                   err: AppError;
+                   ok: text;
+                 });
   markAdminNotificationRead: (id: nat) -> ();
   markAllAdminNotificationsRead: () -> ();
   markAllNotificationsRead: () -> ();
@@ -1484,6 +1736,11 @@ service : {
                                     });
   markBackupAsStable: (backupId: text) -> (bool);
   markNotificationRead: (notificationId: nat) -> (MarkReadResult);
+  markUniversalListingReady: (listingId: text) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   ocrScanImage: (imageBase64: text) -> (variant {
                                           err: text;
                                           ok: OcrResult;
@@ -1503,11 +1760,6 @@ service : {
        snapshotCreatedAt: Timestamp;
        userCount: nat;
      }) query;
-  publishUniversalListing: (listingId: text) ->
-   (variant {
-      err: text;
-      ok: text;
-    });
   receiveExtensionData: (data: ExtensionListingData, webhookToken: text) ->
    (variant {
       err: text;
@@ -1557,6 +1809,11 @@ service : {
    (variant {
       err: text;
       ok;
+    });
+  savePlatformDraft: (listingId: text, args: SavePlatformDraftArgs) ->
+   (variant {
+      err: AppError;
+      ok: text;
     });
   scrapeListing: (url: text) -> (ScrapeResult);
   searchVersionSnapshots: (backupTypeFilter: opt text, minUserCount: 
@@ -1835,6 +2092,11 @@ service : {
       ok: text;
     });
   updateListing: (args: UpdateListingArgs) -> (Listing);
+  updateMasterListing: (listingId: text, args: UpdateMasterListingArgs) ->
+   (variant {
+      err: AppError;
+      ok: text;
+    });
   updateMecariAutofillSettings: (prefillTitle: bool, prefillDescription:
    bool, prefillPrice: bool, prefillBrand: bool, prefillCategory: bool,
    prefillCondition: bool, autoSelectDeliveryDays: bool, deliveryDaysValue:

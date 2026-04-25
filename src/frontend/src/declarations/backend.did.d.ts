@@ -35,6 +35,7 @@ export interface AdminTierAction {
   'daysAdded' : bigint,
   'adminId' : Principal,
 }
+export interface AppError { 'code' : ErrorCode, 'message' : string }
 export interface AppVersion {
   'id' : bigint,
   'versionLabel' : string,
@@ -43,6 +44,12 @@ export interface AppVersion {
   'description' : string,
   'settingsSnapshot' : SiteSettings,
   'isRollback' : boolean,
+}
+export interface AuditEntry {
+  'action' : string,
+  'timestamp' : bigint,
+  'details' : [] | [string],
+  'caller' : Principal,
 }
 export interface AuditLogEntry {
   'id' : bigint,
@@ -181,6 +188,14 @@ export interface CreateListingArgs {
   'mecariBrand' : [] | [string],
   'price' : [] | [string],
 }
+export interface CreateMasterListingArgs {
+  'title' : string,
+  'tags' : Array<string>,
+  'description' : string,
+  'category' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+}
 export interface CreateVersionArgs {
   'versionLabel' : string,
   'description' : string,
@@ -198,6 +213,16 @@ export interface CrossListingCampaign {
   'results' : CampaignResults,
   'targetPlatforms' : Array<string>,
 }
+export interface DepopFields {
+  'title' : string,
+  'size' : [] | [string],
+  'description' : string,
+  'category' : [] | [string],
+  'brand' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'condition' : [] | [string],
+}
 export interface DiscountCode {
   'id' : bigint,
   'active' : boolean,
@@ -212,6 +237,37 @@ export interface DiscountCode {
 export type DiscountType = { 'fixedUSD' : null } |
   { 'percentage' : null };
 export type DraftListingId = bigint;
+export type DraftStatus = { 'preparing' : null } |
+  { 'unsaved' : null } |
+  { 'saved' : null } |
+  { 'ready' : null } |
+  { 'posted' : null };
+export interface EbayFields {
+  'title' : string,
+  'description' : string,
+  'shippingCost' : [] | [string],
+  'quantity' : bigint,
+  'category' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'condition' : [] | [FacebookCondition],
+}
+export type ErrorCode = { 'platformNotSupported' : null } |
+  { 'invalidInput' : null } |
+  { 'duplicateEntry' : null } |
+  { 'systemError' : null } |
+  { 'notFound' : null } |
+  { 'quotaExceeded' : null } |
+  { 'unauthorized' : null } |
+  { 'draftNotFound' : null };
+export interface EtsyFields {
+  'title' : string,
+  'tags' : Array<string>,
+  'description' : string,
+  'category' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+}
 export interface ExtensionListingData {
   'mecariCondition' : [] | [ItemCondition],
   'totalImageSize' : [] | [bigint],
@@ -252,6 +308,21 @@ export interface ExtensionVersion {
   'isForceUpdate' : boolean,
 }
 export type ExternalBlob = Uint8Array;
+export type FacebookCondition = { 'new' : null } |
+  { 'fair' : null } |
+  { 'good' : null } |
+  { 'poor' : null } |
+  { 'likeNew' : null };
+export interface FacebookFields {
+  'title' : string,
+  'localPickup' : boolean,
+  'shipping' : boolean,
+  'description' : string,
+  'category' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'condition' : [] | [FacebookCondition],
+}
 export interface FbCredentials { 'appId' : string, 'accessToken' : string }
 export interface FbListing {
   'id' : string,
@@ -401,16 +472,71 @@ export type ListingStatus__1 = { 'active' : null } |
   { 'sold' : null } |
   { 'draft' : null } |
   { 'archived' : null };
+export type ListingStatus__2 = { 'active' : null } |
+  { 'draft' : null } |
+  { 'archived' : null };
 export interface LoyaltyStatus {
   'rewardClaimedForTiers' : Array<TierName>,
   'currentTier' : TierName,
   'refuelCount' : bigint,
+}
+export type ManualPostAction = { 'submitted' : null } |
+  { 'edited' : null } |
+  { 'error' : null } |
+  { 'saved' : null } |
+  { 'drafted' : null };
+export interface ManualPostEntry {
+  'action' : ManualPostAction,
+  'message' : string,
+  'remoteUrl' : [] | [string],
+  'timestamp' : bigint,
 }
 export type MarkReadResult = { 'ok' : null } |
   { 'err' : string };
 export type MarketplaceSource = { 'facebookMarketplace' : null } |
   { 'offerUp' : null } |
   { 'unknown' : null };
+export interface MasterListing {
+  'id' : string,
+  'status' : ListingStatus__2,
+  'title' : string,
+  'platformDrafts' : Array<PlatformListingDraft>,
+  'userId' : Principal,
+  'createdAt' : bigint,
+  'tags' : Array<string>,
+  'description' : string,
+  'auditLog' : Array<AuditEntry>,
+  'updatedAt' : bigint,
+  'pinned' : boolean,
+  'expirationDate' : [] | [bigint],
+  'pinnedAt' : [] | [bigint],
+  'category' : [] | [string],
+  'archivedReason' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'favoriteCount' : bigint,
+  'archivedAt' : [] | [bigint],
+}
+export type MecariCondition5Scale = { 'new' : null } |
+  { 'fair' : null } |
+  { 'good' : null } |
+  { 'poor' : null } |
+  { 'likeNew' : null };
+export interface MecariFields {
+  'title' : string,
+  'deliveryDays' : [] | [bigint],
+  'description' : string,
+  'shippingType' : [] | [
+    { 'normal' : null } |
+      { 'fast' : null } |
+      { 'sameDay' : null }
+  ],
+  'category' : [] | [string],
+  'brand' : string,
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'condition' : [] | [MecariCondition5Scale],
+}
 export type NotificationType = { 'refuelSuccess' : null } |
   { 'lowFuelWarning' : null } |
   { 'subscriptionExpiry' : null } |
@@ -523,6 +649,24 @@ export interface PlatformCapabilities {
   'requiresCategory' : boolean,
   'supportsBrand' : boolean,
 }
+export type PlatformFields = { 'poshmark' : PoshmarkFields } |
+  { 'ebay' : EbayFields } |
+  { 'etsy' : EtsyFields } |
+  { 'facebook' : FacebookFields } |
+  { 'depop' : DepopFields } |
+  { 'mecari' : MecariFields };
+export interface PlatformListingDraft {
+  'status' : DraftStatus,
+  'lastEditedAt' : bigint,
+  'createdAt' : bigint,
+  'validationErrors' : Array<{ 'field' : string, 'error' : string }>,
+  'platform' : Platform__2,
+  'manualPostingLog' : Array<ManualPostEntry>,
+  'isValid' : boolean,
+  'platformFields' : PlatformFields,
+  'draftId' : string,
+  'completenessPercent' : bigint,
+}
 export interface PlatformTarget {
   'status' : RemoteListingStatus,
   'listingId' : [] | [string],
@@ -538,6 +682,22 @@ export type Platform__1 = { 'facebook' : null } |
   { 'offerUp' : null } |
   { 'unknown' : null } |
   { 'mecari' : null };
+export type Platform__2 = { 'poshmark' : null } |
+  { 'ebay' : null } |
+  { 'etsy' : null } |
+  { 'facebook' : null } |
+  { 'depop' : null } |
+  { 'mecari' : null };
+export interface PoshmarkFields {
+  'title' : string,
+  'size' : [] | [string],
+  'description' : string,
+  'category' : [] | [string],
+  'brand' : [] | [string],
+  'price' : [] | [string],
+  'photos' : Array<Uint8Array>,
+  'condition' : [] | [string],
+}
 export interface PricingRules {
   'maxPrice' : [] | [string],
   'priceAdjustmentPerPlatform' : Array<[string, string]>,
@@ -571,6 +731,11 @@ export interface RestoreResult {
   'usersRestored' : bigint,
   'listingsRestored' : bigint,
   'success' : boolean,
+}
+export interface SavePlatformDraftArgs {
+  'platform' : Platform__2,
+  'platformFields' : PlatformFields,
+  'photos' : Array<Uint8Array>,
 }
 export type ScrapeResult = { 'ok' : ScrapedListing } |
   { 'err' : string };
@@ -689,6 +854,13 @@ export interface UpdateListingArgs {
   'category' : [] | [string],
   'mecariShippingType' : [] | [string],
   'mecariBrand' : [] | [string],
+  'price' : [] | [string],
+}
+export interface UpdateMasterListingArgs {
+  'title' : [] | [string],
+  'tags' : [] | [Array<string>],
+  'description' : [] | [string],
+  'category' : [] | [string],
   'price' : [] | [string],
 }
 export interface UpdateProfileArgs {
@@ -951,6 +1123,11 @@ export interface _SERVICE {
   >,
   'adminUpsertTier' : ActorMethod<[TierConfig], undefined>,
   'archiveListing' : ActorMethod<[ListingId], Listing>,
+  'archiveMasterListing' : ActorMethod<
+    [string, [] | [string]],
+    { 'ok' : string } |
+      { 'err' : AppError }
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'assignUserRole' : ActorMethod<[string, string], undefined>,
   'checkAndCreateLowFuelNotification' : ActorMethod<
@@ -998,6 +1175,11 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'createListing' : ActorMethod<[CreateListingArgs], Listing>,
+  'createMasterListing' : ActorMethod<
+    [CreateMasterListingArgs],
+    { 'ok' : string } |
+      { 'err' : AppError }
+  >,
   'createStripeCheckoutSession' : ActorMethod<
     [string, string],
     { 'ok' : string } |
@@ -1155,10 +1337,24 @@ export interface _SERVICE {
   'getIntegrationStatus' : ActorMethod<[], Array<IntegrationStatus>>,
   'getLatestExtensionVersion' : ActorMethod<[], [] | [ExtensionUpdateCheck]>,
   'getListing' : ActorMethod<[ListingId], [] | [Listing]>,
+  'getListingsByPlatform' : ActorMethod<
+    [Platform__2],
+    { 'ok' : Array<MasterListing> } |
+      { 'err' : AppError }
+  >,
   'getLoyaltyStatus' : ActorMethod<[], LoyaltyStatus>,
   'getMaintenanceMode' : ActorMethod<
     [],
     { 'eta' : string, 'isActive' : boolean, 'message' : string }
+  >,
+  'getMasterListing' : ActorMethod<
+    [string],
+    { 'ok' : MasterListing } |
+      { 'err' : AppError }
+  >,
+  'getMasterListingStats' : ActorMethod<
+    [],
+    { 'totalListings' : bigint, 'totalDrafts' : bigint, 'totalUsers' : bigint }
   >,
   'getMyBackups' : ActorMethod<[], Array<BackupRecord>>,
   'getMyFbCredentials' : ActorMethod<[], [] | [FbCredentials]>,
@@ -1247,6 +1443,11 @@ export interface _SERVICE {
   'getTiers' : ActorMethod<[], Array<TierConfig>>,
   'getUniversalListing' : ActorMethod<[string], [] | [UniversalListing]>,
   'getUnreadAdminNotificationCount' : ActorMethod<[], bigint>,
+  'getUserMasterListings' : ActorMethod<
+    [],
+    { 'ok' : Array<MasterListing> } |
+      { 'err' : AppError }
+  >,
   'getUserNotifications' : ActorMethod<[], Array<InAppNotification>>,
   'getUserUniversalListings' : ActorMethod<[], Array<UniversalListing>>,
   'getVerificationStatus' : ActorMethod<[], [] | [VerificationRecord]>,
@@ -1337,12 +1538,22 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : string }
   >,
+  'logManualPosting' : ActorMethod<
+    [string, Platform__2, [] | [string]],
+    { 'ok' : string } |
+      { 'err' : AppError }
+  >,
   'markAdminNotificationRead' : ActorMethod<[bigint], undefined>,
   'markAllAdminNotificationsRead' : ActorMethod<[], undefined>,
   'markAllNotificationsRead' : ActorMethod<[], undefined>,
   'markAsSOLD' : ActorMethod<[string], { 'ok' : string } | { 'err' : string }>,
   'markBackupAsStable' : ActorMethod<[string], boolean>,
   'markNotificationRead' : ActorMethod<[bigint], MarkReadResult>,
+  'markUniversalListingReady' : ActorMethod<
+    [string],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'ocrScanImage' : ActorMethod<
     [string],
     { 'ok' : OcrResult } |
@@ -1366,11 +1577,6 @@ export interface _SERVICE {
         'userCount' : bigint,
       }
     ]
-  >,
-  'publishUniversalListing' : ActorMethod<
-    [string],
-    { 'ok' : string } |
-      { 'err' : string }
   >,
   'receiveExtensionData' : ActorMethod<
     [ExtensionListingData, string],
@@ -1428,6 +1634,11 @@ export interface _SERVICE {
     [string, string],
     { 'ok' : null } |
       { 'err' : string }
+  >,
+  'savePlatformDraft' : ActorMethod<
+    [string, SavePlatformDraftArgs],
+    { 'ok' : string } |
+      { 'err' : AppError }
   >,
   'scrapeListing' : ActorMethod<[string], ScrapeResult>,
   'searchVersionSnapshots' : ActorMethod<
@@ -1665,6 +1876,11 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'updateListing' : ActorMethod<[UpdateListingArgs], Listing>,
+  'updateMasterListing' : ActorMethod<
+    [string, UpdateMasterListingArgs],
+    { 'ok' : string } |
+      { 'err' : AppError }
+  >,
   'updateMecariAutofillSettings' : ActorMethod<
     [
       boolean,

@@ -901,7 +901,18 @@ export const mockBackend: backendInterface = {
   getUserUniversalListings: async () => [],
   getPlatformCapabilities: async () => null,
   getAllPlatformCapabilities: async () => [],
-  publishUniversalListing: async () => ({ __kind__: "ok" as const, ok: "Published" }),
+  // publishUniversalListing — REMOVED: violates manual-only directive (security audit)
+  // ── Master Listing API ──
+  createMasterListing: async () => ({ __kind__: "ok" as const, ok: "mock-master-listing-id" }),
+  getMasterListing: async () => ({ __kind__: "ok" as const, ok: null as any }),
+  getUserMasterListings: async () => ({ __kind__: "ok" as const, ok: [] }),
+  getListingsByPlatform: async () => ({ __kind__: "ok" as const, ok: [] }),
+  updateMasterListing: async () => ({ __kind__: "ok" as const, ok: "Updated" }),
+  archiveMasterListing: async () => ({ __kind__: "ok" as const, ok: "Archived" }),
+  savePlatformDraft: async () => ({ __kind__: "ok" as const, ok: "Draft saved" }),
+  logManualPosting: async () => ({ __kind__: "ok" as const, ok: "Posting logged" }),
+  getMasterListingStats: async () => ({ totalListings: BigInt(0), totalDrafts: BigInt(0), totalUsers: BigInt(0) }),
+  markUniversalListingReady: async () => ({ __kind__: "ok" as const, ok: "Ready" }),
   markAsSOLD: async () => ({ __kind__: "ok" as const, ok: "Marked as sold" }),
   getCampaignResults: async () => null,
 };
