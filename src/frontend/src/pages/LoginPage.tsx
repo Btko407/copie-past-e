@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { EMAIL_ENABLED } from "@/hooks/useEmailVerification";
 import { useProfile } from "@/hooks/useProfile";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, Copy, Shield, Zap } from "lucide-react";
+import { Clock, Copy, Globe, Shield, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 
@@ -38,9 +38,6 @@ export function LoginPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (isProfileLoading) return;
-
-    // If email verification is enabled and profile exists but email is not verified,
-    // send to verification screen. Otherwise go straight to dashboard.
     if (EMAIL_ENABLED && profile && !profile.emailVerified) {
       navigate({ to: "/verify-email" });
     } else {
@@ -48,18 +45,16 @@ export function LoginPage() {
     }
   }, [isAuthenticated, isProfileLoading, profile, navigate]);
 
+  const isLoading = isInitializing || (isAuthenticated && isProfileLoading);
+
   return (
     <div
       className="min-h-screen bg-background flex flex-col overflow-hidden"
-      data-ocid="login-page"
+      data-ocid="login.page"
     >
-      {/* Retro grid background */}
+      {/* Background */}
       <div className="fixed inset-0 retro-grid opacity-40 pointer-events-none" />
-
-      {/* Scanline overlay */}
       <div className="fixed inset-0 scanlines opacity-30 pointer-events-none" />
-
-      {/* Radial accent glows */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-primary/5 blur-[120px]" />
         <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px]" />
@@ -85,7 +80,7 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background" />
       </div>
 
-      {/* Hero */}
+      {/* Main */}
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
           <motion.div
@@ -94,7 +89,7 @@ export function LoginPage() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="bg-card/80 backdrop-blur-md neon-border-blue rounded-lg p-8 glow-blue-sm flex flex-col items-center text-center gap-6"
           >
-            {/* Logo mark */}
+            {/* Logo */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -123,7 +118,7 @@ export function LoginPage() {
                 transition={{ delay: 0.4 }}
                 className="text-muted-foreground font-body text-sm tracking-wide"
               >
-                Capture your listings forever
+                Cross-list smarter. Post anywhere.
               </motion.p>
             </div>
 
@@ -134,41 +129,61 @@ export function LoginPage() {
               transition={{ delay: 0.5 }}
               className="text-foreground/70 font-body text-sm leading-relaxed max-w-xs"
             >
-              Import marketplace listings, store them permanently, and reuse
-              them at lightning speed.
+              Create master listings once, then autofill all 6 marketplaces
+              instantly with the browser extension.
             </motion.p>
 
-            {/* Login button */}
+            {/* Auth buttons */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 }}
-              className="w-full"
+              className="w-full space-y-3"
             >
+              {/* Google login */}
               <Button
                 onClick={login}
-                disabled={
-                  isInitializing || (isAuthenticated && isProfileLoading)
-                }
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display text-sm font-bold tracking-widest uppercase glow-blue neon-border-blue transition-smooth h-12"
-                data-ocid="login-btn"
+                disabled={isLoading}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display text-xs font-bold tracking-widest uppercase glow-blue neon-border-blue transition-smooth h-12"
+                data-ocid="login.google_button"
               >
-                {isInitializing || (isAuthenticated && isProfileLoading) ? (
+                {isLoading ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
-                    {isInitializing ? "Initializing..." : "Loading..."}
+                    Connecting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    Sign In with Google
+                  </span>
+                )}
+              </Button>
+
+              {/* Internet Identity */}
+              <Button
+                onClick={login}
+                disabled={isLoading}
+                variant="outline"
+                className="w-full border-primary/40 text-primary hover:bg-primary/10 font-display text-xs font-bold tracking-widest uppercase transition-smooth h-12"
+                data-ocid="login.ii_button"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                    Connecting...
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    Login with Internet Identity
+                    Sign In with Internet Identity
                   </span>
                 )}
               </Button>
             </motion.div>
 
-            <p className="text-muted-foreground text-xs font-body">
-              Secure, decentralized authentication — no passwords
+            <p className="text-muted-foreground text-xs font-mono">
+              Both methods use NFID — secure, decentralized, no passwords
             </p>
           </motion.div>
 

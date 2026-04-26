@@ -22,10 +22,11 @@ mixin (
   adminNotifCounter  : { var value : Nat },
   profiles           : Map.Map<Common.UserId, ProfileTypes.UserProfile>,
 ) {
-  /// User: submit a support ticket.
+  /// User: submit a support ticket with optional file attachment URLs.
   public shared ({ caller }) func submitSupportTicket(
-    subject  : Text,
-    message  : Text,
+    subject        : Text,
+    message        : Text,
+    attachmentUrls : [Text],
   ) : async { #ok : Text; #err : Text } {
     let now = Time.now();
     let username : Text = switch (profiles.get(caller)) {
@@ -33,7 +34,7 @@ mixin (
       case null { caller.toText() };
     };
     let result = SupportLib.submitSupportTicket(
-      supportTickets, ticketCounter, caller, username, subject, message, now,
+      supportTickets, ticketCounter, caller, username, subject, message, attachmentUrls, now,
     );
     switch (result) {
       case (#ok(msg)) {

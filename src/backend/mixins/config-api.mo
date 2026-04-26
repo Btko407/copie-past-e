@@ -3,6 +3,7 @@ import List "mo:core/List";
 import Iter "mo:core/Iter";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
+import Debug "mo:core/Debug";
 import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
@@ -45,6 +46,26 @@ mixin (
       updatedAt = now;
       updatedBy = caller.toText();
     });
+  };
+
+  // ── Config Validation Gate ───────────────────────────────────────────────
+
+  /// Check whether all required API keys are present and non-empty in appConfig.
+  /// Returns true only when BOTH stripe_secret_key AND gemini_api_key are configured.
+  public query func isConfigValid() : async Bool {
+    let stripeKey = switch (appConfig.get("stripe_secret_key")) { case (?e) { e.value != "" }; case null { false } };
+    let geminiKey = switch (appConfig.get("gemini_api_key"))    { case (?e) { e.value != "" }; case null { false } };
+    stripeKey and geminiKey
+  };
+
+  /// Assert that all required API keys are present. Traps with CONFIG_INVALID if not.
+  /// Call this at the start of any function that makes external API calls (Stripe, Gemini).
+  public shared func assertConfig() : async () {
+    let stripeKey = switch (appConfig.get("stripe_secret_key")) { case (?e) { e.value != "" }; case null { false } };
+    let geminiKey = switch (appConfig.get("gemini_api_key"))    { case (?e) { e.value != "" }; case null { false } };
+    if (not stripeKey or not geminiKey) {
+      Runtime.trap("CONFIG_INVALID: Missing required API keys");
+    };
   };
 
   // ── Public API ───────────────────────────────────────────────────────────────

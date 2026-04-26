@@ -8,12 +8,16 @@ import AccessControl "mo:caffeineai-authorization/access-control";
 import AppConfigTypes "../types/app-config";
 import OcrTypes "../types/ocr";
 import OcrLib "../lib/ocr";
+import MonitoringLib "../lib/monitoring";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
   geminiConfig : { var current : ?OcrTypes.GeminiConfig },
   appConfig    : Map.Map<Text, AppConfigTypes.ConfigEntry>,
   ocrFailureLog : List.List<OcrTypes.OcrFailureEntry>,
+  monLogs        : Map.Map<Nat, MonitoringLib.MonitoringLogEntry>,
+  monNextIndex   : { var value : Nat },
+  monTotalLogged : { var value : Nat },
 ) {
   let OCR_FAILURE_LOG_MAX : Nat = 500;
 
@@ -233,6 +237,21 @@ mixin (
     };
   };
 
+  /// Config validation gate: traps if Gemini API key is not configured.
+  /// Call at the start of every function that makes Gemini API calls.
+  func assertGeminiConfig() {
+    switch (appConfig.get("gemini_api_key")) {
+      case (?entry) {
+        if (entry.value.size() == 0) {
+          Runtime.trap("CONFIG_INVALID: Missing required API keys");
+        };
+      };
+      case null {
+        Runtime.trap("CONFIG_INVALID: Missing required API keys");
+      };
+    };
+  };
+
   /// Scan an image with Gemini OCR — accepts a base64-encoded JPEG image and returns extracted fields.
   /// The image should be pre-processed (resized to max 1024x1024, converted to JPEG)
   /// before being sent here. imageBase64 is a standard base64-encoded string (no data URI prefix).
@@ -243,6 +262,10 @@ mixin (
     if (caller.isAnonymous()) {
       return #err("Authentication required");
     };
+
+    MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "info", "OCR", "ocrScanImage called");
+
+    assertGeminiConfig();
 
     let principalText = caller.toText();
 
@@ -261,7 +284,9 @@ mixin (
     let url = OcrLib.geminiUrl(apiKey);
 
     // Call Gemini API via HTTP outcall.
-    // Cycles: 100_000_000_000 required for a POST request with image data.
+    // Cycles: 100_000_000_000 (100B) required for a POST request with image data.
+    // is_replicated = ?false: non-replicated call — only one replica makes the request.
+    // max_response_bytes = ?(2 * 1024 * 1024): 2 MiB cap prevents runaway responses.
     // transform: strips all variable fields (usageMetadata, headers) so every replica
     // receives identical data — required for ICP consensus.
     let response = try {
@@ -272,7 +297,7 @@ mixin (
         headers = [
           { name = "Content-Type"; value = "application/json" },
         ];
-        max_response_bytes = ?50_000;
+        max_response_bytes = ?(2 * 1024 * 1024);
         is_replicated = ?false;
         transform = ?{
           function = transformGeminiResponse;
@@ -281,6 +306,7 @@ mixin (
       });
     } catch (e) {
       let reason = "OCR scan failed: " # e.message();
+      MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "error", "OCR", "Scan failed: " # reason);
       logOcrFailure(imageBase64, reason, principalText);
       return #err(reason);
     };

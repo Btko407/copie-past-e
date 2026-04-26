@@ -526,10 +526,12 @@ export const ManualPostEntry = IDL.Record({
 });
 export const PoshmarkFields = IDL.Record({
   'title' : IDL.Text,
+  'color' : IDL.Opt(IDL.Text),
   'size' : IDL.Opt(IDL.Text),
   'description' : IDL.Text,
   'category' : IDL.Opt(IDL.Text),
   'brand' : IDL.Opt(IDL.Text),
+  'department' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
   'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
   'condition' : IDL.Opt(IDL.Text),
@@ -552,12 +554,16 @@ export const EbayFields = IDL.Record({
   'condition' : IDL.Opt(FacebookCondition),
 });
 export const EtsyFields = IDL.Record({
+  'whoMade' : IDL.Opt(IDL.Text),
   'title' : IDL.Text,
   'tags' : IDL.Vec(IDL.Text),
   'description' : IDL.Text,
+  'whenMade' : IDL.Opt(IDL.Text),
+  'materials' : IDL.Vec(IDL.Text),
   'category' : IDL.Opt(IDL.Text),
   'price' : IDL.Opt(IDL.Text),
   'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  'isSupply' : IDL.Bool,
 });
 export const FacebookFields = IDL.Record({
   'title' : IDL.Text,
@@ -571,6 +577,7 @@ export const FacebookFields = IDL.Record({
 });
 export const DepopFields = IDL.Record({
   'title' : IDL.Text,
+  'color' : IDL.Opt(IDL.Text),
   'size' : IDL.Opt(IDL.Text),
   'description' : IDL.Text,
   'category' : IDL.Opt(IDL.Text),
@@ -693,6 +700,13 @@ export const PaymentBannerState = IDL.Record({
   'createdAt' : IDL.Int,
   'message' : IDL.Text,
 });
+export const MonitoringLogEntry = IDL.Record({
+  'component' : IDL.Text,
+  'level' : IDL.Text,
+  'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'cyclesAvailable' : IDL.Nat,
+});
 export const RefuelEntry = IDL.Record({
   'tierAtRefuel' : TierName,
   'date' : IDL.Int,
@@ -717,6 +731,7 @@ export const SupportTicket = IDL.Record({
   'createdAt' : Timestamp,
   'repliedAt' : IDL.Opt(Timestamp),
   'message' : IDL.Text,
+  'attachmentUrls' : IDL.Opt(IDL.Vec(IDL.Text)),
 });
 export const ComponentMetrics = IDL.Record({
   'successCount' : IDL.Nat,
@@ -1244,6 +1259,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
       [],
     ),
+  'assertConfig' : IDL.Func([], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'assignUserRole' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'checkAndCreateLowFuelNotification' : IDL.Func(
@@ -1539,6 +1555,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
       ['query'],
     ),
+  'getLogCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
   'getMaintenanceMode' : IDL.Func(
       [],
@@ -1563,6 +1580,17 @@ export const idlService = IDL.Service({
           'totalListings' : IDL.Nat,
           'totalDrafts' : IDL.Nat,
           'totalUsers' : IDL.Nat,
+        }),
+      ],
+      ['query'],
+    ),
+  'getMonitoringStatus' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'heapSize' : IDL.Nat,
+          'logCount' : IDL.Nat,
+          'cyclesAvailable' : IDL.Nat,
         }),
       ],
       ['query'],
@@ -1630,6 +1658,11 @@ export const idlService = IDL.Service({
           'siteBaseUrl' : IDL.Text,
         }),
       ],
+      ['query'],
+    ),
+  'getRecentLogs' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(MonitoringLogEntry)],
       ['query'],
     ),
   'getRefuelHistory' : IDL.Func([], [IDL.Vec(RefuelEntry)], ['query']),
@@ -1701,6 +1734,18 @@ export const idlService = IDL.Service({
             'status' : IDL.Text,
             'isConfigured' : IDL.Bool,
           }),
+        }),
+      ],
+      ['query'],
+    ),
+  'getSystemStatus' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'heapSize' : IDL.Nat,
+          'logCount' : IDL.Nat,
+          'recentLogs' : IDL.Vec(MonitoringLogEntry),
+          'cycles' : IDL.Nat,
         }),
       ],
       ['query'],
@@ -1809,6 +1854,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isConfigValid' : IDL.Func([], [IDL.Bool], ['query']),
   'listAdminNotifications' : IDL.Func(
       [],
       [IDL.Vec(AdminNotification)],
@@ -1847,6 +1893,7 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
+  'logEvent' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], ['oneway']),
   'logManualPosting' : IDL.Func(
       [IDL.Text, Platform__2, IDL.Opt(IDL.Text)],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
@@ -1991,7 +2038,7 @@ export const idlService = IDL.Service({
   'setMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text, IDL.Text], [], []),
   'setMyUsername' : IDL.Func([IDL.Text], [SetUsernameResult], []),
   'submitSupportTicket' : IDL.Func(
-      [IDL.Text, IDL.Text],
+      [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
@@ -2863,10 +2910,12 @@ export const idlFactory = ({ IDL }) => {
   });
   const PoshmarkFields = IDL.Record({
     'title' : IDL.Text,
+    'color' : IDL.Opt(IDL.Text),
     'size' : IDL.Opt(IDL.Text),
     'description' : IDL.Text,
     'category' : IDL.Opt(IDL.Text),
     'brand' : IDL.Opt(IDL.Text),
+    'department' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
     'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
     'condition' : IDL.Opt(IDL.Text),
@@ -2889,12 +2938,16 @@ export const idlFactory = ({ IDL }) => {
     'condition' : IDL.Opt(FacebookCondition),
   });
   const EtsyFields = IDL.Record({
+    'whoMade' : IDL.Opt(IDL.Text),
     'title' : IDL.Text,
     'tags' : IDL.Vec(IDL.Text),
     'description' : IDL.Text,
+    'whenMade' : IDL.Opt(IDL.Text),
+    'materials' : IDL.Vec(IDL.Text),
     'category' : IDL.Opt(IDL.Text),
     'price' : IDL.Opt(IDL.Text),
     'photos' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'isSupply' : IDL.Bool,
   });
   const FacebookFields = IDL.Record({
     'title' : IDL.Text,
@@ -2908,6 +2961,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const DepopFields = IDL.Record({
     'title' : IDL.Text,
+    'color' : IDL.Opt(IDL.Text),
     'size' : IDL.Opt(IDL.Text),
     'description' : IDL.Text,
     'category' : IDL.Opt(IDL.Text),
@@ -3030,6 +3084,13 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : IDL.Int,
     'message' : IDL.Text,
   });
+  const MonitoringLogEntry = IDL.Record({
+    'component' : IDL.Text,
+    'level' : IDL.Text,
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'cyclesAvailable' : IDL.Nat,
+  });
   const RefuelEntry = IDL.Record({
     'tierAtRefuel' : TierName,
     'date' : IDL.Int,
@@ -3054,6 +3115,7 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Timestamp,
     'repliedAt' : IDL.Opt(Timestamp),
     'message' : IDL.Text,
+    'attachmentUrls' : IDL.Opt(IDL.Vec(IDL.Text)),
   });
   const ComponentMetrics = IDL.Record({
     'successCount' : IDL.Nat,
@@ -3583,6 +3645,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
         [],
       ),
+    'assertConfig' : IDL.Func([], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'assignUserRole' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'checkAndCreateLowFuelNotification' : IDL.Func(
@@ -3897,6 +3960,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Vec(MasterListing), 'err' : AppError })],
         ['query'],
       ),
+    'getLogCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getLoyaltyStatus' : IDL.Func([], [LoyaltyStatus], ['query']),
     'getMaintenanceMode' : IDL.Func(
         [],
@@ -3921,6 +3985,17 @@ export const idlFactory = ({ IDL }) => {
             'totalListings' : IDL.Nat,
             'totalDrafts' : IDL.Nat,
             'totalUsers' : IDL.Nat,
+          }),
+        ],
+        ['query'],
+      ),
+    'getMonitoringStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'heapSize' : IDL.Nat,
+            'logCount' : IDL.Nat,
+            'cyclesAvailable' : IDL.Nat,
           }),
         ],
         ['query'],
@@ -3988,6 +4063,11 @@ export const idlFactory = ({ IDL }) => {
             'siteBaseUrl' : IDL.Text,
           }),
         ],
+        ['query'],
+      ),
+    'getRecentLogs' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(MonitoringLogEntry)],
         ['query'],
       ),
     'getRefuelHistory' : IDL.Func([], [IDL.Vec(RefuelEntry)], ['query']),
@@ -4063,6 +4143,18 @@ export const idlFactory = ({ IDL }) => {
               'status' : IDL.Text,
               'isConfigured' : IDL.Bool,
             }),
+          }),
+        ],
+        ['query'],
+      ),
+    'getSystemStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'heapSize' : IDL.Nat,
+            'logCount' : IDL.Nat,
+            'recentLogs' : IDL.Vec(MonitoringLogEntry),
+            'cycles' : IDL.Nat,
           }),
         ],
         ['query'],
@@ -4171,6 +4263,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isConfigValid' : IDL.Func([], [IDL.Bool], ['query']),
     'listAdminNotifications' : IDL.Func(
         [],
         [IDL.Vec(AdminNotification)],
@@ -4209,6 +4302,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
+    'logEvent' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], ['oneway']),
     'logManualPosting' : IDL.Func(
         [IDL.Text, Platform__2, IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : AppError })],
@@ -4353,7 +4447,7 @@ export const idlFactory = ({ IDL }) => {
     'setMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text, IDL.Text], [], []),
     'setMyUsername' : IDL.Func([IDL.Text], [SetUsernameResult], []),
     'submitSupportTicket' : IDL.Func(
-        [IDL.Text, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),

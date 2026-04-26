@@ -1,24 +1,28 @@
 {
-  "overview": "Copie Past-e is a production-grade cross-listing platform for resellers. Create one master listing and prepare platform-specific drafts for Facebook Marketplace, Mercari, eBay, Poshmark, Depop, and Etsy. The Chrome extension autofills each platform's form so you can manually post anywhere with one click — your data, your control.",
+  "overview": "Copie Past-e is a retro-cyberpunk cross-listing SaaS on the Internet Computer. It lets sellers create one master listing and prepare platform-specific drafts for Facebook, Mercari, eBay, Poshmark, Depop, and Etsy — then use the companion Chrome extension to autofill each marketplace with one click.",
   "features": [
-    "Master Listing as single source of truth — one item, all platforms",
-    "Platform-specific draft editor with real-time field validation and character limits",
-    "Chrome extension autofill for 6 marketplaces (Facebook, Mercari, eBay, Poshmark, Depop, Etsy)",
-    "Manual-only posting — extension fills forms, you decide when to submit",
-    "Platform filter tabs on dashboard showing draft and posting status per marketplace",
-    "Audit trail tracking all listing and draft changes",
-    "Admin panel with audit log, stats, and system diagnostics",
-    "Cross-listing analytics with per-platform breakdowns"
+    "NFID authentication with Google Social Login and Internet Identity",
+    "Retro-Cyberpunk System Boot initialization screen with mobile bypass",
+    "Dynamic 6-platform listing form with full field mapping and character limits",
+    "Drag-and-drop image gallery manager for create and edit modes",
+    "Smart Gemini OCR that auto-populates the listing form from a photo",
+    "Production Chrome extension with window.__COPIE_PASTE_INSTALLED__ detection flag",
+    "Full DOM-injection autofill for all 6 marketplaces via INJECT DATA button",
+    "Direct extension .zip download for developer-mode sideloading",
+    "Zero data loss upgrade hooks for all Motoko state",
+    "Cycle watchdog timer with admin notification below 5T cycles",
+    "Driver.js interactive sideloading walkthrough on /extension-setup"
   ],
   "category": "productivity",
   "tags": [
     "cross-listing",
-    "reselling",
     "marketplace",
+    "ecommerce",
     "chrome-extension",
-    "inventory",
     "icp",
-    "motoko"
+    "motoko",
+    "nfid",
+    "reselling"
   ],
-  "last_updated": "2026-04-24T13:17:25.334Z"
+  "last_updated": "2026-04-26T14:58:59.417Z"
 }

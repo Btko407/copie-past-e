@@ -74,6 +74,8 @@ module {
     price       : ?Text;
     brand       : ?Text;
     size        : ?Text;
+    department  : ?Text; // "Women", "Men", "Kids", "Home"
+    color       : ?Text; // primary color
     category    : ?Text;
     condition   : ?Text;
     photos      : [Blob]; // MAX 11 photos
@@ -87,6 +89,7 @@ module {
     brand       : ?Text;
     condition   : ?Text;
     size        : ?Text;
+    color       : ?Text; // item color
     category    : ?Text;
     photos      : [Blob]; // MAX 12 photos
   };
@@ -98,6 +101,10 @@ module {
     price       : ?Text;
     category    : ?Text;
     tags        : [Text]; // up to 13 tags
+    materials   : [Text]; // e.g. ["cotton", "linen"]
+    whoMade     : ?Text;  // "i_did", "someone_else", "collective"
+    whenMade    : ?Text;  // "made_to_order", "2020_2024", "2010_2019", etc.
+    isSupply    : Bool;   // true if this is a craft supply or tool
     photos      : [Blob]; // MAX 10 photos
   };
 

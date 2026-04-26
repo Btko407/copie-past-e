@@ -49,6 +49,11 @@ const ProfilePage = lazy(() =>
 const ExtensionPage = lazy(() =>
   import("./pages/ExtensionPage").then((m) => ({ default: m.ExtensionPage })),
 );
+const ExtensionSetupPage = lazy(() =>
+  import("./pages/ExtensionSetupPage").then((m) => ({
+    default: m.ExtensionSetupPage,
+  })),
+);
 const PaymentSuccessPage = lazy(() =>
   import("./pages/PaymentSuccessPage").then((m) => ({
     default: m.PaymentSuccessPage,
@@ -153,12 +158,26 @@ const CrossListingAnalyticsPage = lazy(() =>
   })),
 );
 
+const InitializationPage = lazy(() =>
+  import("./pages/InitializationPage").then((m) => ({
+    default: m.InitializationPage,
+  })),
+);
+
+const TermsOfServicePage = lazy(() =>
+  import("./pages/TermsOfServicePage").then((m) => ({
+    default: m.TermsOfServicePage,
+  })),
+);
+
+const PrivacyPolicyPage = lazy(() =>
+  import("./pages/PrivacyPolicyPage").then((m) => ({
+    default: m.PrivacyPolicyPage,
+  })),
+);
+
 // ─── Maintenance Guard ────────────────────────────────────────────────────────
 
-/**
- * Wraps protected user-facing pages. If maintenance mode is active and the
- * current user is NOT an admin, redirects to /maintenance.
- */
 function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const { isActive } = useMaintenanceMode();
   const navigate = useNavigate();
@@ -175,21 +194,14 @@ function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 
 // ─── Principal-change cache invalidation ─────────────────────────────────────
 
-/**
- * Watches principalId. When the active identity changes (login, logout, or
- * account switch), ALL React Query caches are invalidated so no stale data
- * from the previous user can leak to the new session.
- */
 function PrincipalCacheGuard() {
   const { principalId, authReady } = useAuth();
   const queryClient = useQueryClient();
-  // Track the previous principalId so we only invalidate on actual changes.
   const prevPrincipalRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!authReady) return;
     if (prevPrincipalRef.current !== principalId) {
-      // Principal changed — wipe all cached query data.
       queryClient.invalidateQueries();
       prevPrincipalRef.current = principalId;
     }
@@ -202,7 +214,8 @@ function PrincipalCacheGuard() {
 
 const rootRoute = createRootRoute({
   component: () => {
-    // Global extension detection — must run on every page load.
+    // Extension detection via window.__COPIE_PASTE_INSTALLED__ flag.
+    // Also retain the postMessage listener for older extension versions.
     useEffect(() => {
       function handleMessage(e: MessageEvent) {
         if (e.data?.type === "COPIE_PASTE_EXT_PRESENT") {
@@ -366,6 +379,16 @@ const extensionRoute = createRoute({
         </Suspense>
       </MaintenanceGuard>
     </ProtectedRoute>
+  ),
+});
+
+const extensionSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/extension-setup",
+  component: () => (
+    <Suspense fallback={<PageLoader />}>
+      <ExtensionSetupPage />
+    </Suspense>
   ),
 });
 
@@ -601,6 +624,38 @@ const crossListingAnalyticsRoute = createRoute({
   ),
 });
 
+const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/terms",
+  component: () => (
+    <Suspense fallback={<PageLoader />}>
+      <TermsOfServicePage />
+    </Suspense>
+  ),
+});
+
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/privacy",
+  component: () => (
+    <Suspense fallback={<PageLoader />}>
+      <PrivacyPolicyPage />
+    </Suspense>
+  ),
+});
+
+const initializationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/initialization",
+  component: () => (
+    <ProtectedRoute>
+      <Suspense fallback={<PageLoader />}>
+        <InitializationPage />
+      </Suspense>
+    </ProtectedRoute>
+  ),
+});
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
@@ -615,6 +670,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   profileRoute,
   extensionRoute,
+  extensionSetupRoute,
   paymentSuccessRoute,
   paymentCancelRoute,
   adminRoute,
@@ -634,6 +690,9 @@ const routeTree = rootRoute.addChildren([
   adminAutofillRoute,
   adminExtensionRoute,
   crossListingAnalyticsRoute,
+  termsRoute,
+  privacyRoute,
+  initializationRoute,
 ]);
 
 const router = createRouter({

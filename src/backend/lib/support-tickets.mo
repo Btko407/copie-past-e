@@ -5,13 +5,14 @@ import Types "../types/support-tickets";
 module {
   /// Submit a new support ticket.
   public func submitSupportTicket(
-    tickets  : List.List<Types.SupportTicket>,
-    counter  : { var value : Nat },
-    userId   : Common.UserId,
-    username : Text,
-    subject  : Text,
-    message  : Text,
-    now      : Common.Timestamp,
+    tickets        : List.List<Types.SupportTicket>,
+    counter        : { var value : Nat },
+    userId         : Common.UserId,
+    username       : Text,
+    subject        : Text,
+    message        : Text,
+    attachmentUrls : [Text],
+    now            : Common.Timestamp,
   ) : { #ok : Text; #err : Text } {
     let id = counter.value;
     counter.value += 1;
@@ -21,10 +22,11 @@ module {
       username;
       subject;
       message;
-      status     = "open";
-      adminReply = null;
-      createdAt  = now;
-      repliedAt  = null;
+      status         = "open";
+      adminReply     = null;
+      createdAt      = now;
+      repliedAt      = null;
+      attachmentUrls = if (attachmentUrls.size() == 0) null else ?attachmentUrls;
     };
     tickets.add(ticket);
     #ok("Ticket submitted with id: " # id.toText())

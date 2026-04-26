@@ -70,8 +70,16 @@ export interface HealthStatus {
     lastBackupAt: Timestamp;
     criticalKeysPresent: boolean;
 }
+export interface MonitoringLogEntry {
+    component: string;
+    level: string;
+    message: string;
+    timestamp: bigint;
+    cyclesAvailable: bigint;
+}
 export interface DepopFields {
     title: string;
+    color?: string;
     size?: string;
     description: string;
     category?: string;
@@ -132,10 +140,12 @@ export interface LoyaltyStatus {
 }
 export interface PoshmarkFields {
     title: string;
+    color?: string;
     size?: string;
     description: string;
     category?: string;
     brand?: string;
+    department?: string;
     price?: string;
     photos: Array<Uint8Array>;
     condition?: string;
@@ -291,12 +301,16 @@ export interface ListingSnapshot {
     price?: string;
 }
 export interface EtsyFields {
+    whoMade?: string;
     title: string;
     tags: Array<string>;
     description: string;
+    whenMade?: string;
+    materials: Array<string>;
     category?: string;
     price?: string;
     photos: Array<Uint8Array>;
+    isSupply: boolean;
 }
 export interface UpdateListingArgs {
     id: ListingId;
@@ -380,6 +394,7 @@ export interface SupportTicket {
     createdAt: Timestamp;
     repliedAt?: Timestamp;
     message: string;
+    attachmentUrls?: Array<string>;
 }
 export interface Listing {
     id: ListingId;
@@ -1222,6 +1237,7 @@ export interface backendInterface {
         __kind__: "err";
         err: AppError;
     }>;
+    assertConfig(): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     assignUserRole(userId: string, role: string): Promise<void>;
     checkAndCreateLowFuelNotification(fuelPercent: number, subscriptionExpirationTimestamp: Timestamp): Promise<InAppNotification | null>;
@@ -1443,6 +1459,7 @@ export interface backendInterface {
         __kind__: "err";
         err: AppError;
     }>;
+    getLogCount(): Promise<bigint>;
     getLoyaltyStatus(): Promise<LoyaltyStatus>;
     getMaintenanceMode(): Promise<{
         eta: string;
@@ -1460,6 +1477,11 @@ export interface backendInterface {
         totalListings: bigint;
         totalDrafts: bigint;
         totalUsers: bigint;
+    }>;
+    getMonitoringStatus(): Promise<{
+        heapSize: bigint;
+        logCount: bigint;
+        cyclesAvailable: bigint;
     }>;
     getMyBackups(): Promise<Array<BackupRecord>>;
     getMyFbCredentials(): Promise<FbCredentials | null>;
@@ -1500,6 +1522,7 @@ export interface backendInterface {
         publishableKey: string;
         siteBaseUrl: string;
     }>;
+    getRecentLogs(limit: bigint): Promise<Array<MonitoringLogEntry>>;
     getRefuelHistory(): Promise<Array<RefuelEntry>>;
     getRevenueStats(): Promise<{
         month: bigint;
@@ -1554,6 +1577,16 @@ export interface backendInterface {
             status: string;
             isConfigured: boolean;
         };
+    }>;
+    /**
+     * / Returns a lightweight system health snapshot: cycles, heap, log count,
+     * / and the 20 most recent structured log entries from the monitoring ring buffer.
+     */
+    getSystemStatus(): Promise<{
+        heapSize: bigint;
+        logCount: bigint;
+        recentLogs: Array<MonitoringLogEntry>;
+        cycles: bigint;
     }>;
     getTier(tierId: bigint): Promise<TierConfig | null>;
     getTiers(): Promise<Array<TierConfig>>;
@@ -1626,6 +1659,7 @@ export interface backendInterface {
         stripeClientSecret?: string;
     }>;
     isCallerAdmin(): Promise<boolean>;
+    isConfigValid(): Promise<boolean>;
     listAdminNotifications(): Promise<Array<AdminNotification>>;
     listAllUsers(): Promise<Array<UserSummary>>;
     listBackupsForDownload(): Promise<Array<{
@@ -1650,6 +1684,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    logEvent(level: string, component: string, message: string): Promise<void>;
     logManualPosting(listingId: string, platform: Platform__2, remoteUrl: string | null): Promise<{
         __kind__: "ok";
         ok: string;
@@ -1791,7 +1826,7 @@ export interface backendInterface {
     setConfig(key: string, value: string, encrypted: boolean, category: string, updatedBy: string): Promise<void>;
     setMaintenanceMode(isActive: boolean, message: string, eta: string): Promise<void>;
     setMyUsername(username: string): Promise<SetUsernameResult>;
-    submitSupportTicket(subject: string, message: string): Promise<{
+    submitSupportTicket(subject: string, message: string, attachmentUrls: Array<string>): Promise<{
         __kind__: "ok";
         ok: string;
     } | {

@@ -5,6 +5,7 @@ import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Blob "mo:core/Blob";
+import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
 import PaymentTypes "../types/payments";
@@ -13,6 +14,7 @@ import ProfileTypes "../types/userprofile";
 import AppConfigTypes "../types/app-config";
 import NotifTypes "../types/notifications";
 import NotifLib "../lib/notifications";
+import MonitoringLib "../lib/monitoring";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -26,6 +28,9 @@ mixin (
   notifCounter : { var value : Nat },
   paymentBanners : Map.Map<Text, PaymentTypes.PaymentBannerState>,
   verifiedStripeSessionIds : Set.Set<Text>,
+  monLogs        : Map.Map<Nat, MonitoringLib.MonitoringLogEntry>,
+  monNextIndex   : { var value : Nat },
+  monTotalLogged : { var value : Nat },
 ) {
   // Management canister reference factory — instantiated locally per call to avoid
   // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
@@ -231,6 +236,15 @@ mixin (
     };
   };
 
+  /// Config validation gate: traps if Stripe secret key is not configured.
+  /// Call at the start of every function that makes Stripe API calls.
+  func assertStripeConfig() {
+    let key = checkoutGetConfig("stripe_secret_key");
+    if (key == "") {
+      Runtime.trap("CONFIG_INVALID: Missing required API keys");
+    };
+  };
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   /// Get the active Stripe secret key from appConfig (stable, survives upgrades).
@@ -382,6 +396,8 @@ mixin (
     priceId : Text,
     userId : Text,
   ) : async { #ok : Text; #err : Text } {
+    MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "info", "Stripe", "createStripeCheckoutSession called");
+    assertStripeConfig();
     let secretKey = switch (stripeCheckoutSecretKey()) {
       case null { return #err("Stripe not configured. Add your secret key in admin > Payments.") };
       case (?k) { k };
@@ -430,58 +446,85 @@ mixin (
       # "&success_url=" # baseUrl # "/payment-success?session_id={CHECKOUT_SESSION_ID}"
       # "&cancel_url=" # baseUrl # "/payment-cancel";
 
-    try {
-      // 49_140_000_000 cycles — minimum for a POST outcall.
-      // transform: strips timestamps, request IDs, livemode — keeps id, url, status, payment_status.
-      let response = await (with cycles = 49_140_000_000) icManagementStripe().http_request({
-        url = "https://api.stripe.com/v1/checkout/sessions";
-        method = #post;
-        body = ?body.encodeUtf8();
-        headers = [
-          { name = "Authorization"; value = "Bearer " # secretKey },
-          { name = "Content-Type"; value = "application/x-www-form-urlencoded" },
-          { name = "Stripe-Version"; value = "2023-10-16" },
-        ];
-        max_response_bytes = ?10_000;
-        is_replicated = ?false;
-        transform = ?{
-          function = transformStripeCheckoutResponse;
-          context = Blob.fromArray([]);
-        };
-      });
-      if (response.status >= 200 and response.status < 300) {
-        switch (response.body.decodeUtf8()) {
-          case (?responseText) {
-            let sessionUrl = switch (stripeParseJsonStringField(responseText, "url")) {
-              case (?u) { u };
-              case null { return #err("Failed to parse checkout session URL") };
-            };
-            let sessionId = switch (stripeParseJsonStringField(responseText, "id")) {
-              case (?i) { i };
-              case null { return #err("Failed to parse checkout session ID") };
-            };
-            // Store pending session so verifyAndGrantPayment can confirm it
-            pendingSessions.add(caller.toText(), {
-              sessionId;
-              priceId;
-              tierDays;
-              tierId;
-              createdAt = now;
-            });
-            #ok(sessionUrl)
+    var createAttempt : Nat = 0;
+    var createSuccess : Bool = false;
+    var createResponseText : Text = "";
+    var createHttpError : ?Text = null;
+
+    label createLoop loop {
+      createAttempt += 1;
+      if (createAttempt > 3) break createLoop;
+
+      try {
+        // 49_140_000_000 cycles — minimum for a POST outcall.
+        // transform: strips timestamps, request IDs, livemode — keeps id, url, status, payment_status.
+        let response = await (with cycles = 49_140_000_000) icManagementStripe().http_request({
+          url = "https://api.stripe.com/v1/checkout/sessions";
+          method = #post;
+          body = ?body.encodeUtf8();
+          headers = [
+            { name = "Authorization"; value = "Bearer " # secretKey },
+            { name = "Content-Type"; value = "application/x-www-form-urlencoded" },
+            { name = "Stripe-Version"; value = "2023-10-16" },
+          ];
+          max_response_bytes = ?10_000;
+          is_replicated = ?false;
+          transform = ?{
+            function = transformStripeCheckoutResponse;
+            context = Blob.fromArray([]);
           };
-          case null { #err("Failed to decode Stripe response") };
+        });
+
+        createResponseText := switch (response.body.decodeUtf8()) {
+          case null {
+            createHttpError := ?"Could not read Stripe response";
+            ""
+          };
+          case (?t) { t };
         };
-      } else {
-        let errMsg = switch (response.body.decodeUtf8()) {
-          case (?t) { "Stripe error " # response.status.toText() # ": " # t };
-          case null { "Stripe error: status " # response.status.toText() };
+
+        if (response.status >= 200 and response.status < 300) {
+          createSuccess := true;
+          break createLoop;
+        } else {
+          createHttpError := ?("Stripe error: status " # response.status.toText());
         };
-        #err(errMsg);
+      } catch (e) {
+        createHttpError := ?("Network error (attempt " # createAttempt.toText() # "/3): " # e.message());
       };
-    } catch (e) {
-      #err("HTTP outcall failed: " # e.message());
     };
+
+    if (not createSuccess) {
+      let errDetail = switch (createHttpError) {
+        case (?err) { err };
+        case null { "Unknown error" };
+      };
+      MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "error", "Stripe", "Session creation failed: " # errDetail);
+      return #err("Checkout session creation failed after 3 attempts: " # errDetail);
+    };
+
+    switch (createResponseText) {
+      case "" { return #err("Failed to decode Stripe response") };
+      case _ {};
+    };
+
+    let sessionUrl = switch (stripeParseJsonStringField(createResponseText, "url")) {
+      case (?u) { u };
+      case null { return #err("Failed to parse checkout session URL") };
+    };
+    let sessionId = switch (stripeParseJsonStringField(createResponseText, "id")) {
+      case (?i) { i };
+      case null { return #err("Failed to parse checkout session ID") };
+    };
+    // Store pending session so verifyAndGrantPayment can confirm it
+    pendingSessions.add(caller.toText(), {
+      sessionId;
+      priceId;
+      tierDays;
+      tierId;
+      createdAt = now;
+    });
+    #ok(sessionUrl);
   };
 
   /// Verify a completed Stripe checkout session and grant subscription days ADDITIVELY.
@@ -490,6 +533,7 @@ mixin (
   public shared ({ caller }) func verifyAndGrantPayment(
     sessionId : Text,
   ) : async { #ok : Text; #err : Text } {
+    assertStripeConfig();
     let secretKey = switch (stripeCheckoutSecretKey()) {
       case null { return #err("Stripe not configured. Add your secret key in admin > Payments.") };
       case (?k) { k };

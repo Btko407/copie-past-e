@@ -113,6 +113,7 @@ type DepopFields__742475677 =
   {
     brand : ?Text;
     category : ?Text;
+    color : ?Text;
     condition : ?Text;
     description : Text;
     photos : [Blob];
@@ -149,10 +150,14 @@ type EtsyFields__946790969 =
   {
     category : ?Text;
     description : Text;
+    isSupply : Bool;
+    materials : [Text];
     photos : [Blob];
     price : ?Text;
     tags : [Text];
-    title : Text
+    title : Text;
+    whenMade : ?Text;
+    whoMade : ?Text
   };
 type ExtensionVersion__1001368693 =
   {
@@ -361,6 +366,14 @@ type MecariFields__815063540 =
     shippingType : ?{#fast; #normal; #sameDay};
     title : Text
   };
+type MonitoringLogEntry__66494682 =
+  {
+    component : Text;
+    cyclesAvailable : Nat;
+    level : Text;
+    message : Text;
+    timestamp : Int
+  };
 type Nat__490723111 = Nat__920180692;
 type Nat__920180692 = Nat;
 type Node__46230540<K, V> =
@@ -515,7 +528,9 @@ type PoshmarkFields__801306558 =
   {
     brand : ?Text;
     category : ?Text;
+    color : ?Text;
     condition : ?Text;
+    department : ?Text;
     description : Text;
     photos : [Blob];
     price : ?Text;
@@ -561,6 +576,7 @@ type SiteSettings__435530660 =
 type SupportTicket__87649939 =
   {
     adminReply : ?Text;
+    attachmentUrls : ?[Text];
     createdAt : Timestamp__301639476;
     id : Nat;
     message : Text;
@@ -669,6 +685,7 @@ actor {
   stable ARCHIVE_WARN_THRESHOLD_NS : Int;
   stable BACKUP_TIER_ID : Nat;
   stable BASE64_CHARS : [Char];
+  stable CYCLES_LOW_THRESHOLD : Nat;
   stable DAYS_NS : Int;
   stable DAY_NS : Int;
   stable EMAIL_VERIFICATION_ENABLED : Bool;
@@ -799,6 +816,7 @@ actor {
               status : Nat
             }
     };
+  stable MON_RING_SIZE : Nat;
   stable OCR_FAILURE_LOG_MAX : Nat;
   stable SMART_BACKUP_PRICE_USD : Float;
   stable var STRIPE_SECRET_KEY : Text;
@@ -936,6 +954,13 @@ actor {
       var root : Node__46230540<Text, MasterListing__884737454>;
       var size : Nat__490723111
     };
+  stable monLogs :
+    {
+      var root : Node__46230540<Nat, MonitoringLogEntry__66494682>;
+      var size : Nat__490723111
+    };
+  stable monNextIndex : {var value : Nat};
+  stable monTotalLogged : {var value : Nat};
   stable notifCounter : {var value : Nat};
   stable notifications :
     {

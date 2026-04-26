@@ -16,6 +16,13 @@ mixin (
 ) {
   /// Called on first login / signup to create the user's profile with a username.
   /// Auto-starts the free 30-day subscription immediately on success.
+  ///
+  /// NFID PRINCIPAL COMPATIBILITY NOTE:
+  /// NFID uses Internet Identity under the hood for authentication. The Principal
+  /// returned by NFID — whether via Google Social Login or the native II path — is
+  /// structurally identical to a standard Internet Identity Principal. No mapping
+  /// transformation is required: the caller Principal from NFID is used directly as
+  /// the UserProfile.userId key, and all Map lookups by Principal work as-is.
   public shared ({ caller }) func registerUserProfile(
     username : Text,
     email : Text,
@@ -41,6 +48,12 @@ mixin (
   };
 
   /// Get the caller's own profile.
+  ///
+  /// NFID PRINCIPAL COMPATIBILITY NOTE:
+  /// NFID principals are structurally identical to Internet Identity principals.
+  /// The Principal returned by NFID is used directly as the Map key — no
+  /// transformation is needed. This function works transparently for both
+  /// Google Social Login (NFID) and classic Internet Identity users.
   public query ({ caller }) func getMyProfile() : async Types.GetProfileResult {
     switch (ProfileLib.getProfileById(profiles, caller)) {
       case null { #err("Profile not found") };

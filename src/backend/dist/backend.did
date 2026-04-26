@@ -229,6 +229,7 @@ type SystemDiagnostics =
 type SupportTicket = 
  record {
    adminReply: opt text;
+   attachmentUrls: opt vec text;
    createdAt: Timestamp;
    id: nat;
    message: text;
@@ -348,7 +349,9 @@ type PoshmarkFields =
  record {
    brand: opt text;
    category: opt text;
+   color: opt text;
    condition: opt text;
+   department: opt text;
    description: text;
    photos: vec blob;
    price: opt text;
@@ -539,6 +542,14 @@ type NotificationType =
    subscriptionCancelled;
    subscriptionExpiry;
    subscriptionRenewed;
+ };
+type MonitoringLogEntry = 
+ record {
+   component: text;
+   cyclesAvailable: nat;
+   level: text;
+   message: text;
+   timestamp: int;
  };
 type MecariFields = 
  record {
@@ -882,10 +893,14 @@ type EtsyFields =
  record {
    category: opt text;
    description: text;
+   isSupply: bool;
+   materials: vec text;
    photos: vec blob;
    price: opt text;
    tags: vec text;
    title: text;
+   whenMade: opt text;
+   whoMade: opt text;
  };
 type ErrorCode = 
  variant {
@@ -939,6 +954,7 @@ type DepopFields =
  record {
    brand: opt text;
    category: opt text;
+   color: opt text;
    condition: opt text;
    description: text;
    photos: vec blob;
@@ -1313,6 +1329,7 @@ service : {
       err: AppError;
       ok: text;
     });
+  assertConfig: () -> ();
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   assignUserRole: (userId: text, role: text) -> ();
   checkAndCreateLowFuelNotification: (fuelPercent: float64,
@@ -1523,6 +1540,7 @@ service : {
       err: AppError;
       ok: vec MasterListing;
     }) query;
+  getLogCount: () -> (nat) query;
   getLoyaltyStatus: () -> (LoyaltyStatus) query;
   getMaintenanceMode: () ->
    (record {
@@ -1540,6 +1558,12 @@ service : {
       totalDrafts: nat;
       totalListings: nat;
       totalUsers: nat;
+    }) query;
+  getMonitoringStatus: () ->
+   (record {
+      cyclesAvailable: nat;
+      heapSize: nat;
+      logCount: nat;
     }) query;
   getMyBackups: () -> (vec BackupRecord) query;
   getMyFbCredentials: () -> (opt FbCredentials) query;
@@ -1577,6 +1601,7 @@ service : {
       publishableKey: text;
       siteBaseUrl: text;
     }) query;
+  getRecentLogs: (limit: nat) -> (vec MonitoringLogEntry) query;
   getRefuelHistory: () -> (vec RefuelEntry) query;
   getRevenueStats: () ->
    (record {
@@ -1632,6 +1657,15 @@ service : {
          lastWebhookAt: opt int;
          status: text;
        };
+    }) query;
+  /// Returns a lightweight system health snapshot: cycles, heap, log count,
+  /// and the 20 most recent structured log entries from the monitoring ring buffer.
+  getSystemStatus: () ->
+   (record {
+      cycles: nat;
+      heapSize: nat;
+      logCount: nat;
+      recentLogs: vec MonitoringLogEntry;
     }) query;
   getTier: (tierId: nat) -> (opt TierConfig) query;
   getTiers: () -> (vec TierConfig) query;
@@ -1697,6 +1731,7 @@ service : {
       tierDurationDays: nat;
     });
   isCallerAdmin: () -> (bool) query;
+  isConfigValid: () -> (bool) query;
   listAdminNotifications: () -> (vec AdminNotification) query;
   listAllUsers: () -> (vec UserSummary) query;
   listBackupsForDownload: () ->
@@ -1722,6 +1757,7 @@ service : {
       err: text;
       ok: text;
     });
+  logEvent: (level: text, component: text, message: text) -> () oneway;
   logManualPosting: (listingId: text, platform: Platform__2, remoteUrl:
    opt text) -> (variant {
                    err: AppError;
@@ -1832,11 +1868,11 @@ service : {
    updatedBy: text) -> ();
   setMaintenanceMode: (isActive: bool, message: text, eta: text) -> ();
   setMyUsername: (username: text) -> (SetUsernameResult);
-  submitSupportTicket: (subject: text, message: text) ->
-   (variant {
-      err: text;
-      ok: text;
-    });
+  submitSupportTicket: (subject: text, message: text, attachmentUrls:
+   vec text) -> (variant {
+                   err: text;
+                   ok: text;
+                 });
   testAutofill: (platform: text) -> (AutofillTestResult);
   toggleListingFavorited: (listingId: ListingId) ->
    (variant {

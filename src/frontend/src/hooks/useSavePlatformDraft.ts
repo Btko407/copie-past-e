@@ -77,6 +77,8 @@ export interface EtsyDraftFields {
   price?: string;
   category?: string;
   tags: string[];
+  materials: string[];
+  isSupply: boolean;
 }
 
 export type PlatformDraftFieldsInput =
@@ -214,6 +216,8 @@ function buildPlatformFields(
           price: f.price ?? undefined,
           category: f.category ?? undefined,
           tags: f.tags,
+          materials: f.materials,
+          isSupply: f.isSupply,
           photos: [],
         },
       };

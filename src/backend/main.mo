@@ -5,6 +5,8 @@ import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Order "mo:core/Order";
+import Cycles "mo:core/Cycles";
+import Prim "mo:⛔";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
@@ -27,6 +29,8 @@ import GasWalletLib "lib/gas-wallet";
 import PaymentsLib "lib/payments";
 import NotifLib "lib/notifications";
 import BackupLib "lib/backup";
+import MonitoringLib "lib/monitoring";
+import AdminNotifLib "lib/admin-notifications";
 import ListingsApi "mixins/listings-api";
 import ImagesApi "mixins/images-api";
 import AdminApi "mixins/admin-api";
@@ -59,6 +63,8 @@ import SystemDiagnosticsApi "mixins/system-diagnostics-api";
 import UniversalListingApi "mixins/universal-listing-api";
 import MasterListingApi "mixins/master-listing-api";
 import MasterListingTypes "types/master-listing";
+import MonitoringApi "mixins/monitoring-api";
+
 
 
 
@@ -519,6 +525,14 @@ actor {
     versionBackups,
   );
 
+  // ── Monitoring Ring-Buffer ────────────────────────────────────────────────
+  // Structured log ring-buffer — max 1000 entries, oldest overwritten.
+  // EOP handles persistence automatically — no stable keyword needed.
+  // Declared early so Stripe and OCR mixins can share the same log state.
+  let monLogs        = Map.empty<Nat, MonitoringLib.MonitoringLogEntry>();
+  let monNextIndex   = { var value : Nat = 0 };
+  let monTotalLogged = { var value : Nat = 0 };
+
   // ── Stripe Payment Backend ────────────────────────────────────────────────
   // webhookEventLog: ring buffer of last 50 processed payment events (kept for revenue stats)
   let webhookEventLog = List.empty<PaymentTypes.WebhookEvent>();
@@ -548,6 +562,9 @@ actor {
     notifCounter,
     paymentBanners,
     verifiedStripeSessionIds,
+    monLogs,
+    monNextIndex,
+    monTotalLogged,
   );
 
   // ── Gemini OCR ────────────────────────────────────────────────────────────
@@ -556,7 +573,7 @@ actor {
   // ocrFailureLog: ring buffer of OCR scan failures (capped at 500, admin-visible)
   let ocrFailureLog = List.empty<OcrTypes.OcrFailureEntry>();
   // appConfig passed so adminSaveGeminiConfig can sync gemini_api_key there too
-  include OcrApi(accessControlState, geminiConfig, appConfig, ocrFailureLog);
+  include OcrApi(accessControlState, geminiConfig, appConfig, ocrFailureLog, monLogs, monNextIndex, monTotalLogged);
 
   // ── Support Tickets ───────────────────────────────────────────────────────
   let supportTickets = List.empty<SupportTicketTypes.SupportTicket>();
@@ -565,6 +582,37 @@ actor {
   // ── Admin Activity Notifications ──────────────────────────────────────────
   let adminNotifs       = List.empty<AdminNotifTypes.AdminNotification>();
   let adminNotifCounter = { var value : Nat = 0 };
+
+  // ── Cycle Health Monitor ─────────────────────────────────────────────────
+  // Fires every 5 minutes. If the canister balance drops below 5 T cycles,
+  // creates an urgent admin notification and logs a critical entry to the
+  // monitoring ring buffer. Declared here so all required state is in scope.
+  let CYCLES_LOW_THRESHOLD : Nat = 5_000_000_000_000; // 5 T cycles
+
+  ignore Timer.recurringTimer<system>(
+    #minutes 5,
+    func() : async () {
+      let bal = Cycles.balance();
+      MonitoringLib.logEvent(
+        monLogs, monNextIndex, monTotalLogged,
+        if (bal < CYCLES_LOW_THRESHOLD) "critical" else "info",
+        "CycleHealthMonitor",
+        "Cycle balance check — balance: " # bal.toText() # " cycles",
+      );
+      if (bal < CYCLES_LOW_THRESHOLD) {
+        ignore AdminNotifLib.createAdminNotification(
+          adminNotifs, adminNotifCounter,
+          "lowCycles",
+          "⚠ LOW CYCLES: Canister balance is " # bal.toText() # " cycles — below the 5T threshold. Top up now to avoid service interruption.",
+          "system",
+          null,
+          "urgent",
+          null,
+          Time.now(),
+        );
+      };
+    },
+  );
 
   include SupportTicketsApi(
     accessControlState,
@@ -628,6 +676,102 @@ actor {
   let masterListings = Map.empty<Text, MasterListingTypes.MasterListing>();
   include MasterListingApi(accessControlState, masterListings);
 
-  // ── UPGRADE SAFETY HOOKS ────────────────────────────────────────────────
+  // ── Monitoring Mixin Include + System Status ──────────────────────────────
+  include MonitoringApi(monLogs, monNextIndex, monTotalLogged);
+
+  // ── System Status (monitoring dashboard endpoint) ─────────────────────────
+  /// Returns a lightweight system health snapshot: cycles, heap, log count,
+  /// and the 20 most recent structured log entries from the monitoring ring buffer.
+  public query func getSystemStatus() : async {
+    cycles     : Nat;
+    heapSize   : Nat;
+    logCount   : Nat;
+    recentLogs : [MonitoringLib.MonitoringLogEntry];
+  } {
+    let total = monLogs.size();
+    let limit : Nat = 20;
+    let recentLogs : [MonitoringLib.MonitoringLogEntry] = if (total == 0) {
+      []
+    } else {
+      let cap   = if (limit > 1000) 1000 else limit;
+      let count = if (cap > total) total else cap;
+      let writeHead = monNextIndex.value % 1000;
+      var collected : [MonitoringLib.MonitoringLogEntry] = [];
+      var i = 0;
+      while (i < count) {
+        let slot = (writeHead + 1000 - 1 - i) % 1000;
+        switch (monLogs.get(slot)) {
+          case (?entry) { collected := collected.concat([entry]) };
+          case null {};
+        };
+        i += 1;
+      };
+      collected
+    };
+    {
+      cycles     = Cycles.balance();
+      heapSize   = Prim.rts_heap_size();
+      logCount   = monTotalLogged.value;
+      recentLogs;
+    }
+  };
+
+  // ── UPGRADE SAFETY HOOKS ─────────────────────────────────────────────────
+  // This project uses --default-persistent-actors (Enhanced Orthogonal Persistence).
+  // Under EOP, ALL actor-level bindings — including Map, List, Set, counters, and
+  // mutable records — are implicitly persistent across canister upgrades. No explicit
+  // preupgrade/postupgrade hooks or `stable var` declarations are needed for runtime
+  // collections. The Motoko compiler + IC runtime serialise and restore the full actor
+  // heap automatically on every upgrade.
+  //
+  // The `stable var` declarations above (STRIPE_SECRET_KEY, IC_MANAGEMENT_*, etc.) are
+  // MIGRATION STUBS only — they preserve upgrade compatibility with previously deployed
+  // wasm binaries that stored those bindings under the old non-EOP model.
+  //
+  // The four backup Maps (appConfigBackup, profilesBackup, subscriptionsBackup,
+  // listingsBackup) are declared as `stable var` for the same historical reason.
+  // Under EOP they behave identically to the non-stable Maps; their `stable` keyword
+  // is a no-op in this mode and is kept solely so the upgrade compatibility checker
+  // (mops build --check-stable) does not reject the canister.
+  //
+  // DATA PROTECTION GUARANTEE:
+  //   * listings, profiles, subscriptions, payments, notifications, appConfig,
+  //     versionBackups, tiers, wallets — ALL survive upgrades automatically via EOP.
+  //
+  // BELT-AND-SUSPENDERS PERSISTENCE HOOKS:
+  // The following preupgrade/postupgrade hooks snapshot all critical runtime Maps into
+  // the four stable backup Maps declared above, and restore from them on postupgrade
+  // if the primary collections are unexpectedly empty after an upgrade.
+  // This is belt-and-suspenders protection: EOP is the primary mechanism; these hooks
+  // are the safety net that catches any edge case where EOP does not cover a collection.
+  //
+  // ⚠ DO NOT clear or reinitialise these stable backup Maps in these hooks —
+  //   always WRITE to them in preupgrade and only READ from them in postupgrade.
+
+  system func preupgrade() {
+    // Snapshot all critical runtime Maps into stable backup vars before upgrade.
+    // EOP handles the primary collections; these stable snapshots are the fallback.
+    for ((k, v) in appConfig.entries())     { appConfigBackup.add(k, v) };
+    for ((k, v) in profiles.entries())      { profilesBackup.add(k, v) };
+    for ((k, v) in subscriptions.entries()) { subscriptionsBackup.add(k, v) };
+    for ((k, v) in listings.entries())      { listingsBackup.add(k, v) };
+  };
+
+  system func postupgrade() {
+    // If primary collections are empty after upgrade (unexpected EOP failure),
+    // restore from the stable backup Maps. Never overwrites live data.
+    if (appConfig.isEmpty() and not appConfigBackup.isEmpty()) {
+      for ((k, v) in appConfigBackup.entries()) { appConfig.add(k, v) };
+    };
+    if (profiles.isEmpty() and not profilesBackup.isEmpty()) {
+      for ((k, v) in profilesBackup.entries()) { profiles.add(k, v) };
+    };
+    if (subscriptions.isEmpty() and not subscriptionsBackup.isEmpty()) {
+      for ((k, v) in subscriptionsBackup.entries()) { subscriptions.add(k, v) };
+    };
+    if (listings.isEmpty() and not listingsBackup.isEmpty()) {
+      for ((k, v) in listingsBackup.entries()) { listings.add(k, v) };
+    };
+  };
 };
 

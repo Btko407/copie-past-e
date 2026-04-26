@@ -1,0 +1,112 @@
+{
+  "manifest_version": 3,
+  "name": "Copie Past-e",
+  "version": "1.4.0",
+  "description": "Cross-list your items to multiple marketplaces — autofill forms with one click.",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Copie Past-e",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.facebook.com/*",
+    "https://*.mercari.com/*",
+    "https://*.ebay.com/*",
+    "https://*.poshmark.com/*",
+    "https://*.depop.com/*",
+    "https://*.etsy.com/*",
+    "https://*.icp0.io/*",
+    "https://*.ic0.app/*",
+    "http://localhost/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.icp0.io/*",
+        "https://*.ic0.app/*",
+        "http://localhost/*"
+      ],
+      "js": ["content-detection.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*.facebook.com/marketplace/create/*",
+        "https://*.facebook.com/marketplace/*/edit/*"
+      ],
+      "js": ["utils.js", "content-facebook.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.mercari.com/sell/*",
+        "https://www.mercari.com/item/edit/*"
+      ],
+      "js": ["utils.js", "content-mercari.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.ebay.com/sl/sell*",
+        "https://www.ebay.com/sell/*",
+        "https://bulksell.ebay.com/*"
+      ],
+      "js": ["utils.js", "content-ebay.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://poshmark.com/create-listing*",
+        "https://poshmark.com/edit-listing/*"
+      ],
+      "js": ["utils.js", "content-poshmark.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.depop.com/selling/*",
+        "https://selling.depop.com/*"
+      ],
+      "js": ["utils.js", "content-depop.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.etsy.com/listing/new*",
+        "https://www.etsy.com/listing/*/edit*",
+        "https://www.etsy.com/your/shops/*/tools/listings/*"
+      ],
+      "js": ["utils.js", "content-etsy.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

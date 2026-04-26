@@ -915,4 +915,22 @@ export const mockBackend: backendInterface = {
   markUniversalListingReady: async () => ({ __kind__: "ok" as const, ok: "Ready" }),
   markAsSOLD: async () => ({ __kind__: "ok" as const, ok: "Marked as sold" }),
   getCampaignResults: async () => null,
+  // ── Config Validation API ──
+  isConfigValid: async () => true,
+  assertConfig: async () => {},
+  // ── Monitoring API ──
+  logEvent: async (_level: string, _component: string, _message: string) => {},
+  getLogCount: async () => BigInt(0),
+  getRecentLogs: async (_limit: bigint) => [],
+  getMonitoringStatus: async () => ({
+    logCount: BigInt(0),
+    cyclesAvailable: BigInt(0),
+    heapSize: BigInt(0),
+  }),
+  getSystemStatus: async () => ({
+    cycles: BigInt(0),
+    heapSize: BigInt(0),
+    logCount: BigInt(0),
+    recentLogs: [],
+  }),
 };

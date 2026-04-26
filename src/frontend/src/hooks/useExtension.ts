@@ -7,26 +7,36 @@ import type { ExtensionListingData } from "../types";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActorAny = any;
 
+// ─── Mobile Detection ─────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the current device appears to be a mobile device.
+ * On mobile, all extension-related UI should be hidden.
+ */
+export function isMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
+}
+
 // ─── Extension Detection ──────────────────────────────────────────────────────
 
 /**
  * Detects whether the Copie Past-e Chrome extension is installed.
  *
- * On mount:
- * 1. Reads the persisted "ext_installed" flag from localStorage as the initial
- *    state so returning users see the correct state instantly.
- * 2. Sends a COPIE_PASTE_PING to the extension (in case it was installed after
- *    the last page load).
- * 3. Starts a 5-second timer. If COPIE_PASTE_EXT_PRESENT is NOT received
- *    within 5 seconds, ext_installed is set to false — meaning the extension
- *    was removed from Chrome.
- * 4. If the message IS received before the timer fires, ext_installed is set
- *    to true and the timer is cancelled.
- *
- * The "Extension Required" modal is never shown when ext_installed is true.
+ * Detection strategy (in order of priority):
+ * 1. On mobile: always returns isInstalled=false, skip all detection.
+ * 2. Check window.__COPIE_PASTE_INSTALLED__ flag (injected by content_script.js).
+ *    A 500ms debounce allows the extension time to inject the flag after navigation.
+ * 3. Fallback: postMessage COPIE_PASTE_PING for backward compat with older
+ *    extension versions that don't inject the global flag.
+ * 4. localStorage "ext_installed" is used as the persisted initial state so
+ *    returning users see the correct state immediately.
  */
 export function useExtensionDetection() {
+  const mobile = isMobile();
+
   const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (mobile) return false;
     try {
       return localStorage.getItem("ext_installed") === "true";
     } catch {
@@ -35,47 +45,73 @@ export function useExtensionDetection() {
   });
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    function handleMessage(e: MessageEvent) {
-      if (e.data?.type === "COPIE_PASTE_EXT_PRESENT") {
-        // Cancel the 5-second timeout — extension is present
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-        try {
-          localStorage.setItem("ext_installed", "true");
-        } catch {
-          /* ignore */
-        }
-        setIsInstalled(true);
-      }
-    }
-
-    window.addEventListener("message", handleMessage);
-
-    // Send a ping so the extension re-announces itself
-    window.postMessage({ type: "COPIE_PASTE_PING" }, "*");
-
-    // 5-second countdown — if no reply, mark extension as not installed
-    timerRef.current = setTimeout(() => {
+    function persist(value: boolean) {
       try {
-        localStorage.setItem("ext_installed", "false");
+        localStorage.setItem("ext_installed", value ? "true" : "false");
       } catch {
         /* ignore */
       }
-      setIsInstalled(false);
-    }, 5000);
+      setIsInstalled(value);
+    }
+
+    // Mobile: skip all detection entirely
+    if (mobile) {
+      persist(false);
+      return;
+    }
+
+    // Primary check: window.__COPIE_PASTE_INSTALLED__ flag (500ms debounce)
+    debounceRef.current = setTimeout(() => {
+      if (
+        (window as unknown as Record<string, unknown>)
+          .__COPIE_PASTE_INSTALLED__ === true
+      ) {
+        persist(true);
+        return;
+      }
+
+      // Fallback: postMessage ping for older extension versions
+      function handleMessage(e: MessageEvent) {
+        if (e.data?.type === "COPIE_PASTE_EXT_PRESENT") {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }
+          persist(true);
+          window.removeEventListener("message", handleMessage);
+        }
+      }
+
+      window.addEventListener("message", handleMessage);
+      window.postMessage({ type: "COPIE_PASTE_PING" }, "*");
+
+      // 5-second countdown — if no reply, mark as not installed
+      timerRef.current = setTimeout(() => {
+        // Re-check the flag one more time before marking as absent
+        if (
+          (window as unknown as Record<string, unknown>)
+            .__COPIE_PASTE_INSTALLED__ === true
+        ) {
+          persist(true);
+        } else {
+          persist(false);
+        }
+        window.removeEventListener("message", handleMessage);
+      }, 5000);
+    }, 500);
 
     return () => {
-      window.removeEventListener("message", handleMessage);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [mobile]);
 
-  // Also react to storage changes from other tabs
+  // React to storage changes from other tabs
   useEffect(() => {
+    if (mobile) return;
     function handleStorage(e: StorageEvent) {
       if (e.key === "ext_installed") {
         setIsInstalled(e.newValue === "true");
@@ -83,9 +119,9 @@ export function useExtensionDetection() {
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  }, [mobile]);
 
-  return { isInstalled };
+  return { isInstalled, isMobileDevice: mobile };
 }
 
 // ─── Get My Webhook Token ─────────────────────────────────────────────────────
@@ -107,7 +143,7 @@ export function useGetMyWebhookToken() {
       }
     },
     enabled: !!actor && !isFetching,
-    staleTime: 300_000, // 5 min — tokens don't change often
+    staleTime: 300_000,
   });
 }
 
@@ -131,7 +167,7 @@ export function useGenerateWebhookToken() {
   });
 }
 
-// ─── Receive Extension Data (webhook handler simulation) ─────────────────────
+// ─── Receive Extension Data ───────────────────────────────────────────────────
 
 export function useReceiveExtensionData() {
   const { actor } = useActor(createActor);
@@ -153,7 +189,6 @@ export function useReceiveExtensionData() {
       return String(draftId);
     },
     onSuccess: () => {
-      // Invalidate listings so the new draft shows up
       queryClient.invalidateQueries({ queryKey: ["listings"] });
     },
   });
@@ -191,7 +226,7 @@ export function useExtensionUpdateCheck(currentVersion: string) {
         downloadUrl: String(result.downloadUrl),
       };
     },
-    refetchInterval: 1000 * 60 * 60, // Re-check every hour
+    refetchInterval: 1000 * 60 * 60,
     enabled: !!actor && !isFetching && currentVersion.length > 0,
   });
 }

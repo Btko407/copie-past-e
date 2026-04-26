@@ -1209,6 +1209,8 @@ export function PlatformDraftModal({
     price: masterListing?.price ?? undefined,
     category: masterListing?.category ?? undefined,
     tags: masterListing?.tags?.slice(0, 13) ?? [],
+    materials: [],
+    isSupply: false,
   }));
 
   // Override with saved draft values on open

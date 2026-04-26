@@ -113,6 +113,28 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-4px)" },
         },
+        "terminal-typewriter": {
+          "0%": { width: "0", opacity: "1" },
+          "100%": { width: "100%", opacity: "1" },
+        },
+        "terminal-blink": {
+          "0%, 50%": { opacity: "1" },
+          "51%, 100%": { opacity: "0" },
+        },
+        "terminal-scan": {
+          "0%": { backgroundPosition: "0 0" },
+          "100%": { backgroundPosition: "0 10px" },
+        },
+        "terminal-boot-sequence": {
+          "0%": { transform: "scaleY(0.95)", opacity: "0" },
+          "10%": { transform: "scaleY(1)", opacity: "1" },
+          "90%": { transform: "scaleY(1)", opacity: "1" },
+          "100%": { opacity: "1" },
+        },
+        "file-upload-pulse": {
+          "0%, 100%": { borderColor: "oklch(var(--success-green) / 0.6)" },
+          "50%": { borderColor: "oklch(var(--success-green))" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -122,6 +144,11 @@ export default {
         spin: "spin 1s linear infinite",
         "circuit-pulse": "circuit-pulse 1.5s ease-in-out infinite",
         "time-bounce": "time-bounce 0.8s ease-in-out infinite",
+        "terminal-typewriter": "terminal-typewriter 0.6s steps(40, end)",
+        "terminal-blink": "terminal-blink 1s steps(1, end) infinite",
+        "terminal-scan": "terminal-scan 0.15s linear infinite",
+        "terminal-boot-sequence": "terminal-boot-sequence 0.8s ease-out",
+        "file-upload-pulse": "file-upload-pulse 2s ease-in-out infinite",
       },
     },
   },

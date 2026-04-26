@@ -215,6 +215,7 @@ export interface CrossListingCampaign {
 }
 export interface DepopFields {
   'title' : string,
+  'color' : [] | [string],
   'size' : [] | [string],
   'description' : string,
   'category' : [] | [string],
@@ -261,12 +262,16 @@ export type ErrorCode = { 'platformNotSupported' : null } |
   { 'unauthorized' : null } |
   { 'draftNotFound' : null };
 export interface EtsyFields {
+  'whoMade' : [] | [string],
   'title' : string,
   'tags' : Array<string>,
   'description' : string,
+  'whenMade' : [] | [string],
+  'materials' : Array<string>,
   'category' : [] | [string],
   'price' : [] | [string],
   'photos' : Array<Uint8Array>,
+  'isSupply' : boolean,
 }
 export interface ExtensionListingData {
   'mecariCondition' : [] | [ItemCondition],
@@ -537,6 +542,13 @@ export interface MecariFields {
   'photos' : Array<Uint8Array>,
   'condition' : [] | [MecariCondition5Scale],
 }
+export interface MonitoringLogEntry {
+  'component' : string,
+  'level' : string,
+  'message' : string,
+  'timestamp' : bigint,
+  'cyclesAvailable' : bigint,
+}
 export type NotificationType = { 'refuelSuccess' : null } |
   { 'lowFuelWarning' : null } |
   { 'subscriptionExpiry' : null } |
@@ -690,10 +702,12 @@ export type Platform__2 = { 'poshmark' : null } |
   { 'mecari' : null };
 export interface PoshmarkFields {
   'title' : string,
+  'color' : [] | [string],
   'size' : [] | [string],
   'description' : string,
   'category' : [] | [string],
   'brand' : [] | [string],
+  'department' : [] | [string],
   'price' : [] | [string],
   'photos' : Array<Uint8Array>,
   'condition' : [] | [string],
@@ -785,6 +799,7 @@ export interface SupportTicket {
   'createdAt' : Timestamp,
   'repliedAt' : [] | [Timestamp],
   'message' : string,
+  'attachmentUrls' : [] | [Array<string>],
 }
 export interface SystemDiagnostics {
   'recommendations' : Array<string>,
@@ -1128,6 +1143,7 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : AppError }
   >,
+  'assertConfig' : ActorMethod<[], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'assignUserRole' : ActorMethod<[string, string], undefined>,
   'checkAndCreateLowFuelNotification' : ActorMethod<
@@ -1342,6 +1358,7 @@ export interface _SERVICE {
     { 'ok' : Array<MasterListing> } |
       { 'err' : AppError }
   >,
+  'getLogCount' : ActorMethod<[], bigint>,
   'getLoyaltyStatus' : ActorMethod<[], LoyaltyStatus>,
   'getMaintenanceMode' : ActorMethod<
     [],
@@ -1355,6 +1372,10 @@ export interface _SERVICE {
   'getMasterListingStats' : ActorMethod<
     [],
     { 'totalListings' : bigint, 'totalDrafts' : bigint, 'totalUsers' : bigint }
+  >,
+  'getMonitoringStatus' : ActorMethod<
+    [],
+    { 'heapSize' : bigint, 'logCount' : bigint, 'cyclesAvailable' : bigint }
   >,
   'getMyBackups' : ActorMethod<[], Array<BackupRecord>>,
   'getMyFbCredentials' : ActorMethod<[], [] | [FbCredentials]>,
@@ -1388,6 +1409,7 @@ export interface _SERVICE {
       'siteBaseUrl' : string,
     }
   >,
+  'getRecentLogs' : ActorMethod<[bigint], Array<MonitoringLogEntry>>,
   'getRefuelHistory' : ActorMethod<[], Array<RefuelEntry>>,
   'getRevenueStats' : ActorMethod<
     [],
@@ -1437,6 +1459,19 @@ export interface _SERVICE {
       'gemini' : { 'status' : string, 'hasApiKey' : boolean },
       'maintenance' : { 'isActive' : boolean },
       'paypal' : { 'status' : string, 'isConfigured' : boolean },
+    }
+  >,
+  /**
+   * / Returns a lightweight system health snapshot: cycles, heap, log count,
+   * / and the 20 most recent structured log entries from the monitoring ring buffer.
+   */
+  'getSystemStatus' : ActorMethod<
+    [],
+    {
+      'heapSize' : bigint,
+      'logCount' : bigint,
+      'recentLogs' : Array<MonitoringLogEntry>,
+      'cycles' : bigint,
     }
   >,
   'getTier' : ActorMethod<[bigint], [] | [TierConfig]>,
@@ -1511,6 +1546,7 @@ export interface _SERVICE {
     }
   >,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isConfigValid' : ActorMethod<[], boolean>,
   'listAdminNotifications' : ActorMethod<[], Array<AdminNotification>>,
   'listAllUsers' : ActorMethod<[], Array<UserSummary>>,
   'listBackupsForDownload' : ActorMethod<
@@ -1538,6 +1574,7 @@ export interface _SERVICE {
     { 'ok' : string } |
       { 'err' : string }
   >,
+  'logEvent' : ActorMethod<[string, string, string], undefined>,
   'logManualPosting' : ActorMethod<
     [string, Platform__2, [] | [string]],
     { 'ok' : string } |
@@ -1662,7 +1699,7 @@ export interface _SERVICE {
   'setMaintenanceMode' : ActorMethod<[boolean, string, string], undefined>,
   'setMyUsername' : ActorMethod<[string], SetUsernameResult>,
   'submitSupportTicket' : ActorMethod<
-    [string, string],
+    [string, string, Array<string>],
     { 'ok' : string } |
       { 'err' : string }
   >,

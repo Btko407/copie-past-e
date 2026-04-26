@@ -1,6 +1,6 @@
-import { useInternetIdentity } from "@caffeineai/core-infrastructure";
-import { useEffect } from "react";
-import type { AuthStatus } from "../types";
+import { useContext } from "react";
+import { AuthContext } from "../providers/AuthProvider";
+import type { AuthContextValue } from "../providers/AuthProvider";
 
 // ── Draft identity helpers ───────────────────────────────────────────────────
 
@@ -48,56 +48,12 @@ export function clearDraftIdentity(): void {
 
 // ── Auth state ───────────────────────────────────────────────────────────────
 
-export interface AuthState {
-  isAuthenticated: boolean;
-  isInitializing: boolean;
-  /** True once the identity provider has fully resolved (initializing === false). */
-  authReady: boolean;
-  status: AuthStatus;
-  principalId?: string;
-  login: () => void;
-  logout: () => void;
-}
+export type { AuthContextValue as AuthState };
 
-export function useAuth(): AuthState {
-  const { identity, login, clear, isInitializing, loginStatus } =
-    useInternetIdentity();
-
-  const principal = identity?.getPrincipal();
-  const isAnonymous = !principal || principal.isAnonymous();
-  const isAuthenticated =
-    !isAnonymous &&
-    (loginStatus === "success" ||
-      (!!identity && loginStatus !== "initializing"));
-
-  const status: AuthStatus = isInitializing
-    ? "initializing"
-    : isAuthenticated
-      ? "authenticated"
-      : "unauthenticated";
-
-  // authReady is true as soon as the identity provider has resolved.
-  // Use this to gate all backend actor calls so we never fire them with a
-  // stale / anonymous identity.
-  const authReady = !isInitializing;
-
-  const principalId = !isAnonymous ? principal?.toText() : undefined;
-
-  // Persist identity to localStorage so the Chrome extension can pick it up
-  // for local/draft testing without needing a live deploy.
-  useEffect(() => {
-    if (authReady && principalId) {
-      saveDraftIdentity(identity, principalId);
-    }
-  }, [authReady, principalId, identity]);
-
-  return {
-    isAuthenticated,
-    isInitializing,
-    authReady,
-    status,
-    principalId,
-    login,
-    logout: clear,
-  };
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
+  return ctx;
 }

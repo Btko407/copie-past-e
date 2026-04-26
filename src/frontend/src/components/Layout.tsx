@@ -12,19 +12,35 @@ export function Layout({ children, showNav = true }: LayoutProps) {
       {showNav && <Navbar />}
       <main className="flex-1 flex flex-col">{children}</main>
       <footer className="bg-card/60 border-t border-border/50 py-4 px-6">
-        <p className="text-center text-muted-foreground text-xs font-body">
-          © {new Date().getFullYear()}. Built with love using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
-              typeof window !== "undefined" ? window.location.hostname : "",
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:text-accent transition-smooth underline-offset-2 hover:underline"
-          >
-            caffeine.ai
-          </a>
-        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-center text-muted-foreground text-xs font-body">
+            © {new Date().getFullYear()}. Built with love using{" "}
+            <a
+              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
+                typeof window !== "undefined" ? window.location.hostname : "",
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-accent transition-smooth underline-offset-2 hover:underline"
+            >
+              caffeine.ai
+            </a>
+          </p>
+          <div className="flex items-center gap-4">
+            <a
+              href="/terms"
+              className="font-mono text-[10px] text-muted-foreground hover:text-primary transition-smooth uppercase tracking-widest"
+            >
+              Terms
+            </a>
+            <a
+              href="/privacy"
+              className="font-mono text-[10px] text-muted-foreground hover:text-primary transition-smooth uppercase tracking-widest"
+            >
+              Privacy
+            </a>
+          </div>
+        </div>
       </footer>
       <Toaster
         theme="dark"
