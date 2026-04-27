@@ -6,6 +6,7 @@ import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { PaymentBanners } from "@/components/PaymentBanners";
 import { PlatformDraftModal } from "@/components/PlatformDraftModal";
 import { LowFuelWarningBanner, RefuelBanner } from "@/components/RefuelBanner";
+import { StatusToast } from "@/components/StatusToast";
 import { TimeCircuitsCountdown } from "@/components/TimeCircuitsCountdown";
 import { UniversalListingForm } from "@/components/UniversalListingForm";
 import { Button } from "@/components/ui/button";
@@ -734,6 +735,9 @@ export function DashboardPage() {
 
   return (
     <Layout>
+      {/* Session extension status toast — once per session, desktop only */}
+      <StatusToast />
+
       {/* Onboarding Wizard — non-dismissible until all steps complete */}
       {showOnboarding && (
         <OnboardingWizard

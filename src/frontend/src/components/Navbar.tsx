@@ -1,3 +1,4 @@
+import { HeaderStatus } from "@/components/HeaderStatus";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -160,6 +161,9 @@ export function Navbar() {
                 )}
               </span>
             </Link>
+
+            {/* Extension status badge */}
+            <HeaderStatus />
 
             {/* Listings button */}
             <Link to="/dashboard" data-ocid="navbar-listings-link">

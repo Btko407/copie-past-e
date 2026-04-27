@@ -1,28 +1,26 @@
 {
-  "overview": "Copie Past-e is a retro-cyberpunk cross-listing SaaS on the Internet Computer. It lets sellers create one master listing and prepare platform-specific drafts for Facebook, Mercari, eBay, Poshmark, Depop, and Etsy — then use the companion Chrome extension to autofill each marketplace with one click.",
+  "overview": "Copie Past-e is a production-grade cross-listing SaaS for resellers built on the Internet Computer. It supports Facebook Marketplace, Mercari, eBay, Poshmark, Depop, and Etsy — letting users create a master listing once and autofill platform-specific forms via a Chrome extension. Features include NFID social login (Google + Internet Identity), Gemini OCR for photo-to-form population, Stripe subscription tiers, a mobile-adaptive UI, and a retro-cyberpunk terminal aesthetic.",
   "features": [
-    "NFID authentication with Google Social Login and Internet Identity",
-    "Retro-Cyberpunk System Boot initialization screen with mobile bypass",
-    "Dynamic 6-platform listing form with full field mapping and character limits",
-    "Drag-and-drop image gallery manager for create and edit modes",
-    "Smart Gemini OCR that auto-populates the listing form from a photo",
-    "Production Chrome extension with window.__COPIE_PASTE_INSTALLED__ detection flag",
-    "Full DOM-injection autofill for all 6 marketplaces via INJECT DATA button",
-    "Direct extension .zip download for developer-mode sideloading",
-    "Zero data loss upgrade hooks for all Motoko state",
-    "Cycle watchdog timer with admin notification below 5T cycles",
-    "Driver.js interactive sideloading walkthrough on /extension-setup"
+    "Cross-listing to 6 marketplaces: Facebook, Mercari, eBay, Poshmark, Depop, Etsy",
+    "NFID universal login — Google Social Login and Internet Identity",
+    "Chrome extension autofill — injects draft data into marketplace forms with one click",
+    "Mobile-adaptive UI — clipboard and deep-link buttons replace inject buttons on phone",
+    "Intelligent header — pulsing extension status icon and session-first install toast",
+    "Gemini OCR — upload a photo to auto-fill the entire listing form",
+    "Subscription tiers — Time Walker, Time Traveler, Time Lord via Stripe",
+    "Admin panel — user management, analytics, backup/restore, extension version control",
+    "Upgrade-safe Motoko backend — stable variables and migration stubs prevent data loss"
   ],
   "category": "productivity",
   "tags": [
     "cross-listing",
+    "reseller",
     "marketplace",
-    "ecommerce",
-    "chrome-extension",
     "icp",
-    "motoko",
     "nfid",
-    "reselling"
+    "chrome-extension",
+    "ecommerce",
+    "saas"
   ],
-  "last_updated": "2026-04-26T14:58:59.417Z"
+  "last_updated": "2026-04-27T03:05:15.601Z"
 }

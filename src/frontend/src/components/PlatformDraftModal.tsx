@@ -1,3 +1,4 @@
+import { useDevice } from "@/hooks/useDevice";
 import { useLogManualPosting } from "@/hooks/useLogManualPosting";
 import {
   type DepopDraftFields,
@@ -8,7 +9,13 @@ import {
   type PoshmarkDraftFields,
   useSavePlatformDraft,
 } from "@/hooks/useSavePlatformDraft";
-import { AlertTriangle, CheckCircle2, ExternalLink, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -1152,6 +1159,7 @@ export function PlatformDraftModal({
   const meta = PLATFORM_META[platform];
   const saveDraft = useSavePlatformDraft();
   const logPosting = useLogManualPosting();
+  const { isMobile } = useDevice();
   const [showConfirmPosted, setShowConfirmPosted] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -1445,7 +1453,7 @@ export function PlatformDraftModal({
           </div>
 
           {/* Sticky footer */}
-          <div className="px-5 py-4 border-t border-border/30 flex gap-3 shrink-0 bg-card">
+          <div className="px-5 py-4 border-t border-border/30 flex gap-3 shrink-0 bg-card flex-wrap">
             <button
               type="button"
               onClick={onClose}
@@ -1463,16 +1471,73 @@ export function PlatformDraftModal({
             >
               {saveDraft.isPending ? "Saving…" : "Save Draft"}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowConfirmPosted(true)}
-              disabled={logPosting.isPending}
-              className="px-4 py-2 bg-transparent hover:bg-green-500/10 border border-green-500/50 rounded-lg text-sm font-semibold text-green-400 transition-smooth flex items-center gap-2 disabled:opacity-40"
-              data-ocid="platform-draft.mark-posted.open_modal_button"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {logPosting.isPending ? "Logging…" : "Mark as Posted"}
-            </button>
+
+            {/* Mobile: Copy + Open App; Desktop: Mark as Posted */}
+            {isMobile ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = [
+                      masterListing?.title,
+                      masterListing?.price
+                        ? `Price: ${masterListing.price}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    navigator.clipboard
+                      .writeText(text)
+                      .then(() => {
+                        toast.success("Listing copied to clipboard");
+                      })
+                      .catch(() => {
+                        toast.error("Copy failed");
+                      });
+                  }}
+                  className="px-4 py-2 bg-transparent hover:bg-primary/10 border border-primary/50 rounded-lg text-sm font-semibold text-primary transition-smooth flex items-center gap-2"
+                  data-ocid="platform-draft.copy_listing.button"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Listing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const appUrls: Record<string, string> = {
+                      facebook:
+                        "https://www.facebook.com/marketplace/create/item",
+                      mercari: "https://www.mercari.com/sell/",
+                      ebay: "https://www.ebay.com/sell",
+                      poshmark: "https://poshmark.com/create-listing",
+                      depop: "https://www.depop.com/sell/",
+                      etsy: "https://www.etsy.com/sell",
+                    };
+                    window.open(
+                      appUrls[platform] ?? "#",
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                  className="px-4 py-2 bg-transparent hover:bg-accent/10 border border-accent/50 rounded-lg text-sm font-semibold text-accent transition-smooth flex items-center gap-2"
+                  data-ocid="platform-draft.open-app.button"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open {meta.label}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowConfirmPosted(true)}
+                disabled={logPosting.isPending}
+                className="px-4 py-2 bg-transparent hover:bg-green-500/10 border border-green-500/50 rounded-lg text-sm font-semibold text-green-400 transition-smooth flex items-center gap-2 disabled:opacity-40"
+                data-ocid="platform-draft.mark-posted.open_modal_button"
+              >
+                <ExternalLink className="h-4 w-4" />
+                {logPosting.isPending ? "Logging…" : "Mark as Posted"}
+              </button>
+            )}
           </div>
         </div>
       </div>
