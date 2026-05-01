@@ -3,7 +3,6 @@ import { Layout } from "@/components/Layout";
 import { ListingCard } from "@/components/ListingCard";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
 import { MasterListingForm } from "@/components/MasterListingForm";
-import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { PaymentBanners } from "@/components/PaymentBanners";
 import { PlatformDraftModal } from "@/components/PlatformDraftModal";
 import { LowFuelWarningBanner, RefuelBanner } from "@/components/RefuelBanner";
@@ -539,8 +538,6 @@ function TabBar({
 
 const LOW_FUEL_THRESHOLD = 20;
 
-const ONBOARDING_KEY = "copie_onboarding_complete";
-
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data: listings, isLoading: listingsLoading } = useListings();
@@ -551,16 +548,6 @@ export function DashboardPage() {
   const { data: subscription } = useGetMySubscription();
   const { data: tiers } = useGetTiers();
   const checkLowFuel = useCheckLowFuelNotification();
-
-  // Onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(
-    () => localStorage.getItem(ONBOARDING_KEY) !== "true",
-  );
-
-  function handleOnboardingComplete() {
-    localStorage.setItem(ONBOARDING_KEY, "true");
-    setShowOnboarding(false);
-  }
 
   const [activeTab, setActiveTab] = useState<TabKey>("active");
   const [searchQuery, setSearchQuery] = useState("");
@@ -783,14 +770,6 @@ export function DashboardPage() {
 
       {/* Session extension status toast — once per session, desktop only */}
       <StatusToast />
-
-      {/* Onboarding Wizard — non-dismissible until all steps complete */}
-      {showOnboarding && (
-        <OnboardingWizard
-          onComplete={handleOnboardingComplete}
-          onOpenNewListing={() => setShowMasterForm(true)}
-        />
-      )}
 
       <MaintenanceBanner />
 
