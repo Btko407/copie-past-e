@@ -1,6 +1,8 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
+import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
@@ -22,12 +24,30 @@ mixin (
   adminNotifCounter  : { var value : Nat },
   profiles           : Map.Map<Common.UserId, ProfileTypes.UserProfile>,
 ) {
+  // ── CallerGuard — reentrancy + anonymous principal protection ────────────
+  let ticketsInProgress = Set.empty<Principal>();
+
+  func ticketsGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (ticketsInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    ticketsInProgress.add(caller);
+  };
+
+  func ticketsRelease(caller : Principal) {
+    ticketsInProgress.remove(caller);
+  };
+
   /// User: submit a support ticket with optional file attachment URLs.
   public shared ({ caller }) func submitSupportTicket(
     subject        : Text,
     message        : Text,
     attachmentUrls : [Text],
   ) : async { #ok : Text; #err : Text } {
+    ticketsGuard(caller);
     let now = Time.now();
     let username : Text = switch (profiles.get(caller)) {
       case (?p) { p.username };
@@ -49,9 +69,10 @@ mixin (
           null,
           now,
         );
+        ticketsRelease(caller);
         #ok(msg)
       };
-      case (#err(e)) #err(e);
+      case (#err(e)) { ticketsRelease(caller); #err(e) };
     }
   };
 
@@ -76,11 +97,13 @@ mixin (
     id    : Nat,
     reply : Text,
   ) : async { #ok; #err : Text } {
+    ticketsGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      ticketsRelease(caller);
       return #err("Unauthorized: admin only");
     };
     let now = Time.now();
-    switch (SupportLib.replySupportTicket(supportTickets, id, reply, now)) {
+    let result = switch (SupportLib.replySupportTicket(supportTickets, id, reply, now)) {
       case (#err(e)) { #err(e) };
       case (#ok(ticket)) {
         // Create user notification with the reply
@@ -94,14 +117,20 @@ mixin (
         );
         #ok
       };
-    }
+    };
+    ticketsRelease(caller);
+    result;
   };
 
   /// Admin: close a support ticket.
   public shared ({ caller }) func closeSupportTicket(id : Nat) : async { #ok; #err : Text } {
+    ticketsGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      ticketsRelease(caller);
       return #err("Unauthorized: admin only");
     };
-    SupportLib.closeSupportTicket(supportTickets, id)
+    let result = SupportLib.closeSupportTicket(supportTickets, id);
+    ticketsRelease(caller);
+    result;
   };
 };

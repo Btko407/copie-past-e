@@ -1,8 +1,8 @@
-import { useContext } from "react";
-import { AuthContext } from "../providers/AuthProvider";
-import type { AuthContextValue } from "../providers/AuthProvider";
+import { useInternetIdentity } from "@caffeineai/core-infrastructure";
+import type { Identity } from "@dfinity/agent";
+import type { AuthStatus } from "../types"; // imported for use inside this file
 
-// ── Draft identity helpers ───────────────────────────────────────────────────
+// ── Draft identity helpers (for extension compatibility) ─────────────────────
 
 const DEBUG_IDENTITY_KEY = "__copie_paste_draft_identity";
 const DEBUG_PRINCIPAL_KEY = "__copie_paste_draft_principal";
@@ -46,14 +46,57 @@ export function clearDraftIdentity(): void {
   console.log("Cleared draft identity");
 }
 
-// ── Auth state ───────────────────────────────────────────────────────────────
+// Re-export AuthStatus from canonical location for backward compat
+export type { AuthStatus } from "../types";
 
-export type { AuthContextValue as AuthState };
+// ── Auth state shape ─────────────────────────────────────────────────────────
 
+export interface AuthContextValue {
+  isAuthenticated: boolean;
+  /** True while the identity provider is still resolving the session. */
+  isInitializing: boolean;
+  /** Shorthand: !isInitializing */
+  authReady: boolean;
+  status: AuthStatus;
+  principalId?: string;
+  identity: Identity | undefined;
+  login: () => void;
+  logout: () => void;
+  /** Alias for logout — backward compat with pages that call `clear()` */
+  clear: () => void;
+}
+
+// ── useAuth hook ─────────────────────────────────────────────────────────────
+
+/**
+ * Thin wrapper around useInternetIdentity that exposes the shape the rest of
+ * the app expects (isAuthenticated, isInitializing, authReady, principalId,
+ * identity, login, logout / clear).
+ *
+ * @caffeineai/core-infrastructure v0.1.0 does not expose `isAuthenticated` —
+ * we derive it from the identity being present and non-anonymous.
+ */
 export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-  return ctx;
+  const ii = useInternetIdentity();
+  const identity = ii.identity as Identity | undefined;
+  const principalId = identity?.getPrincipal().toText();
+  // isAuthenticated: identity exists and is not the anonymous principal
+  const isAuthenticated = !!identity && !identity.getPrincipal().isAnonymous();
+  const status: AuthStatus = ii.isInitializing
+    ? "initializing"
+    : isAuthenticated
+      ? "authenticated"
+      : "unauthenticated";
+
+  return {
+    isAuthenticated,
+    isInitializing: ii.isInitializing,
+    authReady: !ii.isInitializing,
+    status,
+    principalId,
+    identity,
+    login: ii.login,
+    logout: ii.clear,
+    clear: ii.clear,
+  };
 }

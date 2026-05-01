@@ -1,5 +1,7 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
+import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
@@ -14,6 +16,23 @@ mixin (
   usernameIndex : Map.Map<Text, Common.UserId>,
   subscriptions : Map.Map<Common.UserId, TierTypes.UserTierSubscription>,
 ) {
+  // ── CallerGuard — reentrancy + anonymous principal protection ────────────
+  let profileInProgress = Set.empty<Principal>();
+
+  func profileGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (profileInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    profileInProgress.add(caller);
+  };
+
+  func profileRelease(caller : Principal) {
+    profileInProgress.remove(caller);
+  };
+
   /// Called on first login / signup to create the user's profile with a username.
   /// Auto-starts the free 30-day subscription immediately on success.
   ///
@@ -27,6 +46,7 @@ mixin (
     username : Text,
     email : Text,
   ) : async Types.SetUsernameResult {
+    profileGuard(caller);
     let now = Time.now();
     let result = ProfileLib.registerProfile(profiles, usernameIndex, caller, username, email, now);
     switch (result) {
@@ -36,6 +56,7 @@ mixin (
       };
       case (#err(_)) {};
     };
+    profileRelease(caller);
     result;
   };
 
@@ -43,8 +64,11 @@ mixin (
   public shared ({ caller }) func setMyUsername(
     username : Text,
   ) : async Types.SetUsernameResult {
+    profileGuard(caller);
     let now = Time.now();
-    ProfileLib.setUsername(profiles, usernameIndex, caller, username, now);
+    let result = ProfileLib.setUsername(profiles, usernameIndex, caller, username, now);
+    profileRelease(caller);
+    result;
   };
 
   /// Get the caller's own profile.
@@ -80,20 +104,27 @@ mixin (
   public shared ({ caller }) func adminGetUserIdByUsername(
     username : Text,
   ) : async { #ok : Text; #err : Text } {
+    profileGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      profileRelease(caller);
       Runtime.trap("Unauthorized: Admin role required");
     };
-    switch (ProfileLib.getProfileByUsername(usernameIndex, profiles, username)) {
+    let result = switch (ProfileLib.getProfileByUsername(usernameIndex, profiles, username)) {
       case null { #err("User not found: " # username) };
       case (?profile) { #ok(profile.userId.toText()) };
     };
+    profileRelease(caller);
+    result;
   };
 
   /// Update the caller's mutable profile fields (displayName, email, phoneNumber).
   public shared ({ caller }) func updateMyProfile(
     args : Types.UpdateProfileArgs,
   ) : async Types.UpdateProfileResult {
+    profileGuard(caller);
     let now = Time.now();
-    ProfileLib.updateProfile(profiles, caller, args, now);
+    let result = ProfileLib.updateProfile(profiles, caller, args, now);
+    profileRelease(caller);
+    result;
   };
 };

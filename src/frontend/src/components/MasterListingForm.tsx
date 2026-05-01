@@ -866,6 +866,9 @@ export function MasterListingForm({ isOpen, onClose }: MasterListingFormProps) {
 
   const titleLen = title.length;
   const descLen = description.length;
+  // Submit gate: only data validity — intentionally NO extension check.
+  // Users must always be able to save to the canister regardless of whether
+  // the autofill extension is installed (manual entry + OCR both work without it).
   const canSubmit =
     title.trim().length > 0 &&
     description.trim().length > 0 &&

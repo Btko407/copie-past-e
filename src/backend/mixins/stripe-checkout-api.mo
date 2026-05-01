@@ -5,6 +5,7 @@ import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Blob "mo:core/Blob";
+import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Common "../types/common";
@@ -32,6 +33,23 @@ mixin (
   monNextIndex   : { var value : Nat },
   monTotalLogged : { var value : Nat },
 ) {
+  // ── CallerGuard — reentrancy + anonymous principal protection ────────────
+  let stripeInProgress = Set.empty<Principal>();
+
+  func stripeGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (stripeInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    stripeInProgress.add(caller);
+  };
+
+  func stripeRelease(caller : Principal) {
+    stripeInProgress.remove(caller);
+  };
+
   // Management canister reference factory — instantiated locally per call to avoid
   // stable type compatibility issues on upgrade (actor refs at mixin scope are stable state).
   func icManagementStripe() : actor {
@@ -396,10 +414,11 @@ mixin (
     priceId : Text,
     userId : Text,
   ) : async { #ok : Text; #err : Text } {
+    stripeGuard(caller);
     MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "info", "Stripe", "createStripeCheckoutSession called");
     assertStripeConfig();
     let secretKey = switch (stripeCheckoutSecretKey()) {
-      case null { return #err("Stripe not configured. Add your secret key in admin > Payments.") };
+      case null { stripeRelease(caller); return #err("Stripe not configured. Add your secret key in admin > Payments.") };
       case (?k) { k };
     };
 
@@ -407,11 +426,13 @@ mixin (
 
     // Rate limiting
     if (not checkAndUpdateRateLimit(caller.toText(), now)) {
+      stripeRelease(caller);
       return #err("RATE_LIMITED");
     };
 
     // Price validation against appConfig
     if (not isValidPriceId(priceId)) {
+      stripeRelease(caller);
       return #err("INVALID_PRICE_ID");
     };
 
@@ -424,7 +445,7 @@ mixin (
     // Get or create Stripe customer
     let stripeCustomerId = switch (await getOrCreateStripeCustomer(caller, secretKey)) {
       case (#ok cid) { cid };
-      case (#err msg) { return #err(msg) };
+      case (#err msg) { stripeRelease(caller); return #err(msg) };
     };
 
     // Resolve tier name for Radar metadata
@@ -500,21 +521,22 @@ mixin (
         case null { "Unknown error" };
       };
       MonitoringLib.logEvent(monLogs, monNextIndex, monTotalLogged, "error", "Stripe", "Session creation failed: " # errDetail);
+      stripeRelease(caller);
       return #err("Checkout session creation failed after 3 attempts: " # errDetail);
     };
 
     switch (createResponseText) {
-      case "" { return #err("Failed to decode Stripe response") };
+      case "" { stripeRelease(caller); return #err("Failed to decode Stripe response") };
       case _ {};
     };
 
     let sessionUrl = switch (stripeParseJsonStringField(createResponseText, "url")) {
       case (?u) { u };
-      case null { return #err("Failed to parse checkout session URL") };
+      case null { stripeRelease(caller); return #err("Failed to parse checkout session URL") };
     };
     let sessionId = switch (stripeParseJsonStringField(createResponseText, "id")) {
       case (?i) { i };
-      case null { return #err("Failed to parse checkout session ID") };
+      case null { stripeRelease(caller); return #err("Failed to parse checkout session ID") };
     };
     // Store pending session so verifyAndGrantPayment can confirm it
     pendingSessions.add(caller.toText(), {
@@ -524,6 +546,7 @@ mixin (
       tierId;
       createdAt = now;
     });
+    stripeRelease(caller);
     #ok(sessionUrl);
   };
 
@@ -533,24 +556,27 @@ mixin (
   public shared ({ caller }) func verifyAndGrantPayment(
     sessionId : Text,
   ) : async { #ok : Text; #err : Text } {
+    stripeGuard(caller);
     assertStripeConfig();
     let secretKey = switch (stripeCheckoutSecretKey()) {
-      case null { return #err("Stripe not configured. Add your secret key in admin > Payments.") };
+      case null { stripeRelease(caller); return #err("Stripe not configured. Add your secret key in admin > Payments.") };
       case (?k) { k };
     };
 
     let userId = caller.toText();
 
     let pending = switch (pendingSessions.get(userId)) {
-      case null { return #err("No pending payment found. Please start checkout again.") };
+      case null { stripeRelease(caller); return #err("No pending payment found. Please start checkout again.") };
       case (?s) { s };
     };
 
     if (pending.sessionId != sessionId) {
+      stripeRelease(caller);
       return #err("Session ID mismatch. Please do not modify the URL.");
     };
 
     if (verifiedStripeSessionIds.contains(sessionId)) {
+      stripeRelease(caller);
       return #ok("Payment already verified. Your subscription days have been applied. You can close this window.");
     };
 
@@ -604,6 +630,7 @@ mixin (
         case (?err) { err };
         case null { "Unknown error" };
       };
+      stripeRelease(caller);
       return #err("Payment verification failed after 3 attempts: " # errDetail);
     };
 
@@ -647,24 +674,27 @@ mixin (
       // Record this session as verified — prevents double-grant on any future call.
       verifiedStripeSessionIds.add(sessionId);
 
+      stripeRelease(caller);
       #ok("Payment verified successfully! " # pending.tierDays.toText() # " days added to your subscription. Your DeLorean is fueled!")
     } else {
+      stripeRelease(caller);
       #err("Payment not completed on Stripe. Status: " # paymentStatus # ". Please complete payment to activate your subscription.")
     };
   };
 
   /// Create a Stripe Billing Portal session for the caller.
   public shared ({ caller }) func createStripePortalSession() : async { #ok : Text; #err : Text } {
+    stripeGuard(caller);
     let secretKey = switch (stripeCheckoutSecretKey()) {
-      case null { return #err("Stripe not configured") };
+      case null { stripeRelease(caller); return #err("Stripe not configured") };
       case (?k) { k };
     };
 
     let stripeCustomerId = switch (profiles.get(caller)) {
-      case null { return #err("Profile not found") };
+      case null { stripeRelease(caller); return #err("Profile not found") };
       case (?p) {
         switch (p.stripeCustomerId) {
-          case null { return #err("No Stripe customer on file. Please make a payment first.") };
+          case null { stripeRelease(caller); return #err("No Stripe customer on file. Please make a payment first.") };
           case (?cid) { cid };
         };
       };
@@ -674,7 +704,7 @@ mixin (
     let body = "customer=" # stripeCustomerId
       # "&return_url=" # portalBaseUrl # "/wallet";
 
-    try {
+    let result = try {
       let response = await (with cycles = 49_140_000_000) icManagementStripe().http_request({
         url = "https://api.stripe.com/v1/billing_portal/sessions";
         method = #post;
@@ -709,8 +739,10 @@ mixin (
         #err(errMsg);
       };
     } catch (e) {
-      #err("HTTP outcall failed: " # e.message());
+      #err("HTTP outcall failed: " # e.message())
     };
+    stripeRelease(caller);
+    result;
   };
 
   /// Admin: test the Stripe connection by calling GET /v1/account.
@@ -844,7 +876,9 @@ mixin (
 
   /// Clear the caller's pending session (e.g., if user cancels payment).
   public shared ({ caller }) func clearPendingSession() : async () {
+    stripeGuard(caller);
     pendingSessions.remove(caller.toText());
+    stripeRelease(caller);
   };
 
   /// Get the caller's current payment banner (success or failure).
@@ -873,9 +907,11 @@ mixin (
 
   /// Dismiss the caller's payment banner.
   public shared ({ caller }) func dismissPaymentBanner() : async () {
+    stripeGuard(caller);
     for (bannerType in ["success", "failure"].values()) {
       let key = caller.toText() # ":" # bannerType;
       paymentBanners.remove(key);
     };
+    stripeRelease(caller);
   };
 };

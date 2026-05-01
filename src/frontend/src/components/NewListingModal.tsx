@@ -4,10 +4,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Upload, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Listing } from "../backend";
+import { ListingStatus } from "../backend";
 
 interface NewListingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called immediately when user clicks Save — before backend responds */
+  onOptimisticAdd?: (listing: Listing) => void;
+  /** Called on backend error with the optimistic listing id to remove it */
+  onOptimisticRollback?: (tempId: bigint) => void;
 }
 
 type Platform = "facebook" | "mecari" | "ocr";
@@ -28,7 +34,45 @@ interface FormData {
   photos: File[];
 }
 
-export function NewListingModal({ isOpen, onClose }: NewListingModalProps) {
+// Generates a stable temporary negative BigInt ID for optimistic entries
+let tempIdCounter = -1n;
+function nextTempId(): bigint {
+  const id = tempIdCounter;
+  tempIdCounter -= 1n;
+  return id;
+}
+
+/** Build a synthetic Listing shape for optimistic display */
+function buildOptimisticListing(
+  tempId: bigint,
+  formData: FormData,
+  platform: Platform,
+): Listing {
+  return {
+    id: tempId,
+    status: ListingStatus.active,
+    tierLevel: 1n,
+    title: formData.title,
+    description: formData.description,
+    price: formData.price || undefined,
+    category: formData.category || undefined,
+    platform: undefined, // platform variant not needed for display
+    favorited: false,
+    pinned: false,
+    archivedManually: false,
+    userId: null as unknown as Listing["userId"], // principal unknown client-side
+    createdAt: BigInt(Date.now()) * 1_000_000n,
+    expirationDate: BigInt(Date.now() + 30 * 24 * 60 * 60 * 1000) * 1_000_000n,
+    mecariBrand: platform === "mecari" ? formData.mecariBrand : undefined,
+  };
+}
+
+export function NewListingModal({
+  isOpen,
+  onClose,
+  onOptimisticAdd,
+  onOptimisticRollback,
+}: NewListingModalProps) {
   const { actor, isFetching: actorFetching } = useActor(createActor);
   const actorReady = !!actor && !actorFetching;
   const queryClient = useQueryClient();
@@ -97,15 +141,31 @@ export function NewListingModal({ isOpen, onClose }: NewListingModalProps) {
           platform === "mecari" ? formData.mecariShippingType : null,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success(
-        `✅ ${platform === "facebook" ? "📘 Facebook" : "🏯 Mecari"} listing created!`,
-      );
+    onMutate: () => {
+      // ─── OPTIMISTIC UPDATE ────────────────────────────────────────────────
+      if (!platform || platform === "ocr") return { tempId: null };
+      const tempId = nextTempId();
+      const optimistic = buildOptimisticListing(tempId, formData, platform);
+      onOptimisticAdd?.(optimistic);
+      // Close + reset immediately for snappy UX
       resetForm();
       onClose();
+      return { tempId };
     },
-    onError: (error) => {
+    onSuccess: (_, __, context) => {
+      // Invalidate so TanStack Query refetches the real listing from the canister
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      const platformLabel =
+        platform === "facebook" ? "📘 Facebook" : "🏯 Mercari";
+      toast.success(`✅ ${platformLabel} listing created!`);
+      // context is stale after resetForm; use the platform from closure if needed
+      void context;
+    },
+    onError: (error, _, context) => {
+      // Roll back the optimistic entry
+      if (context?.tempId !== null && context?.tempId !== undefined) {
+        onOptimisticRollback?.(context.tempId);
+      }
       toast.error(
         `Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );

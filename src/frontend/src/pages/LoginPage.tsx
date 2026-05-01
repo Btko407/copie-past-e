@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { EMAIL_ENABLED } from "@/hooks/useEmailVerification";
 import { useProfile } from "@/hooks/useProfile";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, Copy, Globe, Shield, Zap } from "lucide-react";
+import { Clock, Copy, Shield, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect } from "react";
 
@@ -133,19 +133,18 @@ export function LoginPage() {
               instantly with the browser extension.
             </motion.p>
 
-            {/* Auth buttons */}
+            {/* Auth button */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 }}
-              className="w-full space-y-3"
+              className="w-full"
             >
-              {/* Google login */}
               <Button
                 onClick={login}
                 disabled={isLoading}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-display text-xs font-bold tracking-widest uppercase glow-blue neon-border-blue transition-smooth h-12"
-                data-ocid="login.google_button"
+                data-ocid="login.ii_button"
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
@@ -154,36 +153,15 @@ export function LoginPage() {
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    Sign In with Google
-                  </span>
-                )}
-              </Button>
-
-              {/* Internet Identity */}
-              <Button
-                onClick={login}
-                disabled={isLoading}
-                variant="outline"
-                className="w-full border-primary/40 text-primary hover:bg-primary/10 font-display text-xs font-bold tracking-widest uppercase transition-smooth h-12"
-                data-ocid="login.ii_button"
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                    Connecting...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    Sign In with Internet Identity
+                    Connect with Internet Identity
                   </span>
                 )}
               </Button>
             </motion.div>
 
             <p className="text-muted-foreground text-xs font-mono">
-              Both methods use NFID — secure, decentralized, no passwords
+              Secure, decentralized login — no passwords required
             </p>
           </motion.div>
 

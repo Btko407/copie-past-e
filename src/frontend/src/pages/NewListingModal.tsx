@@ -11,6 +11,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Listing } from "../backend";
+import { ListingStatus } from "../backend";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActorAny = any;
@@ -18,6 +20,10 @@ type ActorAny = any;
 interface NewListingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called immediately when user clicks Save — before backend responds */
+  onOptimisticAdd?: (listing: Listing) => void;
+  /** Called on backend error with the optimistic listing id to remove it */
+  onOptimisticRollback?: (tempId: bigint) => void;
 }
 
 type PlatformChoice =
@@ -186,6 +192,39 @@ const PLATFORM_CONFIG: Record<PlatformChoice, PlatformMeta> = {
 
 const PLATFORMS = Object.keys(PLATFORM_CONFIG) as PlatformChoice[];
 
+// ─── Optimistic helpers ───────────────────────────────────────────────────────
+
+let tempIdCounter = -1n;
+function nextTempId(): bigint {
+  const id = tempIdCounter;
+  tempIdCounter -= 1n;
+  return id;
+}
+
+function buildOptimisticListing(
+  tempId: bigint,
+  form: FormData,
+  platform: PlatformChoice,
+): Listing {
+  return {
+    id: tempId,
+    status: ListingStatus.active,
+    tierLevel: 1n,
+    title: form.title,
+    description: form.description,
+    price: form.price.trim() || undefined,
+    platform: undefined, // platform variant not needed for display
+    favorited: false,
+    pinned: false,
+    archivedManually: false,
+    userId: null as unknown as Listing["userId"],
+    createdAt: BigInt(Date.now()) * 1_000_000n,
+    expirationDate: BigInt(Date.now() + 30 * 24 * 60 * 60 * 1000) * 1_000_000n,
+    mecariBrand:
+      platform === "mecari" ? form.mecariBrand.trim() || undefined : undefined,
+  };
+}
+
 function mapFbCondition(val: string): ItemCondition {
   const map: Record<string, ItemCondition> = {
     new: ItemCondition.new_,
@@ -273,7 +312,12 @@ function FieldLabel({
   );
 }
 
-export function NewListingModal({ isOpen, onClose }: NewListingModalProps) {
+export function NewListingModal({
+  isOpen,
+  onClose,
+  onOptimisticAdd,
+  onOptimisticRollback,
+}: NewListingModalProps) {
   const { actor, isFetching } = useActor(createActor);
   const queryClient = useQueryClient();
 
@@ -365,17 +409,31 @@ export function NewListingModal({ isOpen, onClose }: NewListingModalProps) {
 
       return (actor as ActorAny).createListing(universalPayload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["listings"] });
-      const cfg = PLATFORM_CONFIG[platform!];
-      toast.success(`✅ ${cfg.emoji} ${cfg.label} listing created!`);
+    onMutate: () => {
+      // ─── OPTIMISTIC UPDATE ────────────────────────────────────────────────
+      if (!platform) return { tempId: null };
+      const tempId = nextTempId();
+      const optimistic = buildOptimisticListing(tempId, form, platform);
+      onOptimisticAdd?.(optimistic);
+      // Close + reset immediately for snappy UX
       resetForm();
       onClose();
+      return { tempId };
     },
-    onError: (err) =>
+    onSuccess: (_, __, context) => {
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      const cfg = PLATFORM_CONFIG[platform ?? "facebook"];
+      toast.success(`✅ ${cfg.emoji} ${cfg.label} listing created!`);
+      void context;
+    },
+    onError: (err, _, context) => {
+      if (context?.tempId !== null && context?.tempId !== undefined) {
+        onOptimisticRollback?.(context.tempId);
+      }
       toast.error(
         err instanceof Error ? err.message : "Failed to create listing",
-      ),
+      );
+    },
   });
 
   const canSubmit = (() => {

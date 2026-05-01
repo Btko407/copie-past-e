@@ -827,6 +827,8 @@ actor {
       userRoles : Map__605269027<Principal, UserRole__1054455867>
     };
   stable adminActionCounter : {var value : Nat};
+  stable adminInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable adminNotifCounter : {var value : Nat};
   stable adminNotifs :
     {
@@ -944,12 +946,21 @@ actor {
       var root : Node__46230540<ListingId__58075594, Listing__798123527>;
       var size : Nat__490723111
     };
+  stable listingsInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable lowFuelNotificationSentFor :
     {
       var root : Node__46230540<UserId__158757552, Timestamp__301639476>;
       var size : Nat__490723111
     };
+  stable masterInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable masterListings :
+    {
+      var root : Node__46230540<Text, MasterListing__884737454>;
+      var size : Nat__490723111
+    };
+  stable var masterListingsBackup :
     {
       var root : Node__46230540<Text, MasterListing__884737454>;
       var size : Nat__490723111
@@ -995,6 +1006,8 @@ actor {
   stable platformCapabilitiesData : [PlatformCapabilities__386487711];
   stable processedStripeEvents :
     {var root : Node__46230540<Text, Int>; var size : Nat__490723111};
+  stable profileInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable profiles :
     {
       var root : Node__46230540<UserId__158757552, UserProfile__513675666>;
@@ -1018,6 +1031,8 @@ actor {
       var root : Node__46230540<Text, List__415060402<Int>>;
       var size : Nat__490723111
     };
+  stable stripeInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable subscriptions :
     {
       var root :
@@ -1037,6 +1052,8 @@ actor {
       var elementIndex : Nat__490723111
     };
   stable ticketCounter : {var value : Nat};
+  stable ticketsInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable tiers :
     {
       var root : Node__46230540<Nat, TierConfig__70379422>;

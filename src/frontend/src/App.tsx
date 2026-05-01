@@ -158,12 +158,6 @@ const CrossListingAnalyticsPage = lazy(() =>
   })),
 );
 
-const InitializationPage = lazy(() =>
-  import("./pages/InitializationPage").then((m) => ({
-    default: m.InitializationPage,
-  })),
-);
-
 const TermsOfServicePage = lazy(() =>
   import("./pages/TermsOfServicePage").then((m) => ({
     default: m.TermsOfServicePage,
@@ -248,9 +242,25 @@ const rootRoute = createRootRoute({
 
 // ─── User routes ──────────────────────────────────────────────────────────────
 
-const loginRoute = createRoute({
+// Default route: authenticated users land directly on Dashboard.
+// Unauthenticated users are redirected to /login by ProtectedRoute.
+const dashboardIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  component: () => (
+    <ProtectedRoute>
+      <MaintenanceGuard>
+        <Suspense fallback={<PageLoader />}>
+          <DashboardPage />
+        </Suspense>
+      </MaintenanceGuard>
+    </ProtectedRoute>
+  ),
+});
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
   component: LoginPage,
 });
 
@@ -644,21 +654,10 @@ const privacyRoute = createRoute({
   ),
 });
 
-const initializationRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/initialization",
-  component: () => (
-    <ProtectedRoute>
-      <Suspense fallback={<PageLoader />}>
-        <InitializationPage />
-      </Suspense>
-    </ProtectedRoute>
-  ),
-});
-
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const routeTree = rootRoute.addChildren([
+  dashboardIndexRoute,
   loginRoute,
   verifyEmailRoute,
   maintenanceRoute,
@@ -692,7 +691,6 @@ const routeTree = rootRoute.addChildren([
   crossListingAnalyticsRoute,
   termsRoute,
   privacyRoute,
-  initializationRoute,
 ]);
 
 const router = createRouter({

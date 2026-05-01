@@ -1,3 +1,4 @@
+import { ExtensionBanner } from "@/components/ExtensionBanner";
 import { Layout } from "@/components/Layout";
 import { ListingCard } from "@/components/ListingCard";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
@@ -19,7 +20,7 @@ import { useGetMySubscription, useGetTiers } from "@/hooks/useTiers";
 import { useNavigate } from "@tanstack/react-router";
 import { Calendar, Heart, Plus, Search, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { Listing } from "../backend";
 import { ListingStatus } from "../backend";
 import type { MasterListing } from "../backend";
@@ -255,9 +256,11 @@ function EmptyState({ tab, onNewListing }: EmptyStateProps) {
 
 interface ListingsGridProps {
   listings: Listing[];
+  /** Set of listing IDs (as bigint) that are optimistic placeholders */
+  optimisticIds?: Set<bigint>;
 }
 
-function ListingsGrid({ listings }: ListingsGridProps) {
+function ListingsGrid({ listings, optimisticIds }: ListingsGridProps) {
   return (
     <div className="grid grid-cols-3 gap-1.5" data-ocid="listings-grid">
       {listings.map((listing, index) => (
@@ -265,6 +268,7 @@ function ListingsGrid({ listings }: ListingsGridProps) {
           key={listing.id.toString()}
           listing={listing}
           index={index}
+          isOptimistic={optimisticIds?.has(listing.id) ?? false}
         />
       ))}
     </div>
@@ -595,6 +599,40 @@ export function DashboardPage() {
   const allFavorited = favoritedListings ?? [];
   const masterListings: MasterListing[] = masterListingsRaw ?? [];
 
+  // ── React 19 Optimistic listings ──────────────────────────────────────────
+  // Holds pending entries that were submitted but not yet confirmed by the backend.
+  // useOptimistic merges them at the front of the listings array while the backend
+  // mutation is in-flight. On success the query invalidation replaces them with
+  // real data; on error we remove the placeholder via removeOptimistic.
+  const [optimisticListings, addOptimisticListing] = useOptimistic(
+    allListings,
+    (state: Listing[], newListing: Listing) => [newListing, ...state],
+  );
+
+  // Track which IDs are optimistic so ListingCard can show a "Saving..." badge.
+  // Must be useState (not useRef) so changes trigger a re-render that passes
+  // the updated Set to ListingsGrid → ListingCard → isOptimistic prop.
+  const [optimisticIds, setOptimisticIds] = useState<Set<bigint>>(new Set());
+
+  function handleOptimisticAdd(listing: Listing) {
+    setOptimisticIds((prev) => {
+      const next = new Set(prev);
+      next.add(listing.id);
+      return next;
+    });
+    addOptimisticListing(listing);
+  }
+
+  function handleOptimisticRollback(tempId: bigint) {
+    setOptimisticIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tempId);
+      return next;
+    });
+    // TanStack Query invalidation in onSuccess already refreshes; for the error
+    // path the optimistic state resets automatically once the transition ends.
+  }
+
   // Subscription info
   const now = Date.now();
   const expirationMs = subscription?.expirationDate
@@ -638,8 +676,11 @@ export function DashboardPage() {
   }, [isLowFuel, expirationMs, subscription, fuelPercent, checkLowFuel]);
 
   // Sort active: apply date filter, platform filter, then createdAt sort
+  // NOTE: uses optimisticListings so new entries appear instantly on submit
   const sortedActive = useMemo(() => {
-    let items = allListings.filter((l) => l.status === ListingStatus.active);
+    let items = optimisticListings.filter(
+      (l) => l.status === ListingStatus.active,
+    );
     items = filterByDateRange(items, dateFilter);
     if (platformFilter !== "all") {
       items = items.filter((l) => {
@@ -659,7 +700,7 @@ export function DashboardPage() {
       const bTime = Number(b.createdAt);
       return sortOption === "newest" ? bTime - aTime : aTime - bTime;
     });
-  }, [allListings, dateFilter, platformFilter, sortOption]);
+  }, [optimisticListings, dateFilter, platformFilter, sortOption]);
 
   const sortedArchived = useMemo(() => {
     return allListings
@@ -735,6 +776,11 @@ export function DashboardPage() {
 
   return (
     <Layout>
+      {/* Extension nudge banner — desktop only, non-blocking, session-dismissible */}
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 pt-3">
+        <ExtensionBanner />
+      </div>
+
       {/* Session extension status toast — once per session, desktop only */}
       <StatusToast />
 
@@ -967,7 +1013,10 @@ export function DashboardPage() {
             onNewListing={() => setNewListingModalOpen(true)}
           />
         ) : (
-          <ListingsGrid listings={visibleListings} />
+          <ListingsGrid
+            listings={visibleListings}
+            optimisticIds={optimisticIds}
+          />
         )}
 
         {/* ── Master Listings Section ─────────────────────────────────────── */}
@@ -1009,6 +1058,8 @@ export function DashboardPage() {
       <NewListingModal
         isOpen={newListingModalOpen}
         onClose={() => setNewListingModalOpen(false)}
+        onOptimisticAdd={handleOptimisticAdd}
+        onOptimisticRollback={handleOptimisticRollback}
       />
       <MasterListingForm
         isOpen={showMasterForm}

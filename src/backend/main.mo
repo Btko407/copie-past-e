@@ -182,10 +182,11 @@ actor {
   // ── STABLE BACKUP MAPS (Emergency restore if upgrade corrupts state) ──────
   // These survive every redeploy. If main collections are empty post-upgrade,
   // we restore from these backups automatically in postupgrade.
-  stable var appConfigBackup    = Map.empty<Text, AppConfigTypes.ConfigEntry>();
-  stable var profilesBackup     = Map.empty<Common.UserId, ProfileTypes.UserProfile>();
-  stable var subscriptionsBackup = Map.empty<Common.UserId, TierTypes.UserTierSubscription>();
-  stable var listingsBackup     = Map.empty<Common.ListingId, ListingTypes.Listing>();
+  stable var appConfigBackup       = Map.empty<Text, AppConfigTypes.ConfigEntry>();
+  stable var profilesBackup        = Map.empty<Common.UserId, ProfileTypes.UserProfile>();
+  stable var subscriptionsBackup   = Map.empty<Common.UserId, TierTypes.UserTierSubscription>();
+  stable var listingsBackup        = Map.empty<Common.ListingId, ListingTypes.Listing>();
+  stable var masterListingsBackup  = Map.empty<Text, MasterListingTypes.MasterListing>();
 
   let userRegistrations = Map.empty<Common.UserId, Common.Timestamp>();
   let userLastLogins = Map.empty<Common.UserId, Common.Timestamp>();
@@ -728,15 +729,15 @@ actor {
   // MIGRATION STUBS only — they preserve upgrade compatibility with previously deployed
   // wasm binaries that stored those bindings under the old non-EOP model.
   //
-  // The four backup Maps (appConfigBackup, profilesBackup, subscriptionsBackup,
-  // listingsBackup) are declared as `stable var` for the same historical reason.
+  // The five backup Maps (appConfigBackup, profilesBackup, subscriptionsBackup,
+  // listingsBackup, masterListingsBackup) are declared as `stable var` for the same historical reason.
   // Under EOP they behave identically to the non-stable Maps; their `stable` keyword
   // is a no-op in this mode and is kept solely so the upgrade compatibility checker
   // (mops build --check-stable) does not reject the canister.
   //
   // DATA PROTECTION GUARANTEE:
   //   * listings, profiles, subscriptions, payments, notifications, appConfig,
-  //     versionBackups, tiers, wallets — ALL survive upgrades automatically via EOP.
+  //     versionBackups, tiers, wallets, masterListings — ALL survive upgrades automatically via EOP.
   //
   // BELT-AND-SUSPENDERS PERSISTENCE HOOKS:
   // The following preupgrade/postupgrade hooks snapshot all critical runtime Maps into
@@ -751,10 +752,11 @@ actor {
   system func preupgrade() {
     // Snapshot all critical runtime Maps into stable backup vars before upgrade.
     // EOP handles the primary collections; these stable snapshots are the fallback.
-    for ((k, v) in appConfig.entries())     { appConfigBackup.add(k, v) };
-    for ((k, v) in profiles.entries())      { profilesBackup.add(k, v) };
-    for ((k, v) in subscriptions.entries()) { subscriptionsBackup.add(k, v) };
-    for ((k, v) in listings.entries())      { listingsBackup.add(k, v) };
+    for ((k, v) in appConfig.entries())       { appConfigBackup.add(k, v) };
+    for ((k, v) in profiles.entries())        { profilesBackup.add(k, v) };
+    for ((k, v) in subscriptions.entries())   { subscriptionsBackup.add(k, v) };
+    for ((k, v) in listings.entries())        { listingsBackup.add(k, v) };
+    for ((k, v) in masterListings.entries())  { masterListingsBackup.add(k, v) };
   };
 
   system func postupgrade() {
@@ -771,6 +773,9 @@ actor {
     };
     if (listings.isEmpty() and not listingsBackup.isEmpty()) {
       for ((k, v) in listingsBackup.entries()) { listings.add(k, v) };
+    };
+    if (masterListings.isEmpty() and not masterListingsBackup.isEmpty()) {
+      for ((k, v) in masterListingsBackup.entries()) { masterListings.add(k, v) };
     };
   };
 };

@@ -257,6 +257,8 @@ interface ListingCardProps {
   platformDrafts?: PlatformDraftSummary[];
   /** Called when user clicks Add/Edit draft for a platform */
   onEditDraft?: (platform: Platform) => void;
+  /** True when this entry is an optimistic placeholder pending backend confirmation */
+  isOptimistic?: boolean;
 }
 
 export function ListingCard({
@@ -264,6 +266,7 @@ export function ListingCard({
   index,
   platformDrafts,
   onEditDraft,
+  isOptimistic = false,
 }: ListingCardProps) {
   const navigate = useNavigate();
   const { copy, copiedId } = useClipboard();
@@ -418,7 +421,7 @@ export function ListingCard({
       transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
       className={`group relative rounded-md overflow-hidden cursor-pointer transition-smooth ${
         isArchived ? "opacity-60" : ""
-      }`}
+      } ${isOptimistic ? "opacity-70 pointer-events-none" : ""}`}
       data-ocid="listing-card"
       onClick={handleCardClick}
     >
@@ -615,6 +618,19 @@ export function ListingCard({
           <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-10">
             <span className="font-mono text-[9px] px-1.5 py-0.5 bg-muted/80 text-muted-foreground border border-border/50 tracking-widest rounded uppercase">
               {deletionDays !== null ? `🗑 ${deletionDays}d left` : "ARCHIVED"}
+            </span>
+          </div>
+        )}
+
+        {/* Optimistic "Saving..." badge */}
+        {isOptimistic && (
+          <div
+            className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+            data-ocid="listing-card.loading_state"
+          >
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 border border-primary/50 font-mono text-[10px] text-primary tracking-widest animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping inline-block" />
+              SAVING...
             </span>
           </div>
         )}

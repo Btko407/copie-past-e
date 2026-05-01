@@ -1,8 +1,10 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
+import Runtime "mo:core/Runtime";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import Core "../types/core";
 import MasterListingTypes "../types/master-listing";
@@ -11,6 +13,23 @@ mixin (
   accessControlState : AccessControl.AccessControlState,
   masterListings : Map.Map<Text, MasterListingTypes.MasterListing>,
 ) {
+  // ── CallerGuard — reentrancy + anonymous principal protection ────────────
+  let masterInProgress = Set.empty<Principal>();
+
+  func masterGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (masterInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    masterInProgress.add(caller);
+  };
+
+  func masterRelease(caller : Principal) {
+    masterInProgress.remove(caller);
+  };
+
   // ── HELPERS ──────────────────────────────────────────────────────────────────
 
   /// Validate platform-specific draft fields. Returns list of validation errors.
@@ -200,25 +219,33 @@ mixin (
   public shared ({ caller }) func createMasterListing(
     args : MasterListingTypes.CreateMasterListingArgs
   ) : async { #ok : Text; #err : Core.AppError } {
+    masterGuard(caller);
     if (caller.isAnonymous()) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be authenticated to create a listing" });
     };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in to create a listing" });
     };
     if (args.title.size() == 0) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Title is required" });
     };
     if (args.title.size() > 200) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Title exceeds 200 characters" });
     };
     if (args.description.size() == 0) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Description is required" });
     };
     if (args.photos.size() == 0) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "At least one photo is required" });
     };
     if (args.photos.size() > 12) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Maximum 12 photos allowed" });
     };
 
@@ -254,6 +281,7 @@ mixin (
     };
 
     masterListings.add(listingId, listing);
+    masterRelease(caller);
     #ok(listingId)
   };
 
@@ -263,19 +291,24 @@ mixin (
     listingId : Text,
     args : MasterListingTypes.SavePlatformDraftArgs,
   ) : async { #ok : Text; #err : Core.AppError } {
+    masterGuard(caller);
     if (caller.isAnonymous()) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be authenticated" });
     };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in" });
     };
 
     let existing = switch (masterListings.get(listingId)) {
       case null {
+        masterRelease(caller);
         return #err({ code = #notFound; message = "Listing not found" });
       };
       case (?l) {
         if (not Principal.equal(l.userId, caller)) {
+          masterRelease(caller);
           return #err({ code = #unauthorized; message = "Unauthorized: listing belongs to another user" });
         };
         l
@@ -328,6 +361,7 @@ mixin (
 
     masterListings.add(listingId, updatedListing);
 
+    masterRelease(caller);
     if (isValid) {
       #ok("Draft saved successfully for " # platformLabel(args.platform))
     } else {
@@ -420,19 +454,24 @@ mixin (
     platform  : Core.Platform,
     remoteUrl : ?Text,
   ) : async { #ok : Text; #err : Core.AppError } {
+    masterGuard(caller);
     if (caller.isAnonymous()) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be authenticated" });
     };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in" });
     };
 
     let existing = switch (masterListings.get(listingId)) {
       case null {
+        masterRelease(caller);
         return #err({ code = #notFound; message = "Listing not found" });
       };
       case (?l) {
         if (not Principal.equal(l.userId, caller)) {
+          masterRelease(caller);
           return #err({ code = #unauthorized; message = "Unauthorized: listing belongs to another user" });
         };
         l
@@ -478,6 +517,7 @@ mixin (
     };
 
     masterListings.add(listingId, updatedListing);
+    masterRelease(caller);
     #ok("Manual posting logged for " # platformLabel(platform))
   };
 
@@ -486,19 +526,24 @@ mixin (
     listingId : Text,
     args      : MasterListingTypes.UpdateMasterListingArgs,
   ) : async { #ok : Text; #err : Core.AppError } {
+    masterGuard(caller);
     if (caller.isAnonymous()) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be authenticated" });
     };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in" });
     };
 
     let existing = switch (masterListings.get(listingId)) {
       case null {
+        masterRelease(caller);
         return #err({ code = #notFound; message = "Listing not found" });
       };
       case (?l) {
         if (not Principal.equal(l.userId, caller)) {
+          masterRelease(caller);
           return #err({ code = #unauthorized; message = "Unauthorized: listing belongs to another user" });
         };
         l
@@ -516,12 +561,15 @@ mixin (
 
     // Validate updated fields
     if (newTitle.size() == 0) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Title cannot be empty" });
     };
     if (newTitle.size() > 200) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Title exceeds 200 characters" });
     };
     if (newDescription.size() == 0) {
+      masterRelease(caller);
       return #err({ code = #invalidInput; message = "Description cannot be empty" });
     };
 
@@ -543,6 +591,7 @@ mixin (
     };
 
     masterListings.add(listingId, updatedListing);
+    masterRelease(caller);
     #ok("Master listing updated")
   };
 
@@ -551,19 +600,24 @@ mixin (
     listingId : Text,
     reason    : ?Text,
   ) : async { #ok : Text; #err : Core.AppError } {
+    masterGuard(caller);
     if (caller.isAnonymous()) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be authenticated" });
     };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in" });
     };
 
     let existing = switch (masterListings.get(listingId)) {
       case null {
+        masterRelease(caller);
         return #err({ code = #notFound; message = "Listing not found" });
       };
       case (?l) {
         if (not Principal.equal(l.userId, caller)) {
+          masterRelease(caller);
           return #err({ code = #unauthorized; message = "Unauthorized: listing belongs to another user" });
         };
         l
@@ -586,6 +640,7 @@ mixin (
     };
 
     masterListings.add(listingId, updatedListing);
+    masterRelease(caller);
     #ok("Listing archived")
   };
 

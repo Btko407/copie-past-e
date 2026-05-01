@@ -1,5 +1,6 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
@@ -35,6 +36,23 @@ mixin (
   notifications : Map.Map<Common.UserId, List.List<NotifTypes.InAppNotification>>,
   versionBackups : List.List<BackupTypes.VersionBackup>,
 ) {
+  // ── CallerGuard — reentrancy + anonymous principal protection ────────────
+  let adminInProgress = Set.empty<Principal>();
+
+  func adminGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (adminInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    adminInProgress.add(caller);
+  };
+
+  func adminRelease(caller : Principal) {
+    adminInProgress.remove(caller);
+  };
+
   public query ({ caller }) func getAdminSettings() : async Types.SiteSettings {
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
       Runtime.trap("Unauthorized: Admin role required");
@@ -43,7 +61,9 @@ mixin (
   };
 
   public shared ({ caller }) func updateAdminSettings(args : Types.UpdateSettingsArgs) : async Types.SiteSettings {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       Runtime.trap("Unauthorized: Admin role required");
     };
     // Auto-backup before saving settings
@@ -53,7 +73,9 @@ mixin (
       siteSettings, appVersions, false, "auto",
       ?"Pre-settings-save backup", now,
     );
-    AdminLib.updateSettings(siteSettings, caller, args);
+    let result = AdminLib.updateSettings(siteSettings, caller, args);
+    adminRelease(caller);
+    result;
   };
 
   public query ({ caller }) func listAllUsers() : async [Types.UserSummary] {
@@ -64,11 +86,14 @@ mixin (
   };
 
   public shared ({ caller }) func assignUserRole(userId : Text, role : Text) : async () {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       Runtime.trap("Unauthorized: Admin role required");
     };
     // Role assignment is handled by the authorization extension — this is a no-op stub
     // since the authorization mixin exposes its own role management endpoints
+    adminRelease(caller);
   };
 
   public query ({ caller }) func getSiteAnalytics() : async Types.SiteAnalytics {
@@ -86,17 +111,25 @@ mixin (
   };
 
   public shared ({ caller }) func createVersion(args : Types.CreateVersionArgs) : async Types.AppVersion {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       Runtime.trap("Unauthorized: Admin role required");
     };
-    AdminLib.createVersion(appVersions, versionCounter, caller, siteSettings, args, false);
+    let result = AdminLib.createVersion(appVersions, versionCounter, caller, siteSettings, args, false);
+    adminRelease(caller);
+    result;
   };
 
   public shared ({ caller }) func rollbackToVersion(versionId : Nat) : async Types.SiteSettings {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       Runtime.trap("Unauthorized: Admin role required");
     };
-    AdminLib.rollbackToVersion(appVersions, siteSettings, versionCounter, caller, versionId);
+    let result = AdminLib.rollbackToVersion(appVersions, siteSettings, versionCounter, caller, versionId);
+    adminRelease(caller);
+    result;
   };
 
   // Admin-only: get per-user cleanup summaries (active/archived counts, expiration info)
@@ -121,10 +154,12 @@ mixin (
   public shared ({ caller }) func adminResetUserSubscription(
     username : Text
   ) : async { #ok : Text; #err : Text } {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       return #err("Unauthorized");
     };
-    switch (ProfileLib.getProfileByUsername(usernameIndex, profiles, username)) {
+    let result = switch (ProfileLib.getProfileByUsername(usernameIndex, profiles, username)) {
       case null { #err("User not found") };
       case (?profile) {
         let now = Time.now();
@@ -142,13 +177,17 @@ mixin (
         #ok("Subscription reset. All listings moved to archive. 30-day delete clock started.");
       };
     };
+    adminRelease(caller);
+    result;
   };
 
   // Admin-only: reset ALL non-admin user subscriptions to NOW.
   // Archives all active listings for every non-admin user and logs each action.
   // Returns #ok with a count of users reset, or #err if caller is not admin.
   public shared ({ caller }) func adminResetAllUserSubscriptions() : async { #ok : Text; #err : Text } {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       return #err("Unauthorized");
     };
     let now = Time.now();
@@ -174,6 +213,7 @@ mixin (
         resetCount += 1;
       };
     };
+    adminRelease(caller);
     #ok("Reset " # resetCount.toText() # " users. All their listings archived.");
   };
 
@@ -181,7 +221,9 @@ mixin (
   /// Removes all their listings, images, notifications, subscriptions, and profile.
   /// Admin accounts cannot be deleted. Logs the action to the audit log.
   public shared ({ caller }) func adminDeleteUser(userId : Text) : async { #ok : Text; #err : Text } {
+    adminGuard(caller);
     if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      adminRelease(caller);
       return #err("Unauthorized");
     };
     let uid = Principal.fromText(userId);
@@ -191,6 +233,7 @@ mixin (
       case _ false;
     };
     if (targetIsAdmin) {
+      adminRelease(caller);
       return #err("Cannot delete an admin account");
     };
     let now = Time.now();
@@ -242,6 +285,7 @@ mixin (
       "Deleted user account userId=" # userId # ". Listings removed: " # listingCount.toText(),
       now,
     );
+    adminRelease(caller);
     #ok("User account deleted. " # listingCount.toText() # " listings removed.");
   };
 };

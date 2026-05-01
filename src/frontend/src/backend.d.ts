@@ -1310,6 +1310,10 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    /**
+     * / Returns a lightweight system health snapshot: cycles, heap, log count,
+     * / and the 20 most recent structured log entries from the monitoring ring buffer.
+     */
     createStripePortalSession(): Promise<{
         __kind__: "ok";
         ok: string;
