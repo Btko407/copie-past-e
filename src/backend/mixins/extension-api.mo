@@ -7,6 +7,9 @@ import Types "../types/extension";
 import ProfileTypes "../types/userprofile";
 import ListingTypes "../types/listings";
 import ExtensionLib "../lib/extension";
+import Set "mo:core/Set";
+import Runtime "mo:core/Runtime";
+import Principal "mo:core/Principal";
 
 /// Browser Extension API v1.3 — receives listing data captured by the
 /// Copie Past-e Chrome/Safari extension from Facebook Marketplace, Mecari,
@@ -196,6 +199,23 @@ mixin (
     }
   };
 
+  // ── CallerGuard for extension admin mutations ───────────────────────────
+  let extensionInProgress = Set.empty<Principal>();
+
+  func extensionGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (extensionInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    extensionInProgress.add(caller);
+  };
+
+  func extensionRelease(caller : Principal) {
+    extensionInProgress.remove(caller);
+  };
+
   /// Admin: publish a new extension version and optionally force-update all users.
   public shared ({ caller }) func adminSetExtensionVersion(
     version       : Text,
@@ -204,7 +224,9 @@ mixin (
     downloadUrl   : Text,
     isForceUpdate : Bool,
   ) : async { #ok : Text; #err : Text } {
+    extensionGuard(caller);
     if (not AccessControl.isAdmin(accessControlState, caller)) {
+      extensionRelease(caller);
       return #err("Unauthorized: admin only");
     };
     let cfg = currentConfig();
@@ -225,6 +247,7 @@ mixin (
       "config",
       { cfg with localDownloadUrl = downloadUrl },
     );
+    extensionRelease(caller);
     #ok("Extension version " # version # " published — force update: " # (if isForceUpdate "YES" else "NO"))
   };
 
@@ -234,7 +257,9 @@ mixin (
     localDownloadUrl  : Text,
     chromeWebStoreUrl : Text,
   ) : async { #ok : Text; #err : Text } {
+    extensionGuard(caller);
     if (not AccessControl.isAdmin(accessControlState, caller)) {
+      extensionRelease(caller);
       return #err("Unauthorized: admin only");
     };
     let existing = currentConfig();
@@ -242,6 +267,7 @@ mixin (
       "config",
       { existing with downloadMode; localDownloadUrl; chromeWebStoreUrl },
     );
+    extensionRelease(caller);
     #ok("Extension config updated — mode: " # downloadMode)
   };
 
@@ -254,7 +280,9 @@ mixin (
     depop    : Bool,
     etsy     : Bool,
   ) : async { #ok : Text; #err : Text } {
+    extensionGuard(caller);
     if (not AccessControl.isAdmin(accessControlState, caller)) {
+      extensionRelease(caller);
       return #err("Unauthorized: admin only");
     };
     let existing = currentConfig();
@@ -262,6 +290,7 @@ mixin (
       "config",
       { existing with capabilities = { facebook; mercari; ebay; poshmark; depop; etsy } },
     );
+    extensionRelease(caller);
     #ok("Platform capabilities updated")
   };
 
@@ -460,6 +489,9 @@ mixin (
     #validationError   : { errors : [Text]; platformReady : Bool };
     #err : Text;
   } {
+    if (caller.isAnonymous()) {
+      return #err("Unauthorized: anonymous principal not allowed");
+    };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       return #err("Unauthorized: Must be logged in");
     };
@@ -570,6 +602,9 @@ mixin (
 
   /// Generate (or regenerate) a webhook token for the authenticated user.
   public shared ({ caller }) func generateWebhookToken() : async { #ok : Text; #err : Text } {
+    if (caller.isAnonymous()) {
+      return #err("Unauthorized: anonymous principal not allowed");
+    };
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       return #err("Unauthorized: Must be logged in");
     };

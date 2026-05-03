@@ -13,6 +13,11 @@ mixin (
   accessControlState : AccessControl.AccessControlState,
   masterListings : Map.Map<Text, MasterListingTypes.MasterListing>,
 ) {
+  // ── Idempotency index — prevents duplicate master listings from double-click/retry ─
+  // Key: caller.toText() # ":" # clientRequestId  →  Value: listingId
+  // Persisted automatically by Enhanced Orthogonal Persistence.
+  let createRequestIndex = Map.empty<Text, Text>();
+
   // ── CallerGuard — reentrancy + anonymous principal protection ────────────
   let masterInProgress = Set.empty<Principal>();
 
@@ -216,6 +221,7 @@ mixin (
 
   /// Create a Master Listing — the single source of truth for a user's item.
   /// NO direct publishing; platform drafts are prepared separately for manual posting.
+  /// Idempotent: the same caller+clientRequestId always returns the original listing ID.
   public shared ({ caller }) func createMasterListing(
     args : MasterListingTypes.CreateMasterListingArgs
   ) : async { #ok : Text; #err : Core.AppError } {
@@ -228,6 +234,19 @@ mixin (
       masterRelease(caller);
       return #err({ code = #unauthorized; message = "Must be logged in to create a listing" });
     };
+
+    // ── Idempotency check: same caller+clientRequestId → return original listing ID ──
+    if (args.clientRequestId.size() > 0) {
+      let idempotencyKey = caller.toText() # ":" # args.clientRequestId;
+      switch (createRequestIndex.get(idempotencyKey)) {
+        case (?existingId) {
+          masterRelease(caller);
+          return #ok(existingId);
+        };
+        case null {};
+      };
+    };
+
     if (args.title.size() == 0) {
       masterRelease(caller);
       return #err({ code = #invalidInput; message = "Title is required" });
@@ -250,7 +269,7 @@ mixin (
     };
 
     let now = Time.now();
-    let listingId = "lst_" # now.toText();
+    let listingId = "lst_" # now.toText() # "_" # caller.toText().size().toText();
     let expirationDate : Int = now + (30 * 24 * 60 * 60 * 1_000_000_000);
 
     let listing : MasterListingTypes.MasterListing = {
@@ -281,6 +300,13 @@ mixin (
     };
 
     masterListings.add(listingId, listing);
+
+    // ── Record idempotency key so duplicate submits return the same ID ────
+    if (args.clientRequestId.size() > 0) {
+      let idempotencyKey = caller.toText() # ":" # args.clientRequestId;
+      createRequestIndex.add(idempotencyKey, listingId);
+    };
+
     masterRelease(caller);
     #ok(listingId)
   };

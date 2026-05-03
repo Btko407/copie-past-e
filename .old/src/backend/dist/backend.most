@@ -900,6 +900,8 @@ actor {
       var blocks : [var [var ?BackupHistoryRecord__662471703]];
       var elementIndex : Nat__490723111
     };
+  stable backupInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable backups :
     {
       var root : Node__46230540<Nat, BackupRecord__451323854>;
@@ -912,6 +914,8 @@ actor {
                         List__415060402<TierName__274346593>>;
       var size : Nat__490723111
     };
+  stable createRequestIndex :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
   stable defaultCapabilities :
     {
       depop : Bool;
@@ -937,6 +941,8 @@ actor {
       var root : Node__46230540<Text, ExtensionConfig__457713559>;
       var size : Nat__490723111
     };
+  stable extensionInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable extensionVersions :
     {
       var root : Node__46230540<Text, ExtensionVersion__1001368693>;
@@ -1029,6 +1035,8 @@ actor {
       var root : Node__46230540<Nat, PaymentRecord__879948694>;
       var size : Nat__490723111
     };
+  stable paymentsInProgress :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
   stable pendingSessions :
     {
       var root : Node__46230540<Text, PendingSession__206498609>;

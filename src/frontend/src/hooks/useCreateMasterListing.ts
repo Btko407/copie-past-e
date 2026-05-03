@@ -10,6 +10,8 @@ export interface CreateMasterListingArgs {
   category: string | null;
   tags: string[];
   photos: Uint8Array[];
+  /** Idempotency key — backend deduplicates on (caller, clientRequestId) */
+  clientRequestId: string;
 }
 
 export function useCreateMasterListing() {
@@ -23,10 +25,11 @@ export function useCreateMasterListing() {
       const result = await actor.createMasterListing({
         title: args.title,
         description: args.description,
-        price: args.price ?? undefined,
-        category: args.category ?? undefined,
+        price: args.price !== null ? args.price : undefined,
+        category: args.category !== null ? args.category : undefined,
         tags: args.tags,
         photos: args.photos,
+        clientRequestId: args.clientRequestId,
       });
 
       if (result.__kind__ === "err") {
@@ -36,7 +39,10 @@ export function useCreateMasterListing() {
       return result.ok;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["masterListings"] });
+      queryClient.invalidateQueries({
+        queryKey: ["masterListings"],
+        exact: false,
+      });
       queryClient.invalidateQueries({ queryKey: ["listings"] });
     },
     onError: (error: Error) => {

@@ -303,6 +303,7 @@ export interface CreateMasterListingArgs {
     title: string;
     tags: Array<string>;
     description: string;
+    clientRequestId: string;
     category?: string;
     price?: string;
     photos: Array<Uint8Array>;
@@ -10282,6 +10283,7 @@ function to_candid_record_n88(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     title: string;
     tags: Array<string>;
     description: string;
+    clientRequestId: string;
     category?: string;
     price?: string;
     photos: Array<Uint8Array>;
@@ -10289,6 +10291,7 @@ function to_candid_record_n88(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     title: string;
     tags: Array<string>;
     description: string;
+    clientRequestId: string;
     category: [] | [string];
     price: [] | [string];
     photos: Array<Uint8Array>;
@@ -10297,6 +10300,7 @@ function to_candid_record_n88(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         title: value.title,
         tags: value.tags,
         description: value.description,
+        clientRequestId: value.clientRequestId,
         category: value.category ? candid_some(value.category) : candid_none(),
         price: value.price ? candid_some(value.price) : candid_none(),
         photos: value.photos

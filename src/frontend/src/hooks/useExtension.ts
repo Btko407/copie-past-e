@@ -32,55 +32,115 @@ export function isMobile(): boolean {
  * 4. localStorage "ext_installed" is used as the persisted initial state so
  *    returning users see the correct state immediately.
  */
+// ─── Extension state shape ────────────────────────────────────────────────────
+
+export interface ExtensionState {
+  isInstalled: boolean;
+  version: string;
+  capabilities: string[];
+}
+
+const DEFAULT_CAPABILITIES = ["facebook", "mercari"];
+const READY_MESSAGE_TYPES = [
+  "COPIE_PASTE_EXT_PRESENT",
+  "EXTENSION_READY",
+  "COPIE_EXTENSION_READY",
+] as const;
+
+const STORAGE_KEY = "ext_state";
+
+function loadPersistedState(): ExtensionState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as ExtensionState;
+  } catch {
+    /* ignore */
+  }
+  return {
+    isInstalled: false,
+    version: "",
+    capabilities: DEFAULT_CAPABILITIES,
+  };
+}
+
+function savePersistedState(state: ExtensionState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Keep legacy key in sync so ExtensionBanner still works
+    localStorage.setItem("ext_installed", state.isInstalled ? "true" : "false");
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Detects whether the Copie Past-e Chrome extension is installed.
+ * Now stores { isInstalled, version, capabilities } instead of just isInstalled.
+ *
+ * Detection strategy:
+ * 1. Mobile: always { isInstalled: false }
+ * 2. window.__COPIE_PASTE_INSTALLED__ flag (500ms debounce)
+ * 3. postMessage handshake — supports ALL THREE message types:
+ *    COPIE_PASTE_EXT_PRESENT, EXTENSION_READY, COPIE_EXTENSION_READY
+ * 4. localStorage persistence so returning users see correct state immediately.
+ */
 export function useExtensionDetection() {
   const mobile = isMobile();
 
-  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
-    if (mobile) return false;
-    try {
-      return localStorage.getItem("ext_installed") === "true";
-    } catch {
-      return false;
-    }
+  const [extState, setExtState] = useState<ExtensionState>(() => {
+    if (mobile) return { isInstalled: false, version: "", capabilities: [] };
+    return loadPersistedState();
   });
+
+  // Ref mirror — lets the effect read current state without adding to deps
+  const extStateRef = useRef<ExtensionState>(extState);
+  extStateRef.current = extState;
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    function persist(value: boolean) {
-      try {
-        localStorage.setItem("ext_installed", value ? "true" : "false");
-      } catch {
-        /* ignore */
-      }
-      setIsInstalled(value);
+    function persist(state: ExtensionState) {
+      savePersistedState(state);
+      setExtState(state);
     }
 
-    // Mobile: skip all detection entirely
     if (mobile) {
-      persist(false);
+      persist({ isInstalled: false, version: "", capabilities: [] });
       return;
     }
 
-    // Primary check: window.__COPIE_PASTE_INSTALLED__ flag (500ms debounce)
     debounceRef.current = setTimeout(() => {
+      // Primary: global flag injected by content script
       if (
         (window as unknown as Record<string, unknown>)
           .__COPIE_PASTE_INSTALLED__ === true
       ) {
-        persist(true);
+        persist({
+          isInstalled: true,
+          version: extStateRef.current.version || "",
+          capabilities:
+            extStateRef.current.capabilities.length > 0
+              ? extStateRef.current.capabilities
+              : DEFAULT_CAPABILITIES,
+        });
         return;
       }
 
-      // Fallback: postMessage ping for older extension versions
+      // Fallback: listen for any of the three ready message types
       function handleMessage(e: MessageEvent) {
-        if (e.data?.type === "COPIE_PASTE_EXT_PRESENT") {
+        const type: string = e.data?.type ?? "";
+        if ((READY_MESSAGE_TYPES as readonly string[]).includes(type)) {
           if (timerRef.current) {
             clearTimeout(timerRef.current);
             timerRef.current = null;
           }
-          persist(true);
+          const version: string =
+            typeof e.data?.version === "string" ? e.data.version : "";
+          const capabilities: string[] = Array.isArray(e.data?.capabilities)
+            ? (e.data.capabilities as string[])
+            : DEFAULT_CAPABILITIES;
+          persist({ isInstalled: true, version, capabilities });
           window.removeEventListener("message", handleMessage);
         }
       }
@@ -88,16 +148,25 @@ export function useExtensionDetection() {
       window.addEventListener("message", handleMessage);
       window.postMessage({ type: "COPIE_PASTE_PING" }, "*");
 
-      // 5-second countdown — if no reply, mark as not installed
       timerRef.current = setTimeout(() => {
-        // Re-check the flag one more time before marking as absent
         if (
           (window as unknown as Record<string, unknown>)
             .__COPIE_PASTE_INSTALLED__ === true
         ) {
-          persist(true);
+          persist({
+            isInstalled: true,
+            version: extStateRef.current.version || "",
+            capabilities:
+              extStateRef.current.capabilities.length > 0
+                ? extStateRef.current.capabilities
+                : DEFAULT_CAPABILITIES,
+          });
         } else {
-          persist(false);
+          persist({
+            isInstalled: false,
+            version: "",
+            capabilities: DEFAULT_CAPABILITIES,
+          });
         }
         window.removeEventListener("message", handleMessage);
       }, 5000);
@@ -107,21 +176,44 @@ export function useExtensionDetection() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobile]);
 
   // React to storage changes from other tabs
   useEffect(() => {
     if (mobile) return;
     function handleStorage(e: StorageEvent) {
-      if (e.key === "ext_installed") {
-        setIsInstalled(e.newValue === "true");
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          setExtState(JSON.parse(e.newValue) as ExtensionState);
+        } catch {
+          /* ignore */
+        }
       }
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, [mobile]);
 
-  return { isInstalled, isMobileDevice: mobile };
+  return {
+    isInstalled: extState.isInstalled,
+    version: extState.version,
+    capabilities: extState.capabilities,
+    isMobileDevice: mobile,
+  };
+}
+
+/**
+ * Returns true if the currently detected extension reports support for the
+ * given platform. Falls back to true when extension is not installed (buttons
+ * should be enabled and show the download prompt instead of being disabled).
+ */
+export function isPlatformSupported(
+  platform: string,
+  capabilities: string[],
+): boolean {
+  if (capabilities.length === 0) return true; // no extension yet — show all buttons
+  return capabilities.includes(platform);
 }
 
 // ─── Get My Webhook Token ─────────────────────────────────────────────────────

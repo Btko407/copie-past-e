@@ -94,9 +94,10 @@ for (const file of REQUIRED_FILES) {
   }
 }
 if (missing.length > 0) {
-  fail(
-    `${missing.length} required file(s) missing from src/extension/. Cannot build ZIP.`
-  );
+  for (const f of missing) {
+    console.error(`ERROR: Missing required extension file: ${f}`);
+  }
+  process.exit(1);
 }
 
 // ── Step 4: Load JSZip via CJS require (resolves through pnpm symlinks) ────────
@@ -175,20 +176,20 @@ if (stats.size < 1024) {
   );
 }
 
-// Verify first two bytes are PK (ZIP magic number 0x50 0x4B)
+// Verify first 4 bytes are PK\x03\x04 (ZIP local file header magic)
 const fd = fs.openSync(ZIP_PATH, "r");
-const magic = Buffer.alloc(2);
-fs.readSync(fd, magic, 0, 2, 0);
+const magic = Buffer.alloc(4);
+fs.readSync(fd, magic, 0, 4, 0);
 fs.closeSync(fd);
-if (magic[0] !== 0x50 || magic[1] !== 0x4b) {
+if (magic[0] !== 0x50 || magic[1] !== 0x4b || magic[2] !== 0x03 || magic[3] !== 0x04) {
   fs.rmSync(ZIP_PATH);
   fail(
-    `Output file is not a valid ZIP archive (magic bytes: ${magic.toString("hex")}). The file has been deleted.`
+    `ERROR: ZIP output appears to be HTML, not a valid archive (magic bytes: ${magic.toString("hex")})`
   );
 }
 
 // ── Done ─────────────────────────────────────────────────────────────────────
 const sizeKb = (stats.size / 1024).toFixed(1);
-console.log(
-  `\n✓ Created ${ZIP_FILENAME} (${stats.size} bytes / ${sizeKb} KB)\n  → ${ZIP_PATH}\n`
-);
+console.log(`\nZIP generated successfully: ${ZIP_FILENAME}`);
+console.log(`  Size: ${stats.size} bytes / ${sizeKb} KB`);
+console.log(`  Path: ${ZIP_PATH}\n`);

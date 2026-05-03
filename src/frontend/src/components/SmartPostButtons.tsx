@@ -1,11 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { useExtensionDetection } from "@/hooks/useExtension";
+import {
+  isPlatformSupported,
+  useExtensionDetection,
+} from "@/hooks/useExtension";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, X, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Image } from "../backend.d.ts";
+import type { MasterListing, PlatformListingDraft } from "../backend.d.ts";
+import { ALL_PLATFORMS, PLATFORM_CONFIG } from "../types/masterListing";
+import type { Platform } from "../types/masterListing";
+import { normalizePlatform } from "../utils/normalizePlatform";
 import { LightningAnimation } from "./animations/LightningAnimation";
+
+// ─── Mobile Detection ─────────────────────────────────────────────────────────
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
@@ -20,22 +28,54 @@ function useIsMobile(): boolean {
   return isMobile;
 }
 
+// ─── Props ────────────────────────────────────────────────────────────────────
+
 interface SmartPostButtonsProps {
-  title: string;
-  description: string;
-  price?: string;
-  category?: string;
-  condition?: string;
-  brand?: string;
-  images: Image[];
-  /** Optional — derived from listing.platform to dim irrelevant buttons */
-  listingPlatform?: string | null;
+  masterListing: MasterListing;
+  platformDrafts?: PlatformListingDraft[];
 }
 
-// Strip "$" prefix and non-numeric characters for Smart Post price payload
-function stripPrice(price?: string): string {
+// ─── Payload Builder ─────────────────────────────────────────────────────────
+
+function stripPrice(price?: string | null): string {
   if (!price) return "0";
   return price.replace(/^\$/, "").replace(/[^0-9.]/g, "") || "0";
+}
+
+function buildSmartPostPayload(
+  masterListing: MasterListing,
+  platform: string,
+  drafts: PlatformListingDraft[] | undefined,
+) {
+  // Priority 1: find existing platform draft
+  const draft = drafts?.find((d) => normalizePlatform(d.platform) === platform);
+
+  // Extract platform-specific fields from the draft's platformFields variant
+  let platformFields: Record<string, unknown> = {};
+  if (draft?.platformFields) {
+    const pf = draft.platformFields as Record<string, unknown>;
+    const nested = pf[platform] ?? pf.mecari ?? {}; // handle mecari alias
+    if (nested && typeof nested === "object") {
+      platformFields = nested as Record<string, unknown>;
+    }
+  }
+
+  // Priority 2: master listing fields; Priority 3: safe defaults
+  const pfTitle = (platformFields.title as string) || "";
+  const pfDesc = (platformFields.description as string) || "";
+  const pfPrice = (platformFields.price as string) || "";
+
+  return {
+    title: pfTitle || masterListing.title || "",
+    description: pfDesc || masterListing.description || "",
+    price: pfPrice || stripPrice(masterListing.price),
+    brand: (platformFields.brand as string) || "",
+    category:
+      (platformFields.category as string) || masterListing.category || "",
+    condition: (platformFields.condition as string) || "",
+    images: Array.isArray(masterListing.photos) ? [] : [], // Uint8Array — extension uses URLs; skip
+    platformFields,
+  };
 }
 
 // ─── Extension Install Modal ──────────────────────────────────────────────────
@@ -84,8 +124,8 @@ function ExtensionInstallModal({ onClose }: { onClose: () => void }) {
           <span className="text-primary font-medium">
             Copie Past-e Chrome Extension
           </span>
-          . Install it to auto-fill listings directly into Facebook Marketplace
-          with one click.
+          . Install it to auto-fill listings directly into any marketplace with
+          one click.
         </p>
 
         <div className="flex gap-2">
@@ -116,82 +156,118 @@ function ExtensionInstallModal({ onClose }: { onClose: () => void }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function SmartPostButtons({
-  title,
-  description,
-  price,
-  category,
-  condition,
-  brand,
-  images,
-  listingPlatform,
+  masterListing,
+  platformDrafts,
 }: SmartPostButtonsProps) {
-  const { isInstalled } = useExtensionDetection();
+  const { isInstalled, capabilities } = useExtensionDetection();
   const isMobile = useIsMobile();
 
   const [lightning, setLightning] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const resultListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
-  const imageUrls = images.map((img) => img.blob.getDirectURL());
+  // Listen for autofill results from the extension
+  useEffect(() => {
+    function handleResult(e: MessageEvent) {
+      const data = e.data;
+      if (!data || data.source !== "copie-past-e-extension") return;
+      if (data.type !== "COPIE_AUTOFILL_RESULT") return;
 
-  // Derive the canonical platform key from whatever shape the backend returns
-  function resolvePlatformKey(raw: string | null | undefined): string | null {
-    if (!raw) return null;
-    // Handle enum string ("facebook", "mecari"), "#facebook" prefix, or object key
-    return raw.replace(/^#/, "").toLowerCase();
-  }
+      const platform = String(data.platform || "");
+      const config = PLATFORM_CONFIG[platform as Platform];
+      const name = config?.name ?? platform;
+      const filled: string[] = Array.isArray(data.filled) ? data.filled : [];
+      const failed: string[] = Array.isArray(data.failed) ? data.failed : [];
 
-  const platformKey = resolvePlatformKey(listingPlatform ?? null);
+      if (data.ok) {
+        toast.success(
+          `${config?.icon ?? "✅"} Auto-filled ${name}: ${filled.length} field${filled.length === 1 ? "" : "s"} filled`,
+          { duration: 4000 },
+        );
+      } else {
+        toast.error(`Auto-fill ${name} failed`, { duration: 4000 });
+      }
 
-  // Dimming: if a specific platform is set, dim the other button (but keep it clickable)
-  const fbDimmed = platformKey !== null && platformKey !== "facebook";
-  const mecariDimmed = platformKey !== null && platformKey !== "mecari";
+      if (failed.length > 0) {
+        toast.warning(
+          `${name}: ${failed.length} field${failed.length === 1 ? "" : "s"} could not be filled`,
+          { duration: 5000 },
+        );
+      }
+    }
+
+    resultListenerRef.current = handleResult;
+    window.addEventListener("message", handleResult);
+    return () => window.removeEventListener("message", handleResult);
+  }, []);
 
   function triggerLightning() {
     setLightning(true);
     setTimeout(() => setLightning(false), 700);
   }
 
-  function sendSmartPost(platform: "facebook" | "mercari") {
-    const data = {
-      action: "SMART_POST" as const,
+  function sendSmartPost(platform: Platform) {
+    const payload = buildSmartPostPayload(
+      masterListing,
       platform,
-      listing: {
-        title,
-        price: stripPrice(price),
-        description,
-        category: category ?? "",
-        condition: condition ?? "",
-        brand: brand ?? "",
-        images: imageUrls,
+      platformDrafts,
+    );
+
+    // New unified COPIE_AUTOFILL contract
+    window.postMessage(
+      {
+        source: "copie-past-e-app",
+        type: "COPIE_AUTOFILL",
+        platform,
+        payload,
       },
-    };
+      "*",
+    );
 
-    // Send to extension
-    window.postMessage({ type: "COPIE_PASTE_SMART_POST", ...data }, "*");
-
-    // Fallback localStorage
-    localStorage.setItem("copiepaste_pending_post", JSON.stringify(data));
+    // Backward-compat fallback
+    window.postMessage(
+      {
+        source: "copie-past-e-app",
+        type: "COPIE_PASTE_SMART_POST",
+        action: "SMART_POST",
+        platform,
+        data: payload,
+      },
+      "*",
+    );
   }
 
-  function handleAutoFill() {
+  function handlePlatformClick(platform: Platform) {
     triggerLightning();
-    sendSmartPost("facebook");
+    sendSmartPost(platform);
 
     if (!isInstalled) {
+      // Save to localStorage as fallback
+      const payload = buildSmartPostPayload(
+        masterListing,
+        platform,
+        platformDrafts,
+      );
+      try {
+        localStorage.setItem(
+          `copie-paste-draft-${platform}`,
+          JSON.stringify(payload),
+        );
+      } catch {
+        /* ignore storage errors */
+      }
+
+      const config = PLATFORM_CONFIG[platform];
+      toast.info(
+        `Draft saved. Navigate to ${config.name} and open the extension.`,
+        { duration: 5000 },
+      );
       setTimeout(() => setShowInstallModal(true), 400);
     } else {
-      toast.success("📘 Sent to Facebook Auto-Fill", { duration: 2000 });
-    }
-  }
-
-  function handleMercariAutoFill() {
-    triggerLightning();
-    sendSmartPost("mercari");
-
-    if (!isInstalled) {
-      setTimeout(() => setShowInstallModal(true), 400);
-    } else {
-      toast.success("🟠 Sent to Mercari Auto-Fill", { duration: 2000 });
+      const config = PLATFORM_CONFIG[platform];
+      toast.success(`${config.icon} Sending to ${config.name} Auto-Fill…`, {
+        duration: 2000,
+      });
     }
   }
 
@@ -212,95 +288,95 @@ export function SmartPostButtons({
           <div className="h-px flex-1 bg-border/50" />
         </div>
 
-        <div className="space-y-2">
-          {isMobile ? (
-            /* ── Mobile: disabled gray buttons + instruction text ── */
-            <div className="space-y-2" data-ocid="smart-post-mobile-disabled">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="w-full font-mono text-xs border-border text-muted-foreground bg-muted/30 cursor-not-allowed h-9 gap-1.5"
-                data-ocid="autofill-facebook-desktop-only-btn"
-              >
-                <span>📘</span>
-                <span>Auto-Fill Facebook (Desktop Only)</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="w-full font-mono text-xs border-border text-muted-foreground bg-muted/30 cursor-not-allowed h-9 gap-1.5"
-                data-ocid="autofill-mercari-desktop-only-btn"
-              >
-                <span>🟠</span>
-                <span>Auto-Fill Mercari (Desktop Only)</span>
-              </Button>
-              <p className="text-center font-mono text-[10px] text-muted-foreground leading-relaxed px-1">
-                Install Chrome on your desktop computer to use Smart Post. On
-                mobile, copy your listing details manually.
-              </p>
-            </div>
-          ) : (
-            /* ── Desktop: full button with extension detection ── */
-            <div className="space-y-2" data-ocid="smart-post-desktop">
-              {/* Extension connected indicator */}
-              {isInstalled && (
-                <div
-                  className="flex items-center justify-center gap-1.5"
-                  data-ocid="ext-connected-indicator"
+        {isMobile ? (
+          /* ── Mobile: all six disabled ── */
+          <div className="space-y-2" data-ocid="smart-post-mobile-disabled">
+            {ALL_PLATFORMS.map((platform) => {
+              const cfg = PLATFORM_CONFIG[platform];
+              return (
+                <Button
+                  key={platform}
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  title="Use desktop to auto-fill"
+                  className="w-full font-mono text-xs border-border text-muted-foreground bg-muted/30 cursor-not-allowed h-9 gap-1.5"
+                  data-ocid={`autofill-${platform}-desktop-only-btn`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                  <span className="text-xs text-green-400 font-mono">
-                    Extension Connected
-                  </span>
-                </div>
-              )}
-
-              {/* Auto-Fill Facebook Marketplace button */}
-              <Button
-                variant="outline"
-                size="sm"
-                className={`relative w-full font-mono text-xs border-primary/40 text-foreground hover:border-primary hover:bg-primary/10 transition-smooth gap-1.5 h-9 ${fbDimmed ? "opacity-40" : ""}`}
-                onClick={handleAutoFill}
-                data-ocid="autofill-facebook-btn"
+                  <span>{cfg.icon}</span>
+                  <span>Auto-Fill {cfg.name} (Desktop Only)</span>
+                </Button>
+              );
+            })}
+            <p className="text-center font-mono text-[10px] text-muted-foreground leading-relaxed px-1">
+              Install Chrome on desktop to use Smart Post. On mobile, copy your
+              listing details manually.
+            </p>
+          </div>
+        ) : (
+          /* ── Desktop: six platform buttons ── */
+          <div className="space-y-2" data-ocid="smart-post-desktop">
+            {isInstalled && (
+              <div
+                className="flex items-center justify-center gap-1.5"
+                data-ocid="ext-connected-indicator"
               >
-                <span>📘</span>
-                <span>Auto-Fill Facebook Marketplace</span>
-                {!isInstalled && (
-                  <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-accent text-accent-foreground rounded-full leading-none border border-accent/60 whitespace-nowrap">
-                    + Install Extension
-                  </span>
-                )}
-              </Button>
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                <span className="text-xs text-green-400 font-mono">
+                  Extension Connected
+                </span>
+              </div>
+            )}
 
-              {/* Auto-Fill Mercari button */}
-              <Button
-                variant="outline"
-                size="sm"
-                className={`relative w-full font-mono text-xs border-orange-500/40 text-foreground hover:border-orange-500 hover:bg-orange-500/10 transition-smooth gap-1.5 h-9 ${mecariDimmed ? "opacity-40" : ""}`}
-                onClick={handleMercariAutoFill}
-                data-ocid="autofill-mercari-btn"
-              >
-                <span>🟠</span>
-                <span>Auto-Fill Mercari</span>
-                {!isInstalled && (
-                  <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-accent text-accent-foreground rounded-full leading-none border border-accent/60 whitespace-nowrap">
-                    + Install Extension
-                  </span>
-                )}
-              </Button>
+            {ALL_PLATFORMS.map((platform) => {
+              const cfg = PLATFORM_CONFIG[platform];
+              const platformSupported = isPlatformSupported(
+                platform,
+                capabilities,
+              );
+              const isDisabled = isInstalled && !platformSupported;
+              const tooltip = !isInstalled
+                ? "Extension not detected — click to save draft"
+                : isDisabled
+                  ? `Update extension to support ${cfg.name}`
+                  : `Auto-Fill ${cfg.name}`;
 
-              {/* Permanent desktop-only notice */}
-              <p
-                className="text-center font-mono text-[10px] text-muted-foreground tracking-wider"
-                data-ocid="smart-post-desktop-notice"
-              >
-                Desktop Chrome only — requires the Copie Past-e extension
-              </p>
-            </div>
-          )}
-        </div>
+              return (
+                <Button
+                  key={platform}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDisabled}
+                  title={tooltip}
+                  className="relative w-full font-mono text-xs border-primary/40 text-foreground hover:border-primary hover:bg-primary/10 transition-smooth gap-1.5 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={() => handlePlatformClick(platform)}
+                  data-ocid={`autofill-${platform}-btn`}
+                >
+                  <span>{cfg.icon}</span>
+                  <span>Auto-Fill {cfg.name}</span>
+                  {!isInstalled && (
+                    <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-accent text-accent-foreground rounded-full leading-none border border-accent/60 whitespace-nowrap">
+                      + Install Extension
+                    </span>
+                  )}
+                  {isDisabled && (
+                    <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 text-[8px] font-display tracking-wider bg-destructive/20 text-destructive rounded-full leading-none border border-destructive/40 whitespace-nowrap">
+                      Update Needed
+                    </span>
+                  )}
+                </Button>
+              );
+            })}
+
+            <p
+              className="text-center font-mono text-[10px] text-muted-foreground tracking-wider"
+              data-ocid="smart-post-desktop-notice"
+            >
+              Desktop Chrome only — requires the Copie Past-e extension
+            </p>
+          </div>
+        )}
       </div>
     </>
   );

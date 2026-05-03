@@ -1,5 +1,9 @@
 import { X } from "lucide-react";
 import { useState } from "react";
+import {
+  DEFAULT_EXTENSION_VERSION,
+  EXTENSION_DOWNLOAD_URL,
+} from "../utils/extensionUrl";
 
 // Detect mobile/tablet via userAgent
 function isMobileDevice(): boolean {
@@ -59,8 +63,8 @@ export function ExtensionBanner() {
       >
         Autofill extension not detected.{" "}
         <a
-          href="/copie-past-e.zip"
-          download="copie-past-e.zip"
+          href={EXTENSION_DOWNLOAD_URL}
+          download={`copie-paste-extension-v${DEFAULT_EXTENSION_VERSION}.zip`}
           className="underline underline-offset-2 font-semibold transition-colors"
           style={{
             color: "#F59E0B",

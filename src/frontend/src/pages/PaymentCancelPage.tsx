@@ -74,6 +74,14 @@ export function PaymentCancelPage() {
             </Button>
             <Button
               variant="outline"
+              onClick={() => void navigate({ to: "/upgrade" })}
+              className="font-display font-bold tracking-widest uppercase text-xs border-primary/40 text-primary hover:bg-primary/10 transition-smooth"
+              data-ocid="payment-cancel-pricing-btn"
+            >
+              ← View Plans
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => void navigate({ to: "/dashboard" })}
               className="font-display font-bold tracking-widest uppercase text-xs border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-smooth"
               data-ocid="payment-cancel-dashboard-btn"

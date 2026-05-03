@@ -152,6 +152,11 @@ const AdminExtensionVersionsPage = lazy(() =>
     default: m.AdminExtensionVersionsPage,
   })),
 );
+const AdminDiagnosticsPage = lazy(() =>
+  import("./pages/admin/AdminDiagnosticsPage").then((m) => ({
+    default: m.AdminDiagnosticsPage,
+  })),
+);
 const CrossListingAnalyticsPage = lazy(() =>
   import("./pages/CrossListingAnalyticsPage").then((m) => ({
     default: m.CrossListingAnalyticsPage,
@@ -629,6 +634,17 @@ const adminAutofillRoute = createRoute({
   ),
 });
 
+const adminDiagnosticsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/diagnostics",
+  component: () => (
+    <AdminRoute>
+      <Suspense fallback={<PageLoader />}>
+        <AdminDiagnosticsPage />
+      </Suspense>
+    </AdminRoute>
+  ),
+});
 const adminExtensionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/extension",
@@ -709,6 +725,7 @@ const routeTree = rootRoute.addChildren([
   adminDataSnapshotsRoute,
   adminAutofillRoute,
   adminExtensionRoute,
+  adminDiagnosticsRoute,
   crossListingAnalyticsRoute,
   termsRoute,
   privacyRoute,

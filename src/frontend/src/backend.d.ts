@@ -224,6 +224,7 @@ export interface CreateMasterListingArgs {
     title: string;
     tags: Array<string>;
     description: string;
+    clientRequestId: string;
     category?: string;
     price?: string;
     photos: Array<Uint8Array>;

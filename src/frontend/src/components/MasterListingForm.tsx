@@ -863,6 +863,12 @@ export function MasterListingForm({ isOpen, onClose }: MasterListingFormProps) {
     >(null);
   const ocrFileRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Stable idempotency key per form submission.
+   * Generated once in handleSubmit, cleared on success or unmount.
+   * Prevents duplicate listings on double-click or mutation replay.
+   */
+  const requestIdRef = useRef<string | null>(null);
 
   const titleLen = title.length;
   const descLen = description.length;
@@ -979,7 +985,12 @@ export function MasterListingForm({ isOpen, onClose }: MasterListingFormProps) {
 
   // Submit
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || mutation.isPending) return;
+    // Generate idempotency key once per submission attempt
+    if (!requestIdRef.current) {
+      requestIdRef.current = crypto.randomUUID();
+    }
+    const clientRequestId = requestIdRef.current;
     const photoBytes = await Promise.all(photos.map(fileToUint8Array));
     mutation.mutate(
       {
@@ -989,15 +1000,20 @@ export function MasterListingForm({ isOpen, onClose }: MasterListingFormProps) {
         category: category.trim() || null,
         tags,
         photos: photoBytes,
+        clientRequestId,
       },
       {
         onSuccess: () => {
+          requestIdRef.current = null; // allow new request on next form open
           toast.success("Master listing created!", {
             description:
               "Use Edit Draft to prepare platform-specific versions.",
           });
           resetForm();
           onClose();
+        },
+        onError: () => {
+          // Keep the same requestId so a retry is idempotent
         },
       },
     );

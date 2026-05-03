@@ -27,8 +27,21 @@
   // -- 2. postMessage handshake for async-loaded React apps -----------------
   //   Fires immediately at document_start so apps that mount early catch it.
   //   Also fires again after DOMContentLoaded for apps that mount async.
+  var CAPABILITIES = ['facebook', 'mercari', 'ebay', 'poshmark', 'depop', 'etsy'];
+
   function sendHandshake() {
     try {
+      // New unified contract: COPIE_EXTENSION_READY with capabilities array
+      window.postMessage(
+        {
+          source: 'copie-past-e-extension',
+          type: 'COPIE_EXTENSION_READY',
+          version: VERSION,
+          capabilities: CAPABILITIES
+        },
+        '*'
+      );
+      // Backward compat: old EXTENSION_READY type for apps still listening for it
       window.postMessage(
         { source: 'copie-extension', type: 'EXTENSION_READY', version: VERSION },
         '*'

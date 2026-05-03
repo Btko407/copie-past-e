@@ -83,7 +83,7 @@ export interface EtsyDraftFields {
 
 export type PlatformDraftFieldsInput =
   | { platform: "facebook"; fields: FacebookDraftFields }
-  | { platform: "mecari"; fields: MecariDraftFields }
+  | { platform: "mercari"; fields: MecariDraftFields }
   | { platform: "ebay"; fields: EbayDraftFields }
   | { platform: "poshmark"; fields: PoshmarkDraftFields }
   | { platform: "depop"; fields: DepopDraftFields }
@@ -134,7 +134,7 @@ function buildPlatformFields(
         },
       };
     }
-    case "mecari": {
+    case "mercari": {
       const f = input.fields;
       return {
         __kind__: "mecari",
@@ -230,7 +230,7 @@ const platformEnumMap: Record<
   Platform__2
 > = {
   facebook: "facebook" as Platform__2,
-  mecari: "mecari" as Platform__2,
+  mercari: "mecari" as Platform__2, // backend Candid uses 'mecari'; frontend key is 'mercari'
   ebay: "ebay" as Platform__2,
   poshmark: "poshmark" as Platform__2,
   depop: "depop" as Platform__2,
@@ -263,7 +263,10 @@ export function useSavePlatformDraft() {
       return result.ok;
     },
     onSuccess: (_, { listingId }) => {
-      queryClient.invalidateQueries({ queryKey: ["masterListings"] });
+      queryClient.invalidateQueries({
+        queryKey: ["masterListings"],
+        exact: false,
+      });
       queryClient.invalidateQueries({ queryKey: ["listing", listingId] });
     },
     onError: (error) => {

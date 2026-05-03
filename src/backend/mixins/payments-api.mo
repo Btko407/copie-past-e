@@ -21,6 +21,7 @@ import NotifTypes "../types/notifications";
 import AdminTypes "../types/admin";
 import BackupLib "../lib/backup";
 import AppConfigTypes "../types/app-config";
+import Set "mo:core/Set";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -40,6 +41,23 @@ mixin (
   appConfig : Map.Map<Text, AppConfigTypes.ConfigEntry>,
 ) {
   let DAYS_NS : Int = 86_400_000_000_000;
+
+  // ── CallerGuard — reentrancy + anonymous caller protection for payments ───
+  let paymentsInProgress = Set.empty<Principal>();
+
+  func paymentsGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (paymentsInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    paymentsInProgress.add(caller);
+  };
+
+  func paymentsRelease(caller : Principal) {
+    paymentsInProgress.remove(caller);
+  };
 
   // ── appConfig helpers ─────────────────────────────────────────────────────
 
@@ -277,9 +295,11 @@ mixin (
     discountApplied : Bool;
     stripeClientSecret : ?Text;
   } {
+    paymentsGuard(caller);
     let tierConfig = switch (tiers.get(tierId)) {
       case (?t) t;
       case null {
+        paymentsRelease(caller);
         return {
           paymentRecordId = 0;
           finalAmountUSD = 0.0;
@@ -334,6 +354,7 @@ mixin (
       null;
     };
 
+    paymentsRelease(caller);
     {
       paymentRecordId = record.id;
       finalAmountUSD = finalAmount;
@@ -348,10 +369,14 @@ mixin (
     paymentRecordId : Nat,
     stripePaymentIntentId : Text,
   ) : async () {
+    if (caller.isAnonymous()) { return };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return };
     let record = switch (payments.get(paymentRecordId)) {
       case (?r) r;
       case null { return };
     };
+    // Caller must own the payment record
+    if (not Principal.equal(record.userId, caller)) { return };
 
     payments.add(paymentRecordId, { record with status = #completed; stripePaymentIntentId = ?stripePaymentIntentId });
 
@@ -394,6 +419,15 @@ mixin (
   public shared ({ caller }) func failStripePayment(
     paymentRecordId : Nat,
   ) : async () {
+    if (caller.isAnonymous()) { return };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return };
+    // Caller must own the payment record
+    switch (payments.get(paymentRecordId)) {
+      case null { return };
+      case (?record) {
+        if (not Principal.equal(record.userId, caller)) { return };
+      };
+    };
     PaymentsLib.updatePaymentStatus(payments, paymentRecordId, #failed);
   };
 
@@ -402,6 +436,8 @@ mixin (
     tierId : Nat,
     discountCode : ?Text,
   ) : async { #ok : PaymentTypes.PaymentRecord; #err : Text } {
+    if (caller.isAnonymous()) { return #err("Unauthorized: anonymous principal not allowed") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return #err("Unauthorized: Must be logged in") };
     let tierConfig = switch (tiers.get(tierId)) {
       case (?t) t;
       case null { return #err("Tier not found") };
@@ -430,6 +466,8 @@ mixin (
     _paymentId : Nat,
     _paypalOrderId : Text,
   ) : async { #ok; #err : Text } {
+    if (caller.isAnonymous()) { return #err("Unauthorized: anonymous principal not allowed") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return #err("Unauthorized: Must be logged in") };
     #err("PayPal integration coming soon");
   };
 
@@ -438,6 +476,8 @@ mixin (
     tierId : Nat,
     discountCode : ?Text,
   ) : async { #ok : PaymentTypes.PaymentRecord; #err : Text } {
+    if (caller.isAnonymous()) { return #err("Unauthorized: anonymous principal not allowed") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return #err("Unauthorized: Must be logged in") };
     let tierConfig = switch (tiers.get(tierId)) {
       case (?t) t;
       case null { return #err("Tier not found") };
@@ -466,6 +506,8 @@ mixin (
     _paymentId : Nat,
     _txHash : Text,
   ) : async { #ok; #err : Text } {
+    if (caller.isAnonymous()) { return #err("Unauthorized: anonymous principal not allowed") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { return #err("Unauthorized: Must be logged in") };
     #err("Crypto payment integration coming soon");
   };
 

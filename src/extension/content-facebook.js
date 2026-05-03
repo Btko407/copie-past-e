@@ -241,5 +241,39 @@
     return true; // async
   });
 
-  console.log('[CopiePaste:facebook] Content script v1.4.0 loaded. Awaiting TRIGGER_AUTOFILL.');
+  // ── COPIE_AUTOFILL window.postMessage listener (new unified contract) ────
+  // Fires when the web app sends { type:'COPIE_AUTOFILL', platform:'facebook', payload }
+  // Returns a COPIE_AUTOFILL_RESULT message to the page.
+  window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type !== 'COPIE_AUTOFILL') return;
+    if (event.data.platform !== PLATFORM) return;
+    // Reset counters for each invocation
+    results.filled = 0; results.failed = 0; results.total = 0; results.log = [];
+
+    const payload = event.data.payload || {};
+    autofill(payload).then((res) => {
+      window.postMessage({
+        source: 'copie-past-e-extension',
+        type: 'COPIE_AUTOFILL_RESULT',
+        ok: res.success,
+        platform: PLATFORM,
+        filled: res.log.filter((l) => l.ok).map((l) => l.field),
+        failed: res.log.filter((l) => !l.ok).map((l) => l.field),
+        warnings: [],
+      }, '*');
+    }).catch((err) => {
+      window.postMessage({
+        source: 'copie-past-e-extension',
+        type: 'COPIE_AUTOFILL_RESULT',
+        ok: false,
+        platform: PLATFORM,
+        filled: [],
+        failed: ['autofill_error'],
+        warnings: [err.message],
+      }, '*');
+    });
+  });
+
+  console.log('[CopiePaste:facebook] Content script v1.4.0 loaded. Awaiting TRIGGER_AUTOFILL / COPIE_AUTOFILL.');
 })();

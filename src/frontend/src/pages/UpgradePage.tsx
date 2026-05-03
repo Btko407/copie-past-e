@@ -29,8 +29,7 @@ import { useGetMySubscription, useGetTiers } from "@/hooks/useTiers";
 import type { TierConfig } from "@/types";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronRight, Lock, Shield, Zap } from "lucide-react";
-import { SiBitcoin, SiPaypal } from "react-icons/si";
+import { Check, ChevronRight, Shield, Zap } from "lucide-react";
 import { createActor } from "../backend";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1003,61 +1002,6 @@ export function UpgradePage() {
                     ⚡ {selectedTier.durationDays} days added on top of current
                     expiry
                   </Badge>
-                </div>
-
-                {/* ── Alternative Payment Methods (Coming Soon) ── */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-border/30" />
-                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-                      or coming soon
-                    </span>
-                    <div className="flex-1 h-px bg-border/30" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* PayPal Coming Soon */}
-                    <div className="relative group">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled
-                        className="w-full h-11 border-border/40 text-muted-foreground/50 cursor-not-allowed opacity-60 gap-2 font-mono text-xs"
-                        data-ocid="paypal-coming-soon-btn"
-                        aria-label="PayPal payments coming soon"
-                      >
-                        <SiPaypal className="w-4 h-4 text-[#003087]/50" />
-                        PayPal
-                      </Button>
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none">
-                        <span className="bg-muted text-muted-foreground font-mono text-[8px] tracking-widest uppercase px-1.5 py-0.5 rounded border border-border/40 flex items-center gap-1">
-                          <Lock className="w-2 h-2" />
-                          Soon
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Crypto Coming Soon */}
-                    <div className="relative group">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled
-                        className="w-full h-11 border-border/40 text-muted-foreground/50 cursor-not-allowed opacity-60 gap-2 font-mono text-xs"
-                        data-ocid="crypto-coming-soon-btn"
-                        aria-label="Crypto payments coming soon"
-                      >
-                        <SiBitcoin className="w-4 h-4 text-[#F7931A]/50" />
-                        Crypto
-                      </Button>
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 pointer-events-none">
-                        <span className="bg-muted text-muted-foreground font-mono text-[8px] tracking-widest uppercase px-1.5 py-0.5 rounded border border-border/40 flex items-center gap-1">
-                          <Lock className="w-2 h-2" />
-                          Soon
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </motion.div>
             )}

@@ -1296,7 +1296,7 @@ export function PlatformDraftModal({
     setSubmitAttempted(true);
     if (hasMissingRequired || hasOverLimit) return;
 
-    const backendPlatform = platform === "mercari" ? "mecari" : platform;
+    const backendPlatform = platform; // normalization now happens inside useSavePlatformDraft
 
     saveDraft.mutate(
       {
@@ -1306,7 +1306,7 @@ export function PlatformDraftModal({
             case "facebook":
               return { platform: "facebook" as const, fields: fbFields };
             case "mercari":
-              return { platform: "mecari" as const, fields: mcFields };
+              return { platform: "mercari" as const, fields: mcFields };
             case "ebay":
               return { platform: "ebay" as const, fields: ebFields };
             case "poshmark":

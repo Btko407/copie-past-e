@@ -62,12 +62,6 @@ interface StripeFormState {
   isTestMode: boolean;
 }
 
-interface PayPalFormState {
-  clientId: string;
-  clientSecret: string;
-  liveMode: boolean;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function str(v: string | undefined | null): string {
@@ -879,263 +873,42 @@ function StripePanel() {
 // ─── PayPal Panel ─────────────────────────────────────────────────────────────
 
 function PayPalPanel() {
-  const { actor } = useActor(createActor);
-  const [config, setConfig] = useState<PayPalFormState>({
-    clientId: "",
-    clientSecret: "",
-    liveMode: false,
-  });
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<ConnectionStatus>("untested");
-  const [statusError, setStatusError] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!actor) return;
-    setLoading(true);
-    (actor as ActorAny)
-      .adminGetPaymentConfig()
-      .then((cfg: PaymentConfig) => {
-        setConfig({
-          clientId: str(cfg.paypalClientId),
-          clientSecret: str(cfg.paypalClientSecret),
-          liveMode: cfg.paypalMode === "live",
-        });
-      })
-      .catch(() => {
-        /* silent */
-      })
-      .finally(() => setLoading(false));
-  }, [actor]);
-
-  function setField<K extends keyof PayPalFormState>(
-    k: K,
-    v: PayPalFormState[K],
-  ) {
-    setConfig((prev) => ({ ...prev, [k]: v }));
-    if (status !== "untested") {
-      setStatus("untested");
-      setStatusError("");
-    }
-  }
-
-  async function handleTest() {
-    if (!config.clientId || !config.clientSecret) {
-      toast.error("Missing credentials", {
-        description: "Enter both Client ID and Secret to test.",
-      });
-      return;
-    }
-    if (!actor) {
-      toast.error("Not ready", { description: "Backend actor not available." });
-      return;
-    }
-    setStatus("testing");
-    setStatusError("");
-    try {
-      const result = await (actor as ActorAny).adminTestPaypalConnection(
-        config.clientId,
-        config.clientSecret,
-        config.liveMode ? "live" : "sandbox",
-      );
-      if (result.__kind__ === "ok") {
-        setStatus("connected");
-        toast.success("PayPal credentials valid", {
-          description: `Connected in ${config.liveMode ? "Live" : "Sandbox"} mode`,
-        });
-      } else {
-        const errMsg = (result.err as string) ?? "Invalid credentials.";
-        setStatus("failed");
-        setStatusError(errMsg);
-        toast.error("PayPal connection failed", { description: errMsg });
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "Unknown error.";
-      setStatus("failed");
-      setStatusError(errMsg);
-      toast.error("PayPal connection failed", { description: errMsg });
-    }
-  }
-
-  async function handleSave() {
-    if (!config.clientId || !config.clientSecret) {
-      toast.error("Required fields missing", {
-        description: "Client ID and Secret are required.",
-      });
-      return;
-    }
-    if (!actor) {
-      toast.error("Not ready", { description: "Backend actor not available." });
-      return;
-    }
-    setSaving(true);
-    try {
-      const existing: PaymentConfig = await (
-        actor as ActorAny
-      ).adminGetPaymentConfig();
-      const paymentConfig: PaymentConfig = {
-        stripePublishableKey: existing.stripePublishableKey,
-        stripeSecretKey: existing.stripeSecretKey,
-        stripeWebhookSecret: undefined,
-        stripeWebhookSecretTest: undefined,
-        stripeWebhookSecretLive: undefined,
-        stripeWalkerPriceId: existing.stripeWalkerPriceId,
-        stripeProPriceId: existing.stripeProPriceId,
-        stripeMaxPriceId: existing.stripeMaxPriceId,
-        stripeBackupPriceId: existing.stripeBackupPriceId,
-        stripeMode: existing.stripeMode,
-        paypalClientId: config.clientId || undefined,
-        paypalClientSecret: config.clientSecret || undefined,
-        paypalMode: config.liveMode ? "live" : "sandbox",
-      };
-      const result = await (actor as ActorAny).adminSavePaymentConfig(
-        paymentConfig,
-      );
-      if (result.__kind__ === "ok") {
-        toast.success("PayPal configuration saved", {
-          description: `${config.liveMode ? "Live" : "Sandbox"} mode credentials stored.`,
-        });
-      } else {
-        toast.error("Save failed", {
-          description: (result.err as string) ?? "Unknown error.",
-        });
-      }
-    } catch (err) {
-      toast.error("Save failed", {
-        description: err instanceof Error ? err.message : "Unknown error.",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <section
-      className="rounded-xl border border-accent/20 bg-card overflow-hidden"
+      className="rounded-xl border border-border/30 bg-card overflow-hidden opacity-60"
       data-ocid="paypal-panel"
     >
       <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center shrink-0">
-            <span className="font-mono text-xs font-bold text-accent">P</span>
+          <div className="w-8 h-8 rounded-lg bg-muted border border-border/30 flex items-center justify-center shrink-0">
+            <span className="font-mono text-xs font-bold text-muted-foreground">
+              P
+            </span>
           </div>
           <div>
-            <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+            <p className="font-display text-xs font-bold tracking-widest uppercase text-muted-foreground">
               PayPal
             </p>
-            <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
-              PayPal Checkout integration
+            <p className="font-mono text-[10px] text-muted-foreground/60 mt-0.5">
+              Not available in this version
             </p>
           </div>
         </div>
-        <StatusBadge
-          status={status}
-          mode={config.liveMode ? "live" : "sandbox"}
-          label="PayPal"
-          errorMsg={statusError}
-        />
+        <Badge
+          variant="outline"
+          className="font-mono text-[10px] text-muted-foreground border-border/30"
+        >
+          Not Available
+        </Badge>
       </div>
-
-      <div className="p-5 space-y-5">
-        {loading ? (
-          <div className="space-y-3">
-            {[0, 1].map((i) => (
-              <Skeleton key={i} className="h-9 w-full bg-primary/5" />
-            ))}
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between rounded-lg bg-secondary/20 border border-border/40 px-4 py-3">
-              <div>
-                <p className="font-mono text-xs font-bold text-foreground">
-                  {config.liveMode ? "Live Mode" : "Sandbox Mode"}
-                </p>
-                <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
-                  {config.liveMode
-                    ? "Real transactions — use production credentials"
-                    : "Test payments only — use sandbox credentials"}
-                </p>
-              </div>
-              <Switch
-                checked={config.liveMode}
-                onCheckedChange={(v) => setField("liveMode", v)}
-                data-ocid="paypal-live-mode-toggle"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <Label
-                  htmlFor="paypal-client-id"
-                  className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-                >
-                  Client ID
-                  <span className="text-muted-foreground/50 normal-case tracking-normal ml-1">
-                    (PAYPAL_CLIENT_ID)
-                  </span>
-                </Label>
-                <Input
-                  id="paypal-client-id"
-                  value={config.clientId}
-                  onChange={(e) => setField("clientId", e.target.value)}
-                  placeholder="AaBbCcDd…"
-                  className="font-mono text-xs mt-1"
-                  data-ocid="paypal-client-id"
-                />
-              </div>
-              <div>
-                <Label
-                  htmlFor="paypal-secret"
-                  className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
-                >
-                  Client Secret
-                  <span className="text-muted-foreground/50 normal-case tracking-normal ml-1">
-                    (PAYPAL_CLIENT_SECRET)
-                  </span>
-                </Label>
-                <MaskedInput
-                  id="paypal-secret"
-                  value={config.clientSecret}
-                  onChange={(v) => setField("clientSecret", v)}
-                  placeholder="EeFfGgHh…"
-                  data-ocid="paypal-client-secret"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-1 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                className="font-mono text-xs gap-1.5"
-                onClick={handleTest}
-                disabled={status === "testing"}
-                data-ocid="paypal-test-btn"
-              >
-                {status === "testing" ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <RefreshCcw className="w-3.5 h-3.5" />
-                )}
-                {status === "testing" ? "Testing…" : "Test Connection"}
-              </Button>
-              <Button
-                size="sm"
-                className="font-mono text-xs gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90 ml-auto"
-                onClick={handleSave}
-                disabled={saving}
-                data-ocid="paypal-save-btn"
-              >
-                {saving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                {saving ? "Saving…" : "Save Configuration"}
-              </Button>
-            </div>
-          </>
-        )}
+      <div className="p-5">
+        <div className="rounded-lg bg-muted/30 border border-border/20 px-4 py-3">
+          <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+            PayPal payments are not available in this version. Stripe Checkout
+            is the production payment path. PayPal may be added in a future
+            release.
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -1145,6 +918,45 @@ function PayPalPanel() {
 
 function ConnectionStatusBar() {
   const { data: health, isLoading } = useGetStripeHealthStatus();
+
+  // Compute config completeness score (out of 5 items)
+  const scoreItems = [
+    {
+      label: "Publishable Key",
+      ok: !!health?.keysConfigured,
+      detail: health?.keysConfigured ? "Configured ✓" : "Missing ✗",
+    },
+    {
+      label: "Secret Key",
+      ok: !!health?.keysConfigured,
+      detail: health?.keysConfigured ? "Configured ✓" : "Missing ✗",
+    },
+    {
+      label: "Price IDs",
+      ok: health?.status === "ok",
+      detail:
+        health?.status === "ok"
+          ? "Configured ✓"
+          : health?.status === "keys_only" || health?.status === "no_price_ids"
+            ? "Missing ✗"
+            : "Not set",
+    },
+    {
+      label: "Connection",
+      ok: health?.status === "ok" || health?.status === "keys_only",
+      detail:
+        health?.status === "ok" || health?.status === "keys_only"
+          ? "Reachable ✓"
+          : "Not verified",
+    },
+    {
+      label: "Webhooks",
+      ok: false,
+      detail: "Not used (ICP)",
+    },
+  ];
+
+  const configuredCount = scoreItems.filter((i) => i.ok).length;
 
   const stripeStatusText = (() => {
     if (!health) return "Not configured";
@@ -1167,10 +979,25 @@ function ConnectionStatusBar() {
       className="rounded-xl border border-border/40 bg-card overflow-hidden"
       data-ocid="stripe-connection-status-bar"
     >
-      <div className="px-5 py-4 border-b border-border/50 bg-card/80">
+      <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center justify-between gap-3 flex-wrap">
         <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
           Connection Status
         </p>
+        {!isLoading && (
+          <Badge
+            variant="outline"
+            className={`font-mono text-[10px] border-border/40 ${
+              configuredCount === 5
+                ? "text-green-400 border-green-400/40 bg-green-400/5"
+                : configuredCount >= 3
+                  ? "text-accent border-accent/40 bg-accent/5"
+                  : "text-destructive border-destructive/40 bg-destructive/5"
+            }`}
+            data-ocid="config-completeness-badge"
+          >
+            Config: {configuredCount}/5 configured
+          </Badge>
+        )}
       </div>
       <div className="px-5 py-4 flex flex-col sm:flex-row gap-4 flex-wrap">
         {isLoading ? (
@@ -1216,6 +1043,38 @@ function ConnectionStatusBar() {
           </>
         )}
       </div>
+
+      {/* Config Completeness Detail */}
+      {!isLoading && (
+        <div className="border-t border-border/30 px-5 py-4">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+            Configuration Checklist
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            {scoreItems.map(({ label, ok, detail }) => (
+              <div
+                key={label}
+                className={`rounded-lg border px-3 py-2 flex flex-col gap-0.5 ${
+                  ok
+                    ? "border-green-400/20 bg-green-400/5"
+                    : "border-destructive/20 bg-destructive/5"
+                }`}
+              >
+                <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+                  {label}
+                </span>
+                <span
+                  className={`font-mono text-[10px] font-bold ${
+                    ok ? "text-green-400" : "text-destructive"
+                  }`}
+                >
+                  {detail}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1335,6 +1194,58 @@ export function AdminPaymentsPage() {
         <IcpPaymentVerificationBlock />
 
         <StripePanel />
+
+        {/* Payment Model Info */}
+        <section
+          className="rounded-xl border border-border/30 bg-card overflow-hidden"
+          data-ocid="payment-model-info"
+        >
+          <div className="px-5 py-4 border-b border-border/50 bg-card/80">
+            <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+              Payment Methods
+            </p>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="flex items-start gap-3 rounded-lg bg-primary/5 border border-primary/15 px-4 py-3">
+              <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-mono text-xs font-bold text-foreground">
+                  Stripe Checkout — Active
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                  Production payment path. Credit card, Apple Pay, Google Pay
+                  via Stripe-hosted checkout. Verification uses polling
+                  (webhooks are architecturally impossible on the Internet
+                  Computer).
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-lg bg-muted/20 border border-border/20 px-4 py-3 opacity-60">
+              <XCircle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+              <div>
+                <p className="font-mono text-xs font-bold text-muted-foreground">
+                  PayPal — Not available in this version
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground/70 mt-0.5">
+                  PayPal is not implemented. May be added in a future release.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-lg bg-muted/20 border border-border/20 px-4 py-3 opacity-60">
+              <XCircle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+              <div>
+                <p className="font-mono text-xs font-bold text-muted-foreground">
+                  Crypto — Not available in this version
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground/70 mt-0.5">
+                  Cryptocurrency payments are not implemented. May be added in a
+                  future release.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <PayPalPanel />
 
         {/* Revenue Summary */}

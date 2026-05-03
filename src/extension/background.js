@@ -95,8 +95,64 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // ─── Message Routing ──────────────────────────────────────────────────────────
 
+// ─── Web-page → Extension: COPIE_AUTOFILL handler ─────────────────────────
+// Handles COPIE_AUTOFILL messages forwarded from content scripts (relay)
+// or sent directly from the popup. Routes to the target tab.
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.action) return false;
+  if (!message) return false;
+
+  // ── COPIE_AUTOFILL: forward autofill request to the correct platform tab ──
+  if (message.type === 'COPIE_AUTOFILL' || message.type === 'COPIE_AUTOFILL_RELAY') {
+    const { platform, payload } = message;
+    if (!platform || !payload) {
+      sendResponse({ ok: false, error: 'Missing platform or payload' });
+      return false;
+    }
+
+    // Resolve target tab: prefer explicit tabId, then sender tab, then active tab
+    const resolveAndForward = () => {
+      if (message.tabId) {
+        forwardToTab(message.tabId);
+      } else if (sender && sender.tab && sender.tab.id) {
+        forwardToTab(sender.tab.id);
+      } else {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs && tabs.length > 0) {
+            forwardToTab(tabs[0].id);
+          } else {
+            sendResponse({ ok: false, error: 'No active tab found' });
+          }
+        });
+      }
+    };
+
+    const forwardToTab = (tabId) => {
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: 'COPIE_AUTOFILL', platform, payload },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[CopiePaste:BG] COPIE_AUTOFILL tab error:', chrome.runtime.lastError.message);
+            sendResponse({
+              ok: false,
+              platform,
+              filled: [],
+              failed: [],
+              warnings: [chrome.runtime.lastError.message],
+            });
+          } else {
+            sendResponse(response || { ok: true, platform, filled: [], failed: [], warnings: [] });
+          }
+        }
+      );
+    };
+
+    resolveAndForward();
+    return true; // Keep channel open for async sendResponse
+  }
+
+  if (!message.action) return false;
 
   switch (message.action) {
 

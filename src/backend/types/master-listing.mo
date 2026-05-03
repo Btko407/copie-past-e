@@ -195,12 +195,13 @@ module {
 
   /// Arguments for creating a new master listing
   public type CreateMasterListingArgs = {
-    title       : Text;
-    description : Text;
-    price       : ?Text;
-    category    : ?Text;
-    tags        : [Text];
-    photos      : [Blob];
+    clientRequestId : Text;  // Client-generated idempotency key (UUID). Same caller+key returns original listing ID.
+    title           : Text;
+    description     : Text;
+    price           : ?Text;
+    category        : ?Text;
+    tags            : [Text];
+    photos          : [Blob];
   };
 
   /// Arguments for updating an existing master listing (all fields optional)

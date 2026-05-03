@@ -1,7 +1,7 @@
 import { ExtensionBanner } from "@/components/ExtensionBanner";
 import { Layout } from "@/components/Layout";
-import { ListingCard } from "@/components/ListingCard";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
+import { MasterListingCard } from "@/components/MasterListingCard";
 import { MasterListingForm } from "@/components/MasterListingForm";
 import { PaymentBanners } from "@/components/PaymentBanners";
 import { PlatformDraftModal } from "@/components/PlatformDraftModal";
@@ -13,33 +13,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetUserMasterListings } from "@/hooks/useGetUserMasterListings";
-import { useFavoritedListings, useListings } from "@/hooks/useListings";
 import { useCheckLowFuelNotification } from "@/hooks/useNotifications";
 import { useGetMySubscription, useGetTiers } from "@/hooks/useTiers";
 import { useNavigate } from "@tanstack/react-router";
-import { Calendar, Heart, Plus, Search, Zap } from "lucide-react";
+import { Calendar, Plus, Search, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useOptimistic, useRef, useState } from "react";
-import type { Listing } from "../backend";
-import { ListingStatus } from "../backend";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MasterListing } from "../backend";
+import { ListingStatus__2 } from "../backend";
 import { computeFuelFromExpiry } from "../components/GasFuelTank";
-import type { Platform, PlatformDraftSummary } from "../types/masterListing";
 import { ALL_PLATFORMS, PLATFORM_CONFIG } from "../types/masterListing";
+import type { Platform } from "../types/masterListing";
+import { normalizePlatform } from "../utils/normalizePlatform";
 import { NewListingModal } from "./NewListingModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabKey = "active" | "archived" | "favorites";
+type MasterTab = "all" | Platform | "archived" | "favorites";
 type SortOption = "newest" | "oldest";
 type DateFilter = "all" | "today" | "week" | "month";
-type PlatformFilter = "all" | Platform;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function nsToMs(ns: bigint | number): number {
   if (typeof ns === "bigint") return Number(ns) / 1_000_000;
   return ns > 1e15 ? ns / 1_000_000 : ns;
+}
+
+function filterMasterByDateRange(
+  listings: MasterListing[],
+  filter: DateFilter,
+): MasterListing[] {
+  if (filter === "all") return listings;
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return listings.filter((l) => {
+    const ageMs = now - nsToMs(l.createdAt);
+    switch (filter) {
+      case "today":
+        return ageMs <= DAY_MS;
+      case "week":
+        return ageMs <= 7 * DAY_MS;
+      case "month":
+        return ageMs <= 30 * DAY_MS;
+      default:
+        return true;
+    }
+  });
 }
 
 function formatCompactTime(msRemaining: number): string {
@@ -62,72 +82,6 @@ const DATE_FILTER_META: Record<DateFilter, { label: string; icon: string }> = {
   week: { label: "This Week", icon: "📆" },
   month: { label: "This Month", icon: "📊" },
 };
-
-function filterByDateRange(listings: Listing[], filter: DateFilter): Listing[] {
-  if (filter === "all") return listings;
-  const now = Date.now();
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  return listings.filter((l) => {
-    const ageMs = now - nsToMs(l.createdAt);
-    switch (filter) {
-      case "today":
-        return ageMs <= DAY_MS;
-      case "week":
-        return ageMs <= 7 * DAY_MS;
-      case "month":
-        return ageMs <= 30 * DAY_MS;
-      default:
-        return true;
-    }
-  });
-}
-
-/** Convert backend DraftStatus variant to our frontend union */
-function toDraftStatus(raw: string): PlatformDraftSummary["status"] {
-  switch (raw) {
-    case "saved":
-      return "saved";
-    case "preparing":
-      return "preparing";
-    case "ready":
-      return "ready";
-    case "posted":
-      return "posted";
-    default:
-      return "unsaved";
-  }
-}
-
-/** Map a backend PlatformListingDraft to PlatformDraftSummary */
-function toDraftSummary(
-  d: MasterListing["platformDrafts"][number],
-): PlatformDraftSummary | null {
-  // platform comes as Platform__2 enum value string
-  const platformRaw =
-    typeof d.platform === "string"
-      ? d.platform
-      : typeof d.platform === "object"
-        ? (Object.keys(d.platform as Record<string, unknown>)[0] ?? "")
-        : "";
-
-  if (!ALL_PLATFORMS.includes(platformRaw as Platform)) return null;
-
-  const statusRaw =
-    typeof d.status === "string"
-      ? d.status
-      : typeof d.status === "object"
-        ? (Object.keys(d.status as Record<string, unknown>)[0] ?? "")
-        : "";
-
-  return {
-    draftId: d.draftId,
-    platform: platformRaw as Platform,
-    status: toDraftStatus(statusRaw),
-    completenessPercent: Number(d.completenessPercent),
-    isValid: d.isValid,
-    lastEditedAt: d.lastEditedAt,
-  };
-}
 
 // ─── Compact Countdown Banner (mobile) ────────────────────────────────────────
 
@@ -182,8 +136,12 @@ function SkeletonGrid() {
   return (
     <div className="grid grid-cols-3 gap-1.5" data-ocid="listings-skeleton">
       {Array.from({ length: 9 }, (_, i) => `sk-${i}`).map((key) => (
-        <div key={key} className="aspect-square rounded-md overflow-hidden">
-          <Skeleton className="w-full h-full rounded-none" />
+        <div key={key} className="rounded-md overflow-hidden">
+          <Skeleton className="aspect-square w-full rounded-none" />
+          <div className="px-2 pt-1.5 pb-2 bg-card space-y-1">
+            <Skeleton className="h-3 w-3/4 rounded" />
+            <Skeleton className="h-2 w-1/2 rounded" />
+          </div>
         </div>
       ))}
     </div>
@@ -193,13 +151,21 @@ function SkeletonGrid() {
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
 interface EmptyStateProps {
-  tab: TabKey;
+  tab: MasterTab;
   onNewListing: () => void;
 }
 
 function EmptyState({ tab, onNewListing }: EmptyStateProps) {
-  const config = {
-    active: {
+  const isPlatform = ALL_PLATFORMS.includes(tab as Platform);
+  const platformName = isPlatform
+    ? (PLATFORM_CONFIG[tab as Platform]?.name ?? tab)
+    : tab;
+
+  const config: Record<
+    string,
+    { icon: string; title: string; desc: string; cta: string; showCta: boolean }
+  > = {
+    all: {
       icon: "📋",
       title: "Your archive is empty",
       desc: "Start capturing listings to build your reuse archive. Import once, copy forever.",
@@ -215,12 +181,20 @@ function EmptyState({ tab, onNewListing }: EmptyStateProps) {
     },
     favorites: {
       icon: "🤍",
-      title: "No favorites yet",
-      desc: "Tap ♡ on any listing to add it here.",
+      title: "No pinned listings",
+      desc: "Pin listings by clicking the star icon to see them here.",
       cta: "",
       showCta: false,
     },
-  }[tab];
+  };
+
+  const activeConfig = config[tab] ?? {
+    icon: PLATFORM_CONFIG[tab as Platform]?.icon ?? "📋",
+    title: `No ${platformName} drafts yet`,
+    desc: `Create a listing and add a ${platformName} draft to see it here.`,
+    cta: "Create your first listing",
+    showCta: true,
+  };
 
   return (
     <motion.div
@@ -230,47 +204,24 @@ function EmptyState({ tab, onNewListing }: EmptyStateProps) {
       className="flex flex-col items-center justify-center py-16 px-6 text-center"
       data-ocid={`empty-state-${tab}`}
     >
-      <span className="text-5xl mb-4">{config.icon}</span>
+      <span className="text-5xl mb-4">{activeConfig.icon}</span>
       <h3 className="font-display text-base font-bold text-foreground text-glow-blue mb-2">
-        {config.title}
+        {activeConfig.title}
       </h3>
       <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-6">
-        {config.desc}
+        {activeConfig.desc}
       </p>
-      {config.showCta && (
+      {activeConfig.showCta && (
         <Button
           onClick={onNewListing}
           className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 glow-yellow font-display font-bold tracking-wide"
           data-ocid="create-first-listing-btn"
         >
           <Plus className="h-4 w-4" />
-          {config.cta}
+          {activeConfig.cta}
         </Button>
       )}
     </motion.div>
-  );
-}
-
-// ─── Listings Grid ─────────────────────────────────────────────────────────────
-
-interface ListingsGridProps {
-  listings: Listing[];
-  /** Set of listing IDs (as bigint) that are optimistic placeholders */
-  optimisticIds?: Set<bigint>;
-}
-
-function ListingsGrid({ listings, optimisticIds }: ListingsGridProps) {
-  return (
-    <div className="grid grid-cols-3 gap-1.5" data-ocid="listings-grid">
-      {listings.map((listing, index) => (
-        <ListingCard
-          key={listing.id.toString()}
-          listing={listing}
-          index={index}
-          isOptimistic={optimisticIds?.has(listing.id) ?? false}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -304,232 +255,111 @@ function MasterListingsGrid({
   if (masterListings.length === 0) return null;
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <h2 className="font-display text-xs font-bold text-foreground/80 uppercase tracking-widest">
-          Master Listings
-        </h2>
-        <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-mono rounded">
-          {masterListings.length}
-        </span>
-      </div>
-      <div
-        className="grid grid-cols-3 gap-1.5"
-        data-ocid="master-listings-grid"
-      >
-        {masterListings.map((ml, index) => {
-          const drafts = ml.platformDrafts
-            .map(toDraftSummary)
-            .filter((d): d is PlatformDraftSummary => d !== null);
-
-          // Build a synthetic Listing-compatible shape for display
-          const syntheticListing: Listing = {
-            id: BigInt(0), // unused — we override click via onEditDraft
-            status: ListingStatus.active,
-            tierLevel: BigInt(1),
-            title: ml.title,
-            favorited: ml.pinned,
-            userId: ml.userId,
-            createdAt: ml.createdAt,
-            description: ml.description,
-            platform: undefined,
-            pinned: ml.pinned,
-            expirationDate: ml.expirationDate ?? BigInt(0),
-            archivedManually: false,
-          };
-
-          return (
-            <ListingCard
-              key={ml.id}
-              listing={syntheticListing}
-              index={index}
-              platformDrafts={drafts}
-              onEditDraft={(platform) => {
-                const matchingDraft = ml.platformDrafts.find((d) => {
-                  const pRaw =
-                    typeof d.platform === "string"
-                      ? d.platform
-                      : typeof d.platform === "object"
-                        ? (Object.keys(
-                            d.platform as Record<string, unknown>,
-                          )[0] ?? "")
-                        : "";
-                  return pRaw === platform;
-                });
-                const existingDraft = matchingDraft
-                  ? {
-                      platformFields: matchingDraft.platformFields as Record<
-                        string,
-                        unknown
-                      >,
-                      status:
-                        typeof matchingDraft.status === "string"
-                          ? matchingDraft.status
-                          : (Object.keys(
-                              matchingDraft.status as Record<string, unknown>,
-                            )[0] ?? ""),
-                      completenessPercent: Number(
-                        matchingDraft.completenessPercent,
-                      ),
-                      isValid: matchingDraft.isValid,
-                    }
-                  : null;
-                onEditDraft(
-                  ml.id,
-                  platform,
-                  {
-                    title: ml.title,
-                    description: ml.description,
-                    price: ml.price?.[0] ?? null,
-                    category: ml.category?.[0] ?? null,
-                    tags: ml.tags ?? [],
-                  },
-                  existingDraft,
-                );
-              }}
-            />
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-3 gap-1.5" data-ocid="master-listings-grid">
+      {masterListings.map((ml, index) => (
+        <MasterListingCard
+          key={ml.id}
+          listing={ml}
+          index={index}
+          onEditDraft={(platform) => {
+            const matchingDraft = ml.platformDrafts.find(
+              (d) => normalizePlatform(d.platform) === platform,
+            );
+            const existingDraft = matchingDraft
+              ? {
+                  platformFields: matchingDraft.platformFields as Record<
+                    string,
+                    unknown
+                  >,
+                  status:
+                    typeof matchingDraft.status === "string"
+                      ? matchingDraft.status
+                      : (Object.keys(
+                          matchingDraft.status as Record<string, unknown>,
+                        )[0] ?? ""),
+                  completenessPercent: Number(
+                    matchingDraft.completenessPercent,
+                  ),
+                  isValid: matchingDraft.isValid,
+                }
+              : null;
+            onEditDraft(
+              ml.id,
+              platform,
+              {
+                title: ml.title,
+                description: ml.description,
+                price: ml.price ?? null,
+                category: ml.category ?? null,
+                tags: ml.tags ?? [],
+              },
+              existingDraft,
+            );
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-// ─── Platform Filter Bar (for master listings) ────────────────────────────────
+// ─── Master Tab Bar ───────────────────────────────────────────────────────────
 
-interface PlatformFilterBarProps {
-  active: PlatformFilter;
-  onChange: (p: PlatformFilter) => void;
+const MASTER_TABS: Array<{ key: MasterTab; label: string; icon: string }> = [
+  { key: "all", label: "All", icon: "📋" },
+  { key: "facebook", label: "Facebook", icon: PLATFORM_CONFIG.facebook.icon },
+  { key: "mercari", label: "Mercari", icon: PLATFORM_CONFIG.mercari.icon },
+  { key: "ebay", label: "eBay", icon: PLATFORM_CONFIG.ebay.icon },
+  { key: "poshmark", label: "Poshmark", icon: PLATFORM_CONFIG.poshmark.icon },
+  { key: "depop", label: "Depop", icon: PLATFORM_CONFIG.depop.icon },
+  { key: "etsy", label: "Etsy", icon: PLATFORM_CONFIG.etsy.icon },
+  { key: "archived", label: "Archived", icon: "🗃" },
+  { key: "favorites", label: "Favorites", icon: "⭐" },
+];
+
+interface MasterTabBarProps {
+  active: MasterTab;
+  counts: Record<string, number>;
+  onChange: (tab: MasterTab) => void;
 }
 
-function PlatformFilterBar({ active, onChange }: PlatformFilterBarProps) {
+function MasterTabBar({ active, counts, onChange }: MasterTabBarProps) {
   return (
     <div
       className="overflow-x-auto whitespace-nowrap scrollbar-none pb-1"
-      data-ocid="master-platform-filter-bar"
+      data-ocid="master-tab-bar"
     >
-      <div className="inline-flex gap-1.5">
-        <button
-          type="button"
-          onClick={() => onChange("all")}
-          className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth shrink-0 ${
-            active === "all"
-              ? "bg-primary/20 text-primary border border-primary/50"
-              : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-          }`}
-          data-ocid="master-platform-filter.all.tab"
-        >
-          All Listings
-        </button>
-        {ALL_PLATFORMS.map((p) => {
-          const cfg = PLATFORM_CONFIG[p];
-          const isActive = active === p;
+      <div className="inline-flex gap-1">
+        {MASTER_TABS.map(({ key, label, icon }) => {
+          const isActive = active === key;
+          const count = counts[key] ?? 0;
           return (
             <button
-              key={p}
+              key={key}
               type="button"
-              onClick={() => onChange(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth shrink-0 ${
+              onClick={() => onChange(key)}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-mono font-semibold transition-smooth shrink-0 ${
                 isActive
                   ? "bg-primary/20 text-primary border border-primary/50"
                   : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
               }`}
-              data-ocid={`master-platform-filter.${p}.tab`}
+              data-ocid={`master-tab.${key}.tab`}
             >
-              {cfg.icon} {cfg.name}
+              {icon} {label}
+              {count > 0 && (
+                <span
+                  className={`px-1 py-0.5 rounded text-[9px] font-mono leading-none ${
+                    isActive
+                      ? "bg-primary/30 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ─── Tab Bar ──────────────────────────────────────────────────────────────────
-
-interface TabBarProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  activeCnt: number;
-  archivedCnt: number;
-  favoritesCnt: number;
-}
-
-function TabBar({
-  activeTab,
-  onTabChange,
-  activeCnt,
-  archivedCnt,
-  favoritesCnt,
-}: TabBarProps) {
-  const tabs: {
-    key: TabKey;
-    label: string;
-    count: number;
-    textClass: string;
-  }[] = [
-    {
-      key: "active",
-      label: "Active",
-      count: activeCnt,
-      textClass: "text-foreground",
-    },
-    {
-      key: "archived",
-      label: "Archived",
-      count: archivedCnt,
-      textClass: "text-accent",
-    },
-    {
-      key: "favorites",
-      label: "Favorites",
-      count: favoritesCnt,
-      textClass: "text-accent",
-    },
-  ];
-
-  return (
-    <div
-      className="flex border-b border-border/40 mb-4"
-      role="tablist"
-      data-ocid="tab-bar"
-    >
-      {tabs.map(({ key, label, count, textClass }) => {
-        const isActive = activeTab === key;
-        return (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-display font-bold tracking-wide transition-smooth relative ${
-              isActive
-                ? "text-primary"
-                : `${textClass} opacity-70 hover:opacity-100`
-            }`}
-            onClick={() => onTabChange(key)}
-            data-ocid={`tab-${key}`}
-          >
-            {key === "favorites" && <Heart className="h-3 w-3" />}
-            {label}
-            <span
-              className={`font-mono text-[10px] px-1 py-0.5 rounded ${
-                isActive
-                  ? "bg-primary/20 text-primary"
-                  : "bg-muted/60 text-muted-foreground"
-              }`}
-            >
-              {count}
-            </span>
-            {isActive && (
-              <motion.div
-                layoutId="tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary glow-blue-sm rounded-t"
-              />
-            )}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -540,22 +370,16 @@ const LOW_FUEL_THRESHOLD = 20;
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { data: listings, isLoading: listingsLoading } = useListings();
-  const { data: favoritedListings, isLoading: favoritesLoading } =
-    useFavoritedListings();
   const { data: masterListingsRaw, isLoading: masterListingsLoading } =
     useGetUserMasterListings();
   const { data: subscription } = useGetMySubscription();
   const { data: tiers } = useGetTiers();
   const checkLowFuel = useCheckLowFuelNotification();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("active");
+  const [activeTab, setActiveTab] = useState<MasterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [lowFuelBannerDismissed, setLowFuelBannerDismissed] = useState(false);
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
-  const [masterPlatformFilter, setMasterPlatformFilter] =
-    useState<PlatformFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [newListingModalOpen, setNewListingModalOpen] = useState(false);
@@ -582,43 +406,11 @@ export function DashboardPage() {
 
   const lowFuelCheckFiredRef = useRef(false);
 
-  const allListings = listings ?? [];
-  const allFavorited = favoritedListings ?? [];
   const masterListings: MasterListing[] = masterListingsRaw ?? [];
 
-  // ── React 19 Optimistic listings ──────────────────────────────────────────
-  // Holds pending entries that were submitted but not yet confirmed by the backend.
-  // useOptimistic merges them at the front of the listings array while the backend
-  // mutation is in-flight. On success the query invalidation replaces them with
-  // real data; on error we remove the placeholder via removeOptimistic.
-  const [optimisticListings, addOptimisticListing] = useOptimistic(
-    allListings,
-    (state: Listing[], newListing: Listing) => [newListing, ...state],
-  );
-
-  // Track which IDs are optimistic so ListingCard can show a "Saving..." badge.
-  // Must be useState (not useRef) so changes trigger a re-render that passes
-  // the updated Set to ListingsGrid → ListingCard → isOptimistic prop.
-  const [optimisticIds, setOptimisticIds] = useState<Set<bigint>>(new Set());
-
-  function handleOptimisticAdd(listing: Listing) {
-    setOptimisticIds((prev) => {
-      const next = new Set(prev);
-      next.add(listing.id);
-      return next;
-    });
-    addOptimisticListing(listing);
-  }
-
-  function handleOptimisticRollback(tempId: bigint) {
-    setOptimisticIds((prev) => {
-      const next = new Set(prev);
-      next.delete(tempId);
-      return next;
-    });
-    // TanStack Query invalidation in onSuccess already refreshes; for the error
-    // path the optimistic state resets automatically once the transition ends.
-  }
+  // Stub handlers for NewListingModal backward-compat (legacy path, no-op)
+  function handleOptimisticAdd(_listing: import("../backend").Listing) {}
+  function handleOptimisticRollback(_tempId: bigint) {}
 
   // Subscription info
   const now = Date.now();
@@ -662,84 +454,70 @@ export function DashboardPage() {
     }
   }, [isLowFuel, expirationMs, subscription, fuelPercent, checkLowFuel]);
 
-  // Sort active: apply date filter, platform filter, then createdAt sort
-  // NOTE: uses optimisticListings so new entries appear instantly on submit
-  const sortedActive = useMemo(() => {
-    let items = optimisticListings.filter(
-      (l) => l.status === ListingStatus.active,
-    );
-    items = filterByDateRange(items, dateFilter);
-    if (platformFilter !== "all") {
-      items = items.filter((l) => {
-        const p = l.platform;
-        if (!p) return false;
-        const pStr =
-          typeof p === "string"
-            ? p.replace(/^#/, "")
-            : typeof p === "object"
-              ? Object.keys(p as Record<string, unknown>)[0]
-              : "";
-        return pStr === platformFilter;
-      });
+  // ── Master listing filter/sort ────────────────────────────────────────────
+  const filteredMasterListings = useMemo(() => {
+    let items = masterListings;
+
+    // Tab filter
+    if (activeTab === "archived") {
+      items = items.filter((ml) => ml.status === ListingStatus__2.archived);
+    } else if (activeTab === "favorites") {
+      items = items.filter((ml) => ml.pinned);
+    } else if (activeTab !== "all") {
+      // Platform tab: show listings that have a draft for that platform
+      const platformTab = activeTab as Platform;
+      items = items.filter((ml) =>
+        ml.platformDrafts.some(
+          (d) => normalizePlatform(d.platform) === platformTab,
+        ),
+      );
+    } else {
+      // "all" shows non-archived
+      items = items.filter((ml) => ml.status !== ListingStatus__2.archived);
     }
-    return items.sort((a, b) => {
+
+    // Search filter
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      items = items.filter(
+        (ml) =>
+          ml.title.toLowerCase().includes(q) ||
+          ml.description.toLowerCase().includes(q) ||
+          (ml.category ?? "").toLowerCase().includes(q),
+      );
+    }
+
+    // Date range filter
+    items = filterMasterByDateRange(items, dateFilter);
+
+    // Sort
+    return [...items].sort((a, b) => {
       const aTime = Number(a.createdAt);
       const bTime = Number(b.createdAt);
       return sortOption === "newest" ? bTime - aTime : aTime - bTime;
     });
-  }, [optimisticListings, dateFilter, platformFilter, sortOption]);
+  }, [masterListings, activeTab, searchQuery, dateFilter, sortOption]);
 
-  const sortedArchived = useMemo(() => {
-    return allListings
-      .filter((l) => l.status === ListingStatus.archived)
-      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
-  }, [allListings]);
-
-  const sortedFavorites = useMemo(() => {
-    return [...allFavorited].sort((a, b) => {
-      const aPin = a.pinned ? 1 : 0;
-      const bPin = b.pinned ? 1 : 0;
-      if (bPin !== aPin) return bPin - aPin;
-      return Number(b.createdAt) - Number(a.createdAt);
-    });
-  }, [allFavorited]);
-
-  // Filtered master listings by platform
-  const filteredMasterListings = useMemo(() => {
-    if (masterPlatformFilter === "all") return masterListings;
-    return masterListings.filter((ml) =>
-      ml.platformDrafts.some((d) => {
-        const pRaw =
-          typeof d.platform === "string"
-            ? d.platform
-            : typeof d.platform === "object"
-              ? (Object.keys(d.platform as Record<string, unknown>)[0] ?? "")
-              : "";
-        return pRaw === masterPlatformFilter && d.status !== "unsaved";
-      }),
-    );
-  }, [masterListings, masterPlatformFilter]);
-
-  function filterBySearch(items: Listing[]): Listing[] {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (l) =>
-        l.title.toLowerCase().includes(q) ||
-        (l.description ?? "").toLowerCase().includes(q),
-    );
-  }
-
-  const visibleListings = filterBySearch(
-    activeTab === "active"
-      ? sortedActive
-      : activeTab === "archived"
-        ? sortedArchived
-        : sortedFavorites,
-  );
-
-  const isLoading =
-    listingsLoading || (activeTab === "favorites" && favoritesLoading);
+  // Tab counts
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: masterListings.filter(
+        (ml) => ml.status !== ListingStatus__2.archived,
+      ).length,
+      archived: masterListings.filter(
+        (ml) => ml.status === ListingStatus__2.archived,
+      ).length,
+      favorites: masterListings.filter((ml) => ml.pinned).length,
+    };
+    for (const p of ALL_PLATFORMS) {
+      counts[p] = masterListings.filter(
+        (ml) =>
+          ml.status !== ListingStatus__2.archived &&
+          ml.platformDrafts.some((d) => normalizePlatform(d.platform) === p),
+      ).length;
+    }
+    return counts;
+  }, [masterListings]);
 
   const daysUntilDeletion =
     isSubscriptionExpired && expirationMs !== null
@@ -755,7 +533,7 @@ export function DashboardPage() {
   const showRefuelBanner =
     !bannerDismissed &&
     isSubscriptionExpired &&
-    sortedArchived.length > 0 &&
+    tabCounts.archived > 0 &&
     daysUntilDeletion !== null;
 
   const showLowFuelBanner =
@@ -846,27 +624,26 @@ export function DashboardPage() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search your listings..."
+            placeholder="Search master listings..."
             className="pl-8 h-9 bg-background border-border/60 focus:border-primary focus:ring-primary/30 font-mono text-xs placeholder:text-muted-foreground/60 transition-smooth"
             data-ocid="search-input"
           />
         </div>
 
-        {/* Tab bar */}
-        <TabBar
-          activeTab={activeTab}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-            setPlatformFilter("all");
-            setSortOption("newest");
-            setDateFilter("all");
-          }}
-          activeCnt={sortedActive.length}
-          archivedCnt={sortedArchived.length}
-          favoritesCnt={allFavorited.length}
-        />
+        {/* Master tab bar — All, 6 platforms, Archived, Favorites */}
+        <div className="mb-3">
+          <MasterTabBar
+            active={activeTab}
+            counts={tabCounts}
+            onChange={(tab) => {
+              setActiveTab(tab);
+              setSortOption("newest");
+              setDateFilter("all");
+            }}
+          />
+        </div>
 
-        {/* Expired archive clock */}
+        {/* Expired archive clock (shown when on Archived tab) */}
         {activeTab === "archived" &&
           isSubscriptionExpired &&
           expirationMs !== null && (
@@ -898,139 +675,76 @@ export function DashboardPage() {
             </div>
           )}
 
-        {/* Active tab controls: platform filter + sort + date filter */}
-        {activeTab === "active" && (
-          <div className="space-y-2 mb-4">
-            {/* Platform filter */}
-            <div
-              className="flex gap-2 flex-wrap"
-              data-ocid="platform-filter-bar"
-            >
-              <button
-                type="button"
-                onClick={() => setPlatformFilter("all")}
-                className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                  platformFilter === "all"
-                    ? "bg-primary/20 text-primary border border-primary/50"
-                    : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-                }`}
-                data-ocid="platform-filter.all.tab"
+        {/* Sort + Date filter row (shown on all/platform tabs) */}
+        {activeTab !== "archived" && activeTab !== "favorites" && (
+          <div className="flex gap-3 flex-wrap items-center mb-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">
+                Sort:
+              </span>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="px-2 py-1.5 rounded-md text-xs font-mono bg-secondary/50 border border-border/40 text-foreground focus:outline-none focus:border-primary/60 transition-smooth"
+                data-ocid="sort-select"
+                aria-label="Sort order"
               >
-                All
-              </button>
-              {ALL_PLATFORMS.map((p) => {
-                const cfg = PLATFORM_CONFIG[p];
+                <option value="newest">📥 Newest First</option>
+                <option value="oldest">📤 Oldest First</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+              {(["all", "today", "week", "month"] as const).map((f) => {
+                const meta = DATE_FILTER_META[f];
                 return (
                   <button
-                    key={p}
+                    key={f}
                     type="button"
-                    onClick={() => setPlatformFilter(p)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                      platformFilter === p
-                        ? "bg-primary/20 text-primary border border-primary/50"
+                    onClick={() => setDateFilter(f)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
+                      dateFilter === f
+                        ? "bg-accent/20 text-accent border border-accent/50"
                         : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
                     }`}
-                    data-ocid={`platform-filter.${p}.tab`}
+                    data-ocid={`date-filter-${f}`}
                   >
-                    {cfg.icon} {cfg.name}
+                    {meta.icon} {meta.label}
                   </button>
                 );
               })}
             </div>
-
-            {/* Sort + Date filter row */}
-            <div className="flex gap-3 flex-wrap items-center">
-              {/* Sort select */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">
-                  Sort:
-                </span>
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  className="px-2 py-1.5 rounded-md text-xs font-mono bg-secondary/50 border border-border/40 text-foreground focus:outline-none focus:border-primary/60 transition-smooth"
-                  data-ocid="sort-select"
-                  aria-label="Sort order"
-                >
-                  <option value="newest">📥 Newest First</option>
-                  <option value="oldest">📤 Oldest First</option>
-                </select>
-              </div>
-
-              {/* Date filter */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
-                {(["all", "today", "week", "month"] as const).map((f) => {
-                  const { label, icon } = DATE_FILTER_META[f];
-                  return (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setDateFilter(f)}
-                      className={`px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition-smooth ${
-                        dateFilter === f
-                          ? "bg-accent/20 text-accent border border-accent/50"
-                          : "bg-muted/40 text-muted-foreground border border-border/40 hover:text-foreground hover:bg-muted/60"
-                      }`}
-                      data-ocid={`date-filter-${f}`}
-                    >
-                      {icon} {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         )}
 
-        {/* Content */}
-        {isLoading ? (
-          <SkeletonGrid />
-        ) : visibleListings.length === 0 ? (
-          <EmptyState
-            tab={activeTab}
-            onNewListing={() => setNewListingModalOpen(true)}
-          />
-        ) : (
-          <ListingsGrid
-            listings={visibleListings}
-            optimisticIds={optimisticIds}
-          />
-        )}
-
-        {/* ── Master Listings Section ─────────────────────────────────────── */}
-        {activeTab === "active" && (
-          <div className="mt-8 space-y-3" data-ocid="master-listings-section">
-            <div className="h-px bg-border/30" />
-
-            {/* Platform filter tabs for master listings */}
-            <PlatformFilterBar
-              active={masterPlatformFilter}
-              onChange={setMasterPlatformFilter}
+        {/* ── Master Listings Grid (primary) ─────────────────────────────── */}
+        <div data-ocid="master-listings-section">
+          {masterListingsLoading ? (
+            <SkeletonGrid />
+          ) : filteredMasterListings.length === 0 ? (
+            <EmptyState
+              tab={activeTab}
+              onNewListing={() => setShowMasterForm(true)}
             />
-
-            {masterListingsLoading ? (
-              <SkeletonGrid />
-            ) : (
-              <MasterListingsGrid
-                masterListings={filteredMasterListings}
-                onEditDraft={(
+          ) : (
+            <MasterListingsGrid
+              masterListings={filteredMasterListings}
+              onEditDraft={(
+                listingId,
+                platform,
+                masterListingData,
+                existingDraft,
+              ) =>
+                setDraftModal({
                   listingId,
                   platform,
-                  masterListingData,
+                  masterListing: masterListingData,
                   existingDraft,
-                ) =>
-                  setDraftModal({
-                    listingId,
-                    platform,
-                    masterListing: masterListingData,
-                    existingDraft,
-                  })
-                }
-              />
-            )}
-          </div>
-        )}
+                })
+              }
+            />
+          )}
+        </div>
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}

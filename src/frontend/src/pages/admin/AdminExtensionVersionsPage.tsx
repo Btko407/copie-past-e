@@ -1,18 +1,34 @@
 import { createActor } from "@/backend";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CheckCircle2,
   Copy,
   Download,
+  ExternalLink,
   Globe,
   HardDrive,
+  Package,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
+  XCircle,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+type DownloadMode = "local" | "webstore" | "both";
 
 interface ExtensionVersion {
   version: string;
@@ -24,56 +40,517 @@ interface ExtensionVersion {
   supportedPlatforms: string[];
 }
 
-interface ExtensionCapabilities {
-  autofillFacebook: boolean;
-  autofillMecari: boolean;
-  photoUpload: boolean;
-  smartOCR: boolean;
-  platformDetection: boolean;
-  autoFillCondition: boolean;
-  autoFillBrand: boolean;
-  autoFillPrice: boolean;
-  autoFillCategory: boolean;
-  autoFillDescription: boolean;
-  localPickupDetection: boolean;
-  deliveryDaysDetection: boolean;
-  shippingTypeDetection: boolean;
+interface LatestVersionInfo {
+  latestVersion: string;
+  buildNumber: number;
+  isForceUpdate: boolean;
+  releaseNotes: string;
+  downloadUrl: string;
+  releasedAt: number;
 }
 
-type DownloadMode = "local" | "webstore" | "both";
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
-const PLATFORM_CAPABILITIES = [
-  { key: "facebook", label: "Facebook Marketplace", emoji: "📘" },
-  { key: "mercari", label: "Mercari", emoji: "🏯" },
-  { key: "ebay", label: "eBay", emoji: "🔨" },
-  { key: "poshmark", label: "Poshmark", emoji: "👗" },
-  { key: "depop", label: "Depop", emoji: "🎨" },
-  { key: "etsy", label: "Etsy", emoji: "🛍" },
-] as const;
+const PLATFORM_CAPS = [
+  { key: "facebook" as const, label: "Facebook Marketplace", emoji: "📘" },
+  { key: "mercari" as const, label: "Mercari", emoji: "🏯" },
+  { key: "ebay" as const, label: "eBay", emoji: "🔨" },
+  { key: "poshmark" as const, label: "Poshmark", emoji: "👗" },
+  { key: "depop" as const, label: "Depop", emoji: "🎨" },
+  { key: "etsy" as const, label: "Etsy", emoji: "🛍" },
+];
+
+const REQUIRED_FILES = [
+  "manifest.json",
+  "background.js",
+  "content-facebook.js",
+  "content-mercari.js",
+  "content-ebay.js",
+  "content-poshmark.js",
+  "content-depop.js",
+  "content-etsy.js",
+  "content-detection.js",
+  "popup.html",
+  "popup.js",
+];
+
+type PlatformKey = (typeof PLATFORM_CAPS)[number]["key"];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActorAny = any;
+
+// ─── Integrity Check ───────────────────────────────────────────────────────────
+
+function PackageIntegritySection({ downloadUrl }: { downloadUrl: string }) {
+  const [zipStatus, setZipStatus] = useState<"unknown" | "ok" | "missing">(
+    "unknown",
+  );
+  const [checking, setChecking] = useState(false);
+
+  async function checkZip() {
+    if (!downloadUrl) {
+      setZipStatus("missing");
+      return;
+    }
+    setChecking(true);
+    try {
+      const res = await fetch(downloadUrl, { method: "HEAD" });
+      setZipStatus(res.ok ? "ok" : "missing");
+    } catch {
+      setZipStatus("missing");
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <section
+      className="rounded-xl border border-border/40 bg-card overflow-hidden"
+      data-ocid="ext-integrity-section"
+    >
+      <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+            <Package className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+              Package Integrity
+            </p>
+            <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+              ZIP availability + required file checklist
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={checkZip}
+          disabled={checking}
+          className="font-mono text-xs gap-1.5"
+          data-ocid="ext-integrity-check-btn"
+        >
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${checking ? "animate-spin" : ""}`}
+          />
+          {checking ? "Checking…" : "Check ZIP"}
+        </Button>
+      </div>
+      <div className="p-5 space-y-4">
+        {/* ZIP status */}
+        <div className="flex items-center justify-between rounded-lg bg-secondary/10 border border-border/30 px-4 py-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Local ZIP
+            </p>
+            <code className="font-mono text-xs text-primary mt-0.5 block break-all">
+              {downloadUrl || "(not configured)"}
+            </code>
+          </div>
+          {zipStatus === "ok" && (
+            <Badge
+              variant="outline"
+              className="text-green-400 border-green-400/40 bg-green-400/5 font-mono text-[10px] gap-1 shrink-0"
+            >
+              <CheckCircle2 className="w-3 h-3" /> Available
+            </Badge>
+          )}
+          {zipStatus === "missing" && (
+            <Badge
+              variant="outline"
+              className="text-destructive border-destructive/40 bg-destructive/5 font-mono text-[10px] gap-1 shrink-0"
+            >
+              <XCircle className="w-3 h-3" /> Not Found
+            </Badge>
+          )}
+          {zipStatus === "unknown" && (
+            <Badge
+              variant="outline"
+              className="text-muted-foreground font-mono text-[10px] shrink-0"
+            >
+              Unchecked
+            </Badge>
+          )}
+        </div>
+
+        {/* Required files list */}
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+            Required Files Checklist
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {REQUIRED_FILES.map((file) => (
+              <div
+                key={file}
+                className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground"
+              >
+                <CheckCircle2 className="w-3 h-3 text-green-400 shrink-0" />
+                {file}
+              </div>
+            ))}
+          </div>
+          <p className="font-mono text-[9px] text-muted-foreground/50 mt-2">
+            Run{" "}
+            <code className="text-primary">node scripts/zip-extension.mjs</code>{" "}
+            to regenerate ZIP.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Download Config Section ───────────────────────────────────────────────────
+
+interface DownloadConfigSectionProps {
+  downloadMode: DownloadMode;
+  localDownloadUrl: string;
+  chromeWebStoreUrl: string;
+  platformCaps: Record<PlatformKey, boolean>;
+  onSave: (cfg: {
+    mode: DownloadMode;
+    localUrl: string;
+    webstoreUrl: string;
+    caps: Record<PlatformKey, boolean>;
+  }) => void;
+  saving: boolean;
+}
+
+function DownloadConfigSection({
+  downloadMode: initMode,
+  localDownloadUrl: initLocal,
+  chromeWebStoreUrl: initWebstore,
+  platformCaps: initCaps,
+  onSave,
+  saving,
+}: DownloadConfigSectionProps) {
+  const [mode, setMode] = useState<DownloadMode>(initMode);
+  const [localUrl, setLocalUrl] = useState(initLocal);
+  const [webstoreUrl, setWebstoreUrl] = useState(initWebstore);
+  const [caps, setCaps] = useState(initCaps);
+
+  useEffect(() => {
+    setMode(initMode);
+    setLocalUrl(initLocal);
+    setWebstoreUrl(initWebstore);
+    setCaps(initCaps);
+  }, [initMode, initLocal, initWebstore, initCaps]);
+
+  function copyUrl() {
+    navigator.clipboard
+      .writeText(localUrl)
+      .then(() => toast.success("Download URL copied to clipboard"));
+  }
+
+  return (
+    <section
+      className="rounded-xl border border-border/40 bg-card overflow-hidden"
+      data-ocid="ext-download-config-section"
+    >
+      <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+          <Globe className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+            Download Configuration
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+            Download mode, URLs, and platform capability matrix
+          </p>
+        </div>
+      </div>
+      <div className="p-5 space-y-5">
+        {/* Download mode */}
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+            Download Mode
+          </p>
+          <div className="flex gap-4">
+            {(["local", "webstore", "both"] as DownloadMode[]).map((m) => (
+              <label key={m} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="downloadMode"
+                  value={m}
+                  checked={mode === m}
+                  onChange={() => setMode(m)}
+                  className="accent-primary"
+                  data-ocid={`ext-download-mode-${m}.radio`}
+                />
+                <span className="font-mono text-xs text-foreground capitalize">
+                  {m}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="font-mono text-[9px] text-muted-foreground/60 mt-1">
+            <strong>local</strong> — local ZIP only ·<strong> webstore</strong>{" "}
+            — Chrome Web Store only ·<strong> both</strong> — show both download
+            options
+          </p>
+        </div>
+
+        <Separator className="bg-border/30" />
+
+        {/* Local URL */}
+        {mode !== "webstore" && (
+          <div>
+            <Label
+              htmlFor="ext-local-url"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
+              <HardDrive className="inline w-3 h-3 mr-1" />
+              Local ZIP URL
+            </Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                id="ext-local-url"
+                value={localUrl}
+                onChange={(e) => setLocalUrl(e.target.value)}
+                placeholder="/copie-paste-extension-v1.3.1.zip"
+                className="font-mono text-xs flex-1"
+                data-ocid="ext-local-url.input"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copyUrl}
+                className="shrink-0"
+                aria-label="Copy download URL"
+                data-ocid="ext-copy-url.button"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Web Store URL */}
+        {mode !== "local" && (
+          <div>
+            <Label
+              htmlFor="ext-webstore-url"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
+              <Globe className="inline w-3 h-3 mr-1" />
+              Chrome Web Store URL
+            </Label>
+            <Input
+              id="ext-webstore-url"
+              value={webstoreUrl}
+              onChange={(e) => setWebstoreUrl(e.target.value)}
+              placeholder="https://chromewebstore.google.com/detail/…"
+              className="font-mono text-xs mt-1"
+              data-ocid="ext-webstore-url.input"
+            />
+            <p className="font-mono text-[9px] text-muted-foreground/60 mt-1">
+              Leave empty — Chrome Web Store button stays hidden from users.
+            </p>
+          </div>
+        )}
+
+        <Separator className="bg-border/30" />
+
+        {/* Platform capability matrix */}
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+            Platform Capability Matrix
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {PLATFORM_CAPS.map(({ key, label, emoji }) => (
+              <div
+                key={key}
+                className="flex items-center gap-2 cursor-pointer rounded-lg border border-border/30 px-3 py-2.5 hover:bg-secondary/20 transition-colors"
+              >
+                <Switch
+                  id={`cap-${key}`}
+                  checked={caps[key]}
+                  onCheckedChange={(v) => setCaps({ ...caps, [key]: v })}
+                  data-ocid={`ext-cap-${key}.switch`}
+                />
+                <label
+                  htmlFor={`cap-${key}`}
+                  className="font-mono text-xs text-foreground cursor-pointer"
+                >
+                  {emoji} {label}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Save */}
+        <div className="flex justify-end pt-1">
+          <Button
+            onClick={() => onSave({ mode, localUrl, webstoreUrl, caps })}
+            disabled={saving}
+            className="font-mono text-xs gap-1.5"
+            data-ocid="ext-download-config.save_button"
+          >
+            <Save className="w-3.5 h-3.5" />
+            {saving ? "Saving…" : "Save Configuration"}
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Publish Modal ─────────────────────────────────────────────────────────────
+
+interface PublishModalProps {
+  onClose: () => void;
+  onPublish: (args: {
+    version: string;
+    buildNumber: number;
+    releaseNotes: string;
+    forceUpdate: boolean;
+  }) => void;
+  pending: boolean;
+  defaultVersion?: string;
+  defaultBuild?: number;
+}
+
+function PublishModal({
+  onClose,
+  onPublish,
+  pending,
+  defaultVersion = "1.3.2",
+  defaultBuild = 5,
+}: PublishModalProps) {
+  const [version, setVersion] = useState(defaultVersion);
+  const [buildNumber, setBuildNumber] = useState(defaultBuild);
+  const [releaseNotes, setReleaseNotes] = useState("");
+  const [forceUpdate, setForceUpdate] = useState(false);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      data-ocid="ext-publish.dialog"
+    >
+      <div className="bg-card border border-primary/30 rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+        <h3 className="font-display text-sm font-bold tracking-widest uppercase text-foreground">
+          Publish New Version
+        </h3>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label
+              htmlFor="pub-version"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
+              Version
+            </Label>
+            <Input
+              id="pub-version"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              placeholder="1.3.2"
+              className="font-mono text-xs mt-1"
+              data-ocid="ext-publish.version.input"
+            />
+          </div>
+          <div>
+            <Label
+              htmlFor="pub-build"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
+              Build #
+            </Label>
+            <Input
+              id="pub-build"
+              type="number"
+              value={buildNumber}
+              onChange={(e) => setBuildNumber(Number.parseInt(e.target.value))}
+              className="font-mono text-xs mt-1"
+              data-ocid="ext-publish.build_number.input"
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label
+            htmlFor="pub-notes"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+          >
+            Release Notes
+          </Label>
+          <textarea
+            id="pub-notes"
+            value={releaseNotes}
+            onChange={(e) => setReleaseNotes(e.target.value)}
+            placeholder="What changed in this version?"
+            rows={3}
+            className="w-full mt-1 px-3 py-2 bg-secondary/20 border border-border/40 rounded-md text-xs font-mono text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+            data-ocid="ext-publish.release_notes.textarea"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 rounded-lg bg-destructive/5 border border-destructive/20 px-4 py-3">
+          <Switch
+            id="pub-force"
+            checked={forceUpdate}
+            onCheckedChange={setForceUpdate}
+            data-ocid="ext-publish.force_update.switch"
+          />
+          <div>
+            <label
+              htmlFor="pub-force"
+              className="font-mono text-xs font-bold text-destructive cursor-pointer"
+            >
+              Force Update
+            </label>
+            <p className="font-mono text-[9px] text-muted-foreground">
+              All users must update before continuing
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button
+            variant="outline"
+            className="flex-1 font-mono text-xs"
+            onClick={onClose}
+            data-ocid="ext-publish.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 font-mono text-xs gap-1.5"
+            onClick={() =>
+              onPublish({ version, buildNumber, releaseNotes, forceUpdate })
+            }
+            disabled={pending || !version.trim()}
+            data-ocid="ext-publish.submit_button"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            {pending ? "Publishing…" : "Publish"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export function AdminExtensionVersionsPage() {
   const { actor, isFetching: actorFetching } = useActor(createActor);
   const enabled = !!actor && !actorFetching;
   const queryClient = useQueryClient();
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [showCapabilitiesModal, setShowCapabilitiesModal] = useState(false);
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
-  const [newVersion, setNewVersion] = useState("1.3.1");
-  const [newBuildNumber, setNewBuildNumber] = useState(4);
-  const [newReleaseNotes, setNewReleaseNotes] = useState(
-    "Production release with full 6-platform autofill support",
-  );
-  const [forceUpdate, setForceUpdate] = useState(false);
 
-  // Download config state
+  // Config state — seeded from backend on load
   const [downloadMode, setDownloadMode] = useState<DownloadMode>("local");
   const [localDownloadUrl, setLocalDownloadUrl] = useState(
     "/copie-paste-extension-v1.3.1.zip",
   );
   const [chromeWebStoreUrl, setChromeWebStoreUrl] = useState("");
-
-  // Per-platform capability toggles
-  const [platformCaps, setPlatformCaps] = useState({
+  const [platformCaps, setPlatformCaps] = useState<
+    Record<PlatformKey, boolean>
+  >({
     facebook: true,
     mercari: true,
     ebay: true,
@@ -82,740 +559,463 @@ export function AdminExtensionVersionsPage() {
     etsy: true,
   });
 
-  const [capabilities, setCapabilities] = useState<ExtensionCapabilities>({
-    autofillFacebook: true,
-    autofillMecari: true,
-    photoUpload: true,
-    smartOCR: false,
-    platformDetection: true,
-    autoFillCondition: true,
-    autoFillBrand: true,
-    autoFillPrice: true,
-    autoFillCategory: true,
-    autoFillDescription: true,
-    localPickupDetection: true,
-    deliveryDaysDetection: true,
-    shippingTypeDetection: true,
+  // ── Queries
+
+  const { data: latestVersion, isLoading: latestLoading } =
+    useQuery<LatestVersionInfo>({
+      queryKey: ["latestExtensionVersion"],
+      queryFn: async () => {
+        if (!actor) throw new Error("Backend not ready");
+        return (await (
+          actor as ActorAny
+        ).getLatestExtensionVersion()) as LatestVersionInfo;
+      },
+      enabled,
+    });
+
+  const { data: versions = [], isLoading: versionsLoading } = useQuery<
+    ExtensionVersion[]
+  >({
+    queryKey: ["extensionVersions"],
+    queryFn: async () => {
+      if (!actor) throw new Error("Backend not ready");
+      return (await (
+        actor as ActorAny
+      ).adminListExtensionVersions()) as ExtensionVersion[];
+    },
+    enabled,
+    refetchInterval: 30_000,
   });
 
-  // Load existing extension config
   const { data: extConfig } = useQuery({
     queryKey: ["extensionConfig"],
     queryFn: async () => {
       if (!actor) throw new Error("Backend not ready");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (actor as any).getExtensionConfig();
+      return (actor as ActorAny).getExtensionConfig();
     },
     enabled,
   });
 
-  // Sync config panel state when data loads
-  useState(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cfg = extConfig as any;
-    if (cfg) {
-      if (cfg.downloadMode) setDownloadMode(cfg.downloadMode as DownloadMode);
-      if (cfg.localDownloadUrl) setLocalDownloadUrl(cfg.localDownloadUrl);
-      if (cfg.chromeWebStoreUrl !== undefined)
-        setChromeWebStoreUrl(cfg.chromeWebStoreUrl);
-      if (cfg.capabilities) {
-        setPlatformCaps({
-          facebook: cfg.capabilities.facebook ?? true,
-          mercari: cfg.capabilities.mercari ?? true,
-          ebay: cfg.capabilities.ebay ?? true,
-          poshmark: cfg.capabilities.poshmark ?? true,
-          depop: cfg.capabilities.depop ?? true,
-          etsy: cfg.capabilities.etsy ?? true,
-        });
-      }
+  // Sync config panel from backend data
+  useEffect(() => {
+    const cfg = extConfig as ActorAny;
+    if (!cfg) return;
+    if (cfg.downloadMode) setDownloadMode(cfg.downloadMode as DownloadMode);
+    if (cfg.localDownloadUrl)
+      setLocalDownloadUrl(cfg.localDownloadUrl as string);
+    if (cfg.chromeWebStoreUrl !== undefined)
+      setChromeWebStoreUrl(cfg.chromeWebStoreUrl as string);
+    if (cfg.capabilities) {
+      setPlatformCaps({
+        facebook: cfg.capabilities.facebook ?? true,
+        mercari: cfg.capabilities.mercari ?? true,
+        ebay: cfg.capabilities.ebay ?? true,
+        poshmark: cfg.capabilities.poshmark ?? true,
+        depop: cfg.capabilities.depop ?? true,
+        etsy: cfg.capabilities.etsy ?? true,
+      });
     }
-  });
+  }, [extConfig]);
 
-  const { data: versions = [], isLoading } = useQuery({
-    queryKey: ["extensionVersions"],
-    queryFn: async () => {
-      if (!actor) throw new Error("Backend not ready");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (actor as any).adminListExtensionVersions();
-    },
-    enabled,
-    refetchInterval: 30000,
-  });
-
-  const { data: latestVersion } = useQuery({
-    queryKey: ["latestExtensionVersion"],
-    queryFn: async () => {
-      if (!actor) throw new Error("Backend not ready");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (actor as any).getLatestExtensionVersion();
-    },
-    enabled,
-  });
+  // ── Mutations
 
   const saveConfigMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (cfg: {
+      mode: DownloadMode;
+      localUrl: string;
+      webstoreUrl: string;
+      caps: Record<PlatformKey, boolean>;
+    }) => {
       if (!actor) throw new Error("Backend not ready");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (actor as any).adminSetExtensionConfig(
-        downloadMode,
-        localDownloadUrl,
-        chromeWebStoreUrl,
+      await (actor as ActorAny).adminSetExtensionConfig(
+        cfg.mode,
+        cfg.localUrl,
+        cfg.webstoreUrl,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (actor as any).adminSetPlatformCapabilities(
-        platformCaps.facebook,
-        platformCaps.mercari,
-        platformCaps.ebay,
-        platformCaps.poshmark,
-        platformCaps.depop,
-        platformCaps.etsy,
+      await (actor as ActorAny).adminSetPlatformCapabilities(
+        cfg.caps.facebook,
+        cfg.caps.mercari,
+        cfg.caps.ebay,
+        cfg.caps.poshmark,
+        cfg.caps.depop,
+        cfg.caps.etsy,
       );
     },
-    onSuccess: () => {
+    onSuccess: (_data, cfg) => {
+      setDownloadMode(cfg.mode);
+      setLocalDownloadUrl(cfg.localUrl);
+      setChromeWebStoreUrl(cfg.webstoreUrl);
+      setPlatformCaps(cfg.caps);
       queryClient.invalidateQueries({ queryKey: ["extensionConfig"] });
       queryClient.invalidateQueries({ queryKey: ["latestExtensionVersion"] });
-      setShowConfigPanel(false);
-      toast.success("✅ Extension config saved");
+      toast.success("Extension configuration saved");
     },
-    onError: () => {
-      toast.error("Failed to save extension config");
-    },
+    onError: () => toast.error("Failed to save extension configuration"),
   });
 
   const publishMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (args: {
+      version: string;
+      buildNumber: number;
+      releaseNotes: string;
+      forceUpdate: boolean;
+    }) => {
       if (!actor) throw new Error("Backend not ready");
       const effectiveUrl =
-        localDownloadUrl || `/copie-paste-extension-v${newVersion}.zip`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (actor as any).adminSetExtensionVersion(
-        newVersion,
-        newBuildNumber,
-        newReleaseNotes,
+        localDownloadUrl || `/copie-paste-extension-v${args.version}.zip`;
+      return (actor as ActorAny).adminSetExtensionVersion(
+        args.version,
+        args.buildNumber,
+        args.releaseNotes,
         effectiveUrl,
-        forceUpdate,
+        args.forceUpdate,
       );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["extensionVersions"] });
       queryClient.invalidateQueries({ queryKey: ["latestExtensionVersion"] });
       setShowPublishModal(false);
-      toast.success("✅ Extension version published", {
-        description: `v${newVersion} ${forceUpdate ? "(FORCE UPDATE)" : ""} is now live`,
-      });
+      toast.success("Extension version published");
     },
-    onError: () => {
-      toast.error("Failed to publish extension version");
-    },
+    onError: () => toast.error("Failed to publish extension version"),
   });
 
-  const downloadVersion = (version: ExtensionVersion) => {
-    const url = version.downloadUrl;
-    if (!url) {
-      toast.error(`No download URL for v${version.version}`);
-      return;
-    }
-    window.location.href = url;
-    toast.success(`Downloading v${version.version}`);
-  };
+  // ── Helpers
 
-  const copyDownloadUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success("Download URL copied");
-  };
+  function handleRollback(version: ExtensionVersion) {
+    publishMutation.mutate({
+      version: version.version,
+      buildNumber: version.buildNumber,
+      releaseNotes: `Rollback to v${version.version}`,
+      forceUpdate: false,
+    });
+  }
+
+  function platformEmoji(p: string) {
+    return PLATFORM_CAPS.find((x) => x.key === p)?.emoji ?? "📦";
+  }
+
+  const currentV = latestVersion?.latestVersion ?? "—";
+  const currentBuild = latestVersion?.buildNumber ?? "—";
+  const buildTs = latestVersion?.releasedAt
+    ? new Date(Number(latestVersion.releasedAt) / 1_000_000).toLocaleString()
+    : "—";
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Zap className="h-8 w-8 text-blue-400" />
-          Extension Versions
-        </h1>
-        <p className="text-gray-400 mt-2">
-          Manage extension versions, control capabilities, and publish updates
-        </p>
-      </div>
+    <AdminLayout title="Extension" subtitle="Release Console">
+      <div className="max-w-4xl space-y-8" data-ocid="admin-extension-page">
+        {/* ── Current Release ── */}
+        <section
+          className="rounded-xl border border-primary/30 bg-card overflow-hidden"
+          data-ocid="ext-current-release-section"
+        >
+          <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+                  Current Release
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                  Active extension version served to all users
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setShowPublishModal(true)}
+              className="font-mono text-xs gap-1.5"
+              data-ocid="ext-publish-version.open_modal_button"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Publish New Version
+            </Button>
+          </div>
 
-      {/* Current Status */}
-      {latestVersion && (
-        <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500 p-6 rounded-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-blue-300">
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                Current Version: v{(latestVersion as any).latestVersion}
-              </h2>
-              <p className="text-gray-400 mt-1">
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                Build #{(latestVersion as any).buildNumber}
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {(latestVersion as any).isForceUpdate && (
-                  <span className="ml-2 px-2 py-1 bg-red-900/50 border border-red-500 text-red-300 text-xs rounded">
-                    🔴 FORCE UPDATE ACTIVE
-                  </span>
-                )}
+          {latestLoading ? (
+            <div className="p-6 text-muted-foreground font-mono text-xs animate-pulse">
+              Loading version info…
+            </div>
+          ) : (
+            <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                {
+                  label: "Version",
+                  value: `v${currentV}`,
+                  color: "text-primary",
+                },
+                {
+                  label: "Build #",
+                  value: `#${currentBuild}`,
+                  color: "text-foreground",
+                },
+                {
+                  label: "Last Build",
+                  value: buildTs,
+                  color: "text-muted-foreground",
+                },
+                {
+                  label: "Force Update",
+                  value: latestVersion?.isForceUpdate ? "ACTIVE" : "Off",
+                  color: latestVersion?.isForceUpdate
+                    ? "text-destructive"
+                    : "text-green-400",
+                },
+              ].map(({ label, value, color }) => (
+                <div
+                  key={label}
+                  className="rounded-lg bg-background/60 border border-border/30 px-4 py-3"
+                >
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {label}
+                  </p>
+                  <p
+                    className={`font-mono text-sm font-bold mt-1 ${color} break-all`}
+                  >
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {latestVersion?.releaseNotes && (
+            <div className="px-5 pb-5">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+                Release Notes
+              </p>
+              <p className="font-mono text-xs text-muted-foreground bg-secondary/10 border border-border/20 rounded px-3 py-2">
+                {latestVersion.releaseNotes}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowConfigPanel(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded font-semibold text-white"
-                data-ocid="ext-config.open_modal_button"
-              >
-                <Globe className="h-4 w-4" />
-                Download Config
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCapabilitiesModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-semibold text-white"
-                data-ocid="ext-capabilities.open_modal_button"
-              >
-                ⚙️ Capabilities
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPublishModal(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded font-bold text-white"
-                data-ocid="ext-publish-version.open_modal_button"
-              >
-                <Plus className="h-4 w-4" />
-                Publish New Version
-              </button>
+          )}
+        </section>
+
+        {/* ── Download Configuration */}
+        <DownloadConfigSection
+          downloadMode={downloadMode}
+          localDownloadUrl={localDownloadUrl}
+          chromeWebStoreUrl={chromeWebStoreUrl}
+          platformCaps={platformCaps}
+          saving={saveConfigMutation.isPending}
+          onSave={(cfg) => saveConfigMutation.mutate(cfg)}
+        />
+
+        {/* ── Package Integrity */}
+        <PackageIntegritySection downloadUrl={localDownloadUrl} />
+
+        {/* ── Version History */}
+        <section
+          className="rounded-xl border border-border/40 bg-card overflow-hidden"
+          data-ocid="ext-versions-table"
+        >
+          <div className="px-5 py-4 border-b border-border/50 bg-card/80 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+              <RefreshCw className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="font-display text-xs font-bold tracking-widest uppercase text-foreground">
+                Version History
+              </p>
+              <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                {versions.length} version{versions.length !== 1 ? "s" : ""} on
+                record
+              </p>
             </div>
           </div>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <p className="text-gray-300 text-sm">
-            {(latestVersion as any).releaseNotes}
-          </p>
-        </div>
-      )}
 
-      {/* Version History */}
-      <div
-        className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden"
-        data-ocid="ext-versions-table"
-      >
-        <div className="p-4 bg-gray-700 border-b border-gray-600">
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <RefreshCw className="h-5 w-5" />
-            Version History ({versions.length})
-          </h3>
-        </div>
-
-        {isLoading ? (
-          <div className="p-6 text-gray-400">Loading versions...</div>
-        ) : versions.length === 0 ? (
-          <div
-            className="p-6 text-gray-400 text-center"
-            data-ocid="ext-versions-table.empty_state"
-          >
-            No versions published yet
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-700 bg-gray-800/50">
-                  <th className="px-4 py-3 text-left">Version</th>
-                  <th className="px-4 py-3 text-left">Build</th>
-                  <th className="px-4 py-3 text-left">Released</th>
-                  <th className="px-4 py-3 text-left">Force Update</th>
-                  <th className="px-4 py-3 text-left">Platforms</th>
-                  <th className="px-4 py-3 text-left">Release Notes</th>
-                  <th className="px-4 py-3 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {versions.map((version: ExtensionVersion, i: number) => (
-                  <tr
-                    key={`${version.version}-${version.buildNumber}`}
-                    className="border-b border-gray-700 hover:bg-gray-700/40 transition"
-                    data-ocid={`ext-versions-table.item.${i + 1}`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className="font-mono font-bold text-blue-300">
-                        v{version.version}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-gray-400">
-                      #{version.buildNumber}
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
-                      {new Date(
-                        Number(version.releasedAt) / 1_000_000,
-                      ).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {version.isForceUpdate ? (
-                        <span className="px-2 py-1 bg-red-900 text-red-300 text-xs rounded">
-                          🔴 YES
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 bg-green-900 text-green-300 text-xs rounded">
-                          ✅ Optional
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        {version.supportedPlatforms.map((p) => {
-                          const emoji =
-                            p === "facebook"
-                              ? "📘"
-                              : p === "mercari"
-                                ? "🏯"
-                                : p === "ebay"
-                                  ? "🔨"
-                                  : p === "poshmark"
-                                    ? "👗"
-                                    : p === "depop"
-                                      ? "🎨"
-                                      : p === "etsy"
-                                        ? "🛍"
-                                        : "📱";
-                          return (
-                            <span
-                              key={p}
-                              className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded"
-                              title={p}
-                            >
-                              {emoji}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">
-                      {version.releaseNotes}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => downloadVersion(version)}
-                          className="p-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 rounded transition"
-                          title="Download"
-                          data-ocid={`ext-versions-table.item.${i + 1}.download_button`}
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => copyDownloadUrl(version.downloadUrl)}
-                          className="p-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition"
-                          title="Copy URL"
-                          data-ocid={`ext-versions-table.item.${i + 1}.secondary_button`}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+          {versionsLoading ? (
+            <div className="p-6 font-mono text-xs text-muted-foreground animate-pulse">
+              Loading version history…
+            </div>
+          ) : versions.length === 0 ? (
+            <div
+              className="p-8 text-center"
+              data-ocid="ext-versions-table.empty_state"
+            >
+              <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="font-mono text-xs text-muted-foreground">
+                No versions published yet. Use &quot;Publish New Version&quot;
+                to add the first.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/40 bg-secondary/10">
+                    {[
+                      "Version",
+                      "Build",
+                      "Released",
+                      "Force Update",
+                      "Platforms",
+                      "Notes",
+                      "Actions",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {versions.map((v, i) => (
+                    <tr
+                      key={`${v.version}-${v.buildNumber}`}
+                      className="border-b border-border/20 hover:bg-secondary/10 transition-colors"
+                      data-ocid={`ext-versions-table.item.${i + 1}`}
+                    >
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-primary text-xs">
+                          v{v.version}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                        #{v.buildNumber}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                        {new Date(
+                          Number(v.releasedAt) / 1_000_000,
+                        ).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        {v.isForceUpdate ? (
+                          <Badge
+                            variant="outline"
+                            className="text-destructive border-destructive/40 bg-destructive/5 font-mono text-[10px] gap-1"
+                          >
+                            <XCircle className="w-2.5 h-2.5" /> FORCE
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-green-400 border-green-400/40 bg-green-400/5 font-mono text-[10px] gap-1"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Optional
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {v.supportedPlatforms.map((p) => (
+                            <span key={p} title={p} className="text-sm">
+                              {platformEmoji(p)}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground max-w-[160px] truncate">
+                        {v.releaseNotes || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => {
+                              const a = document.createElement("a");
+                              a.href = v.downloadUrl;
+                              a.click();
+                            }}
+                            title="Download"
+                            data-ocid={`ext-versions-table.item.${i + 1}.download_button`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => {
+                              navigator.clipboard.writeText(v.downloadUrl);
+                              toast.success("URL copied");
+                            }}
+                            title="Copy URL"
+                            data-ocid={`ext-versions-table.item.${i + 1}.secondary_button`}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          {i > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-accent hover:text-accent"
+                              onClick={() => handleRollback(v)}
+                              title="Rollback to this version"
+                              disabled={publishMutation.isPending}
+                              data-ocid={`ext-versions-table.item.${i + 1}.rollback_button`}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Quick download link */}
+        {localDownloadUrl && (
+          <div className="flex items-center gap-2">
+            <a
+              href={localDownloadUrl}
+              download
+              className="inline-flex items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+              data-ocid="ext-local-download.link"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download current package
+            </a>
+            {chromeWebStoreUrl && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <a
+                  href={chromeWebStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-mono text-xs text-accent hover:underline"
+                  data-ocid="ext-webstore.link"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Chrome Web Store
+                </a>
+              </>
+            )}
           </div>
         )}
       </div>
 
       {/* Publish Modal */}
       {showPublishModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          data-ocid="ext-publish-modal"
-        >
-          <div className="bg-gray-800 border border-blue-500 rounded-lg p-6 max-w-md w-full space-y-4">
-            <h3 className="text-xl font-bold text-blue-300">
-              Publish New Version
-            </h3>
-
-            <div>
-              <label
-                htmlFor="ext-publish-version"
-                className="block text-sm font-semibold text-gray-300 mb-2"
-              >
-                Version
-              </label>
-              <input
-                id="ext-publish-version"
-                type="text"
-                value={newVersion}
-                onChange={(e) => setNewVersion(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                placeholder="1.3"
-                data-ocid="ext-publish-modal.version.input"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="ext-publish-build"
-                className="block text-sm font-semibold text-gray-300 mb-2"
-              >
-                Build Number
-              </label>
-              <input
-                id="ext-publish-build"
-                type="number"
-                value={newBuildNumber}
-                onChange={(e) =>
-                  setNewBuildNumber(Number.parseInt(e.target.value))
-                }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                data-ocid="ext-publish-modal.build_number.input"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="ext-publish-notes"
-                className="block text-sm font-semibold text-gray-300 mb-2"
-              >
-                Release Notes
-              </label>
-              <textarea
-                id="ext-publish-notes"
-                value={newReleaseNotes}
-                onChange={(e) => setNewReleaseNotes(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm resize-none"
-                rows={3}
-                data-ocid="ext-publish-modal.release_notes.textarea"
-              />
-            </div>
-
-            <label
-              htmlFor="ext-publish-force"
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <input
-                id="ext-publish-force"
-                type="checkbox"
-                checked={forceUpdate}
-                onChange={(e) => setForceUpdate(e.target.checked)}
-                className="w-4 h-4 rounded"
-                data-ocid="ext-publish-modal.force_update.checkbox"
-              />
-              <span className="text-sm text-gray-300">Force Update</span>
-            </label>
-
-            <div className="flex gap-2 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowPublishModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white"
-                data-ocid="ext-publish-modal.cancel_button"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => publishMutation.mutate()}
-                disabled={publishMutation.isPending}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-white font-semibold"
-                data-ocid="ext-publish-modal.submit_button"
-              >
-                {publishMutation.isPending ? "Publishing..." : "🚀 Publish"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PublishModal
+          onClose={() => setShowPublishModal(false)}
+          onPublish={(args) => publishMutation.mutate(args)}
+          pending={publishMutation.isPending}
+          defaultVersion={
+            latestVersion?.latestVersion
+              ? (() => {
+                  const parts = latestVersion.latestVersion.split(".");
+                  const patch = Number(parts[parts.length - 1] ?? "0") + 1;
+                  parts[parts.length - 1] = String(patch);
+                  return parts.join(".");
+                })()
+              : "1.3.2"
+          }
+          defaultBuild={
+            latestVersion?.buildNumber ? latestVersion.buildNumber + 1 : 5
+          }
+        />
       )}
-
-      {/* Download Config Panel */}
-      {showConfigPanel && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          data-ocid="ext-config.dialog"
-        >
-          <div className="bg-gray-800 border border-emerald-500 rounded-lg p-6 max-w-lg w-full space-y-5 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-emerald-300 flex items-center gap-2">
-              <Globe className="h-5 w-5" /> Download Config
-            </h3>
-
-            {/* Download Mode */}
-            <div>
-              <p className="text-sm font-semibold text-gray-300 mb-2">
-                Download Mode
-              </p>
-              <div className="flex gap-3">
-                {(["local", "webstore", "both"] as DownloadMode[]).map(
-                  (mode) => (
-                    <label
-                      key={mode}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="radio"
-                        name="downloadMode"
-                        value={mode}
-                        checked={downloadMode === mode}
-                        onChange={() => setDownloadMode(mode)}
-                        className="accent-emerald-500"
-                        data-ocid={`ext-config.mode_${mode}.radio`}
-                      />
-                      <span className="text-sm text-gray-300 capitalize">
-                        {mode}
-                      </span>
-                    </label>
-                  ),
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                <strong>local</strong>: local ZIP only ·
-                <strong> webstore</strong>: Chrome Web Store only ·
-                <strong> both</strong>: show both buttons
-              </p>
-            </div>
-
-            {/* Local URL */}
-            {downloadMode !== "webstore" && (
-              <div>
-                <label
-                  htmlFor="local-url"
-                  className="block text-sm font-semibold text-gray-300 mb-1"
-                >
-                  <HardDrive className="inline h-3 w-3 mr-1" /> Local Download
-                  URL
-                </label>
-                <input
-                  id="local-url"
-                  type="text"
-                  value={localDownloadUrl}
-                  onChange={(e) => setLocalDownloadUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
-                  placeholder="/copie-paste-extension-v1.3.1.zip"
-                  data-ocid="ext-config.local_url.input"
-                />
-              </div>
-            )}
-
-            {/* Web Store URL */}
-            {downloadMode !== "local" && (
-              <div>
-                <label
-                  htmlFor="webstore-url"
-                  className="block text-sm font-semibold text-gray-300 mb-1"
-                >
-                  <Globe className="inline h-3 w-3 mr-1" /> Chrome Web Store URL
-                </label>
-                <input
-                  id="webstore-url"
-                  type="text"
-                  value={chromeWebStoreUrl}
-                  onChange={(e) => setChromeWebStoreUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
-                  placeholder="https://chromewebstore.google.com/detail/..."
-                  data-ocid="ext-config.webstore_url.input"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Leave empty to hide the Chrome Web Store button from users.
-                </p>
-              </div>
-            )}
-
-            {/* Per-platform capability toggles */}
-            <div>
-              <p className="text-sm font-semibold text-gray-300 mb-2">
-                Platform Capabilities
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {PLATFORM_CAPABILITIES.map(({ key, label, emoji }) => (
-                  <label
-                    key={key}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={platformCaps[key as keyof typeof platformCaps]}
-                      onChange={(e) =>
-                        setPlatformCaps({
-                          ...platformCaps,
-                          [key]: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 rounded accent-emerald-500"
-                      data-ocid={`ext-config.platform_${key}.checkbox`}
-                    />
-                    <span className="text-sm text-gray-300">
-                      {emoji} {label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2 border-t border-gray-700">
-              <button
-                type="button"
-                onClick={() => setShowConfigPanel(false)}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white"
-                data-ocid="ext-config.cancel_button"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => saveConfigMutation.mutate()}
-                disabled={saveConfigMutation.isPending}
-                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 rounded text-white font-semibold flex items-center justify-center gap-2"
-                data-ocid="ext-config.confirm_button"
-              >
-                <Save className="h-4 w-4" />
-                {saveConfigMutation.isPending ? "Saving..." : "Save Config"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Capabilities Modal */}
-      {showCapabilitiesModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          data-ocid="ext-capabilities.dialog"
-        >
-          <div className="bg-gray-800 border border-purple-500 rounded-lg p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-purple-300">
-              Extension Capabilities
-            </h3>
-
-            <div className="space-y-3">
-              {/* Facebook */}
-              <div>
-                <h4 className="text-sm font-semibold text-blue-300 mb-2">
-                  📘 Facebook Marketplace
-                </h4>
-                {[
-                  { key: "autofillFacebook", label: "Auto-fill enabled" },
-                  { key: "autoFillPrice", label: "Auto-fill price" },
-                  { key: "autoFillCategory", label: "Auto-fill category" },
-                  { key: "autoFillCondition", label: "Auto-fill condition" },
-                  {
-                    key: "autoFillDescription",
-                    label: "Auto-fill description",
-                  },
-                  { key: "localPickupDetection", label: "Detect local pickup" },
-                ].map(({ key, label }) => (
-                  <label
-                    key={key}
-                    className="flex items-center gap-2 cursor-pointer text-sm text-gray-300 mb-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={capabilities[key as keyof ExtensionCapabilities]}
-                      onChange={(e) =>
-                        setCapabilities({
-                          ...capabilities,
-                          [key]: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 rounded"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-
-              {/* Mecari */}
-              <div className="pt-3 border-t border-gray-700">
-                <h4 className="text-sm font-semibold text-pink-300 mb-2">
-                  🏯 Mecari
-                </h4>
-                {[
-                  { key: "autofillMecari", label: "Auto-fill enabled" },
-                  { key: "autoFillPrice", label: "Auto-fill price" },
-                  { key: "autoFillBrand", label: "Auto-fill brand" },
-                  { key: "autoFillCategory", label: "Auto-fill category" },
-                  { key: "autoFillCondition", label: "Auto-fill condition" },
-                  {
-                    key: "deliveryDaysDetection",
-                    label: "Detect delivery days",
-                  },
-                  {
-                    key: "shippingTypeDetection",
-                    label: "Detect shipping type",
-                  },
-                ].map(({ key, label }) => (
-                  <label
-                    key={key}
-                    className="flex items-center gap-2 cursor-pointer text-sm text-gray-300 mb-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={capabilities[key as keyof ExtensionCapabilities]}
-                      onChange={(e) =>
-                        setCapabilities({
-                          ...capabilities,
-                          [key]: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 rounded"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-
-              {/* General */}
-              <div className="pt-3 border-t border-gray-700">
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">
-                  ⚙️ General
-                </h4>
-                {[
-                  { key: "photoUpload", label: "Photo upload" },
-                  { key: "smartOCR", label: "Smart OCR (optional)" },
-                  { key: "platformDetection", label: "Auto-detect platform" },
-                ].map(({ key, label }) => (
-                  <label
-                    key={key}
-                    className="flex items-center gap-2 cursor-pointer text-sm text-gray-300 mb-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={capabilities[key as keyof ExtensionCapabilities]}
-                      onChange={(e) =>
-                        setCapabilities({
-                          ...capabilities,
-                          [key]: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 rounded"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4 border-t border-gray-700">
-              <button
-                type="button"
-                onClick={() => setShowCapabilitiesModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white"
-                data-ocid="ext-capabilities.cancel_button"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  toast.success(
-                    "Capabilities updated (will apply on next publish)",
-                  );
-                  setShowCapabilitiesModal(false);
-                }}
-                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-white font-semibold"
-                data-ocid="ext-capabilities.confirm_button"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </AdminLayout>
   );
 }

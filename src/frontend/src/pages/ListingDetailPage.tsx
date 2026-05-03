@@ -740,13 +740,24 @@ export function ListingDetailPage() {
                 price={listing.price}
               />
               <SmartPostButtons
-                title={listing.title}
-                description={listing.description}
-                price={listing.price}
-                category={catFields.category}
-                condition={catFields.condition}
-                brand={catFields.brand}
-                images={images}
+                masterListing={
+                  {
+                    id: String(listing.id),
+                    title: listing.title,
+                    description: listing.description,
+                    price: listing.price ?? undefined,
+                    category: catFields.category || undefined,
+                    tags: [],
+                    photos: [],
+                    platformDrafts: [],
+                    status: { active: null } as never,
+                    pinned: false,
+                    favoriteCount: BigInt(0),
+                    userId: listing.userId,
+                    createdAt: listing.createdAt,
+                    auditLog: [],
+                  } as never
+                }
               />
             </>
           )}

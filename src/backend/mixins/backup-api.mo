@@ -17,6 +17,7 @@ import AdminTypes "../types/admin";
 import BackupLib "../lib/backup";
 import PaymentsLib "../lib/payments";
 import AppConfigTypes "../types/app-config";
+import Set "mo:core/Set";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -180,6 +181,23 @@ mixin (
     } catch (_) { null };
   };
 
+  // ── CallerGuard for backup mutations with async ──────────────────────────
+  let backupInProgress = Set.empty<Principal>();
+
+  func backupGuard(caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: anonymous principal not allowed");
+    };
+    if (backupInProgress.contains(caller)) {
+      Runtime.trap("Reentrant call detected");
+    };
+    backupInProgress.add(caller);
+  };
+
+  func backupRelease(caller : Principal) {
+    backupInProgress.remove(caller);
+  };
+
   /// Initiate a $29.99 Smart Backup export payment.
   /// Creates a pending payment record and returns a Stripe client_secret.
   public shared ({ caller }) func initiateSmartBackup() : async {
@@ -188,6 +206,7 @@ mixin (
     stripeClientSecret : ?Text;
     backupPriceId    : ?Text;
   } {
+    backupGuard(caller);
     let now = Time.now();
     let record = PaymentsLib.createPaymentRecord(
       payments,
@@ -202,6 +221,7 @@ mixin (
     );
     let amountCents = (SMART_BACKUP_PRICE_USD * 100.0).toInt().toNat();
     let stripeClientSecret = await createStripePaymentIntentForBackup(amountCents, record.id);
+    backupRelease(caller);
     {
       paymentRecordId  = record.id;
       amountUSD        = SMART_BACKUP_PRICE_USD;

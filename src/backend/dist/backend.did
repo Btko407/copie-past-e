@@ -1008,6 +1008,7 @@ type CreateVersionArgs =
 type CreateMasterListingArgs = 
  record {
    category: opt text;
+   clientRequestId: text;
    description: text;
    photos: vec blob;
    price: opt text;
