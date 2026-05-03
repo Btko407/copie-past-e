@@ -13,6 +13,9 @@ import { isMobile } from "@/hooks/useExtension";
 import { Link } from "@tanstack/react-router";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
+import { createActor } from "@/backend";
+import { useActor } from "@caffeineai/core-infrastructure";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -164,6 +167,25 @@ const STEPS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ExtensionSetupPage() {
+  const { actor, isFetching: actorFetching } = useActor(createActor);
+  const enabled = !!actor && !actorFetching;
+
+  const { data: extConfig } = useQuery({
+    queryKey: ["extensionConfig"],
+    queryFn: async () => {
+      if (!actor) throw new Error("Backend not ready");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return await (actor as any).getExtensionConfig();
+    },
+    enabled,
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cfg = extConfig as any;
+  const version: string = cfg?.latestVersion ?? "1.3.1";
+  const localDownloadUrl: string =
+    cfg?.localDownloadUrl ?? `/copie-paste-extension-v${version}.zip`;
+
   const mobile = isMobile();
   const [activeStep, setActiveStep] = useState(0);
   const [downloaded, setDownloaded] = useState(false);
@@ -181,8 +203,8 @@ export function ExtensionSetupPage() {
 
   const handleDownload = () => {
     const link = document.createElement("a");
-    link.href = "/assets/extension/copie-paste-extension.zip";
-    link.download = "copie-paste-extension.zip";
+    link.href = localDownloadUrl;
+    link.download = `copie-paste-extension-v${version}.zip`;
     link.click();
     setDownloaded(true);
     setActiveStep(1);
@@ -302,23 +324,25 @@ export function ExtensionSetupPage() {
               Download Extension (.zip)
             </Button>
 
-            <Button
-              variant="outline"
-              size="lg"
-              asChild
-              className="gap-3 border-border/50 text-muted-foreground hover:text-foreground h-14 px-8"
-              data-ocid="extension-setup.webstore_button"
-            >
-              <a
-                id="chrome-extensions-link"
-                href="https://chrome.google.com/webstore"
-                target="_blank"
-                rel="noopener noreferrer"
+            {cfg?.chromeWebStoreUrl && (
+              <Button
+                variant="outline"
+                size="lg"
+                asChild
+                className="gap-3 border-border/50 text-muted-foreground hover:text-foreground h-14 px-8"
+                data-ocid="extension-setup.webstore_button"
               >
-                <ExternalLink className="w-4 h-4" />
-                Chrome Web Store (Pending Review)
-              </a>
-            </Button>
+                <a
+                  id="chrome-extensions-link"
+                  href={cfg.chromeWebStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Chrome Web Store
+                </a>
+              </Button>
+            )}
 
             {/* Start interactive tour */}
             <Button

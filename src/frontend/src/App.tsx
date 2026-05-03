@@ -206,13 +206,34 @@ function PrincipalCacheGuard() {
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
+// Global window extension flags
+interface ExtWindow extends Window {
+  __extensionReady?: boolean;
+  __extensionVersion?: string;
+}
+
 const rootRoute = createRootRoute({
   component: () => {
-    // Extension detection via window.__COPIE_PASTE_INSTALLED__ flag.
-    // Also retain the postMessage listener for older extension versions.
+    // Extension detection — EXTENSION_READY postMessage handshake (primary)
+    // plus legacy COPIE_PASTE_EXT_PRESENT for backward compatibility.
     useEffect(() => {
       function handleMessage(e: MessageEvent) {
+        // Primary: new EXTENSION_READY handshake from extension v1.3+
+        if (
+          e.data?.type === "EXTENSION_READY" &&
+          e.data?.source === "copie-extension"
+        ) {
+          (window as ExtWindow).__extensionReady = true;
+          (window as ExtWindow).__extensionVersion = e.data.version as string;
+          window.dispatchEvent(
+            new CustomEvent("copie-extension-ready", {
+              detail: { version: e.data.version },
+            }),
+          );
+        }
+        // Legacy: older extension versions
         if (e.data?.type === "COPIE_PASTE_EXT_PRESENT") {
+          (window as ExtWindow).__extensionReady = true;
           localStorage.setItem("ext_installed", "true");
           window.dispatchEvent(
             new StorageEvent("storage", {

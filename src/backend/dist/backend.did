@@ -889,6 +889,28 @@ type ExtensionListingData =
    title: text;
    totalImageSize: opt nat;
  };
+type ExtensionConfigResult = 
+ record {
+   buildNumber: nat;
+   capabilities: ExtensionCapabilities;
+   chromeWebStoreUrl: text;
+   downloadMode: text;
+   downloadUrl: text;
+   isForceUpdate: bool;
+   latestVersion: text;
+   localDownloadUrl: text;
+   releaseNotes: text;
+   supportedPlatforms: vec text;
+ };
+type ExtensionCapabilities = 
+ record {
+   depop: bool;
+   ebay: bool;
+   etsy: bool;
+   facebook: bool;
+   mercari: bool;
+   poshmark: bool;
+ };
 type EtsyFields = 
  record {
    category: opt text;
@@ -1285,6 +1307,11 @@ service : {
       err: text;
       ok;
     });
+  adminSetExtensionConfig: (downloadMode: text, localDownloadUrl: text,
+   chromeWebStoreUrl: text) -> (variant {
+                                  err: text;
+                                  ok: text;
+                                });
   adminSetExtensionVersion: (version: text, buildNumber: nat, releaseNotes:
    text, downloadUrl: text, isForceUpdate: bool) ->
    (variant {
@@ -1293,6 +1320,12 @@ service : {
     });
   adminSetGeminiKey: (key: text) -> ();
   adminSetMaintenanceMode: (enabled: bool, message: text) -> ();
+  adminSetPlatformCapabilities: (facebook: bool, mercari: bool, ebay: 
+   bool, poshmark: bool, depop: bool, etsy: bool) ->
+   (variant {
+      err: text;
+      ok: text;
+    });
   adminSetSiteBaseUrl: (url: text) -> (variant {
                                          err: text;
                                          ok;
@@ -1528,6 +1561,7 @@ service : {
   getCanisterCyclesBalance: () -> (nat) query;
   getCleanupSummaries: () -> (vec UserCleanupSummary) query;
   getConfig: (key: text) -> (opt text) query;
+  getExtensionConfig: () -> (ExtensionConfigResult) query;
   getFbListings: () -> (variant {
                           err: text;
                           ok: vec FbListing;

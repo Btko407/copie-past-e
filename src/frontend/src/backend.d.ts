@@ -150,6 +150,18 @@ export interface PoshmarkFields {
     photos: Array<Uint8Array>;
     condition?: string;
 }
+export interface ExtensionConfigResult {
+    chromeWebStoreUrl: string;
+    capabilities: ExtensionCapabilities;
+    downloadMode: string;
+    localDownloadUrl: string;
+    downloadUrl: string;
+    releaseNotes: string;
+    latestVersion: string;
+    supportedPlatforms: Array<string>;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
+}
 export type ResendResult = {
     __kind__: "ok";
     ok: {
@@ -710,6 +722,14 @@ export interface SiteSettings {
     uploadEnabled: boolean;
     maxUploadsPerHour: bigint;
 }
+export interface ExtensionCapabilities {
+    poshmark: boolean;
+    ebay: boolean;
+    etsy: boolean;
+    facebook: boolean;
+    depop: boolean;
+    mercari: boolean;
+}
 export interface AppVersion {
     id: bigint;
     versionLabel: string;
@@ -1187,6 +1207,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    adminSetExtensionConfig(downloadMode: string, localDownloadUrl: string, chromeWebStoreUrl: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetExtensionVersion(version: string, buildNumber: bigint, releaseNotes: string, downloadUrl: string, isForceUpdate: boolean): Promise<{
         __kind__: "ok";
         ok: string;
@@ -1196,6 +1223,13 @@ export interface backendInterface {
     }>;
     adminSetGeminiKey(key: string): Promise<void>;
     adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
+    adminSetPlatformCapabilities(facebook: boolean, mercari: boolean, ebay: boolean, poshmark: boolean, depop: boolean, etsy: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetSiteBaseUrl(url: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1444,6 +1478,7 @@ export interface backendInterface {
     getCanisterCyclesBalance(): Promise<bigint>;
     getCleanupSummaries(): Promise<Array<UserCleanupSummary>>;
     getConfig(key: string): Promise<string | null>;
+    getExtensionConfig(): Promise<ExtensionConfigResult>;
     getFbListings(): Promise<{
         __kind__: "ok";
         ok: Array<FbListing>;

@@ -273,6 +273,26 @@ export interface EtsyFields {
   'photos' : Array<Uint8Array>,
   'isSupply' : boolean,
 }
+export interface ExtensionCapabilities {
+  'poshmark' : boolean,
+  'ebay' : boolean,
+  'etsy' : boolean,
+  'facebook' : boolean,
+  'depop' : boolean,
+  'mercari' : boolean,
+}
+export interface ExtensionConfigResult {
+  'chromeWebStoreUrl' : string,
+  'capabilities' : ExtensionCapabilities,
+  'downloadMode' : string,
+  'localDownloadUrl' : string,
+  'downloadUrl' : string,
+  'releaseNotes' : string,
+  'latestVersion' : string,
+  'supportedPlatforms' : Array<string>,
+  'buildNumber' : bigint,
+  'isForceUpdate' : boolean,
+}
 export interface ExtensionListingData {
   'mecariCondition' : [] | [ItemCondition],
   'totalImageSize' : [] | [bigint],
@@ -1095,6 +1115,11 @@ export interface _SERVICE {
     { 'ok' : null } |
       { 'err' : string }
   >,
+  'adminSetExtensionConfig' : ActorMethod<
+    [string, string, string],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'adminSetExtensionVersion' : ActorMethod<
     [string, bigint, string, string, boolean],
     { 'ok' : string } |
@@ -1102,6 +1127,11 @@ export interface _SERVICE {
   >,
   'adminSetGeminiKey' : ActorMethod<[string], undefined>,
   'adminSetMaintenanceMode' : ActorMethod<[boolean, string], undefined>,
+  'adminSetPlatformCapabilities' : ActorMethod<
+    [boolean, boolean, boolean, boolean, boolean, boolean],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
   'adminSetSiteBaseUrl' : ActorMethod<
     [string],
     { 'ok' : null } |
@@ -1347,6 +1377,7 @@ export interface _SERVICE {
   'getCanisterCyclesBalance' : ActorMethod<[], bigint>,
   'getCleanupSummaries' : ActorMethod<[], Array<UserCleanupSummary>>,
   'getConfig' : ActorMethod<[string], [] | [string]>,
+  'getExtensionConfig' : ActorMethod<[], ExtensionConfigResult>,
   'getFbListings' : ActorMethod<
     [],
     { 'ok' : Array<FbListing> } |

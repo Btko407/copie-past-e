@@ -159,6 +159,23 @@ type EtsyFields__946790969 =
     whenMade : ?Text;
     whoMade : ?Text
   };
+type ExtensionCapabilities__785416495 =
+  {
+    depop : Bool;
+    ebay : Bool;
+    etsy : Bool;
+    facebook : Bool;
+    mercari : Bool;
+    poshmark : Bool
+  };
+type ExtensionConfig__457713559 =
+  {
+    capabilities : ExtensionCapabilities__785416495;
+    chromeWebStoreUrl : Text;
+    downloadMode : Text;
+    localDownloadUrl : Text;
+    supportedPlatforms : [Text]
+  };
 type ExtensionVersion__1001368693 =
   {
     buildNumber : Nat;
@@ -895,6 +912,15 @@ actor {
                         List__415060402<TierName__274346593>>;
       var size : Nat__490723111
     };
+  stable defaultCapabilities :
+    {
+      depop : Bool;
+      ebay : Bool;
+      etsy : Bool;
+      facebook : Bool;
+      mercari : Bool;
+      poshmark : Bool
+    };
   stable discountCounter : {var value : Nat};
   stable discounts :
     {
@@ -904,6 +930,11 @@ actor {
   stable emailIndex :
     {
       var root : Node__46230540<Text, UserId__158757552>;
+      var size : Nat__490723111
+    };
+  stable extensionConfigStore :
+    {
+      var root : Node__46230540<Text, ExtensionConfig__457713559>;
       var size : Nat__490723111
     };
   stable extensionVersions :

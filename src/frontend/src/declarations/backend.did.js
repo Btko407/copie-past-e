@@ -461,6 +461,26 @@ export const UserCleanupSummary = IDL.Record({
   'oldestActiveExpirationDate' : IDL.Opt(Timestamp),
   'activeListingCount' : IDL.Nat,
 });
+export const ExtensionCapabilities = IDL.Record({
+  'poshmark' : IDL.Bool,
+  'ebay' : IDL.Bool,
+  'etsy' : IDL.Bool,
+  'facebook' : IDL.Bool,
+  'depop' : IDL.Bool,
+  'mercari' : IDL.Bool,
+});
+export const ExtensionConfigResult = IDL.Record({
+  'chromeWebStoreUrl' : IDL.Text,
+  'capabilities' : ExtensionCapabilities,
+  'downloadMode' : IDL.Text,
+  'localDownloadUrl' : IDL.Text,
+  'downloadUrl' : IDL.Text,
+  'releaseNotes' : IDL.Text,
+  'latestVersion' : IDL.Text,
+  'supportedPlatforms' : IDL.Vec(IDL.Text),
+  'buildNumber' : IDL.Nat,
+  'isForceUpdate' : IDL.Bool,
+});
 export const FbListing = IDL.Record({
   'id' : IDL.Text,
   'title' : IDL.Text,
@@ -1205,6 +1225,11 @@ export const idlService = IDL.Service({
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
       [],
     ),
+  'adminSetExtensionConfig' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'adminSetExtensionVersion' : IDL.Func(
       [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Bool],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
@@ -1212,6 +1237,11 @@ export const idlService = IDL.Service({
     ),
   'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
   'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+  'adminSetPlatformCapabilities' : IDL.Func(
+      [IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'adminSetSiteBaseUrl' : IDL.Func(
       [IDL.Text],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -1536,6 +1566,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getConfig' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
+  'getExtensionConfig' : IDL.Func([], [ExtensionConfigResult], ['query']),
   'getFbListings' : IDL.Func(
       [],
       [IDL.Variant({ 'ok' : IDL.Vec(FbListing), 'err' : IDL.Text })],
@@ -2845,6 +2876,26 @@ export const idlFactory = ({ IDL }) => {
     'oldestActiveExpirationDate' : IDL.Opt(Timestamp),
     'activeListingCount' : IDL.Nat,
   });
+  const ExtensionCapabilities = IDL.Record({
+    'poshmark' : IDL.Bool,
+    'ebay' : IDL.Bool,
+    'etsy' : IDL.Bool,
+    'facebook' : IDL.Bool,
+    'depop' : IDL.Bool,
+    'mercari' : IDL.Bool,
+  });
+  const ExtensionConfigResult = IDL.Record({
+    'chromeWebStoreUrl' : IDL.Text,
+    'capabilities' : ExtensionCapabilities,
+    'downloadMode' : IDL.Text,
+    'localDownloadUrl' : IDL.Text,
+    'downloadUrl' : IDL.Text,
+    'releaseNotes' : IDL.Text,
+    'latestVersion' : IDL.Text,
+    'supportedPlatforms' : IDL.Vec(IDL.Text),
+    'buildNumber' : IDL.Nat,
+    'isForceUpdate' : IDL.Bool,
+  });
   const FbListing = IDL.Record({
     'id' : IDL.Text,
     'title' : IDL.Text,
@@ -3591,6 +3642,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
         [],
       ),
+    'adminSetExtensionConfig' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'adminSetExtensionVersion' : IDL.Func(
         [IDL.Text, IDL.Nat, IDL.Text, IDL.Text, IDL.Bool],
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
@@ -3598,6 +3654,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminSetGeminiKey' : IDL.Func([IDL.Text], [], []),
     'adminSetMaintenanceMode' : IDL.Func([IDL.Bool, IDL.Text], [], []),
+    'adminSetPlatformCapabilities' : IDL.Func(
+        [IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'adminSetSiteBaseUrl' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -3941,6 +4002,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getConfig' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
+    'getExtensionConfig' : IDL.Func([], [ExtensionConfigResult], ['query']),
     'getFbListings' : IDL.Func(
         [],
         [IDL.Variant({ 'ok' : IDL.Vec(FbListing), 'err' : IDL.Text })],

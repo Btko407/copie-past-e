@@ -84,4 +84,37 @@ module {
     errors         : [Text];
     platformReady  : Bool;
   };
+
+  /// Platform capability flags (admin-configurable)
+  public type ExtensionCapabilities = {
+    facebook : Bool;
+    mercari  : Bool;
+    ebay     : Bool;
+    poshmark : Bool;
+    depop    : Bool;
+    etsy     : Bool;
+  };
+
+  /// Admin-managed extension release config (separate from version history)
+  public type ExtensionConfig = {
+    downloadMode       : Text;  // "local" | "webstore" | "both"
+    localDownloadUrl   : Text;
+    chromeWebStoreUrl  : Text;
+    supportedPlatforms : [Text];
+    capabilities       : ExtensionCapabilities;
+  };
+
+  /// Public result for getExtensionConfig
+  public type ExtensionConfigResult = {
+    latestVersion      : Text;
+    buildNumber        : Nat;
+    downloadUrl        : Text;
+    isForceUpdate      : Bool;
+    releaseNotes       : Text;
+    downloadMode       : Text;
+    localDownloadUrl   : Text;
+    chromeWebStoreUrl  : Text;
+    supportedPlatforms : [Text];
+    capabilities       : ExtensionCapabilities;
+  };
 };

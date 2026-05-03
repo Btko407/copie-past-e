@@ -1,54 +1,194 @@
+#!/usr/bin/env node
 /**
  * zip-extension.mjs
- * Bundles src/extension/ into src/frontend/public/copie-past-e.zip
- * Uses only Node.js built-ins + child_process (system zip command).
+ * Generates a real installable Chrome extension ZIP from src/extension/
+ * Output: src/frontend/public/copie-paste-extension-v{version}.zip
+ *
+ * The archive has a top-level folder: copie-paste-extension/
+ * Script fails loudly if any required file is missing or ZIP creation fails.
  * Run from any directory — all paths are resolved relative to this file.
+ *
+ * Uses JSZip (pure JS) since zip CLI may not be present in all environments.
  */
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
 
-const EXTENSION_DIR = resolve(ROOT, "src", "extension");
-const PUBLIC_DIR = resolve(ROOT, "src", "frontend", "public");
-const ZIP_PATH = resolve(PUBLIC_DIR, "copie-past-e.zip");
+const EXTENSION_SRC = path.resolve(ROOT, "src", "extension");
+const PUBLIC_DIR = path.resolve(ROOT, "src", "frontend", "public");
 
-// ── Preflight checks ────────────────────────────────────────────────────────
-if (!existsSync(EXTENSION_DIR)) {
-  console.error(`ERROR: Extension source directory not found: ${EXTENSION_DIR}`);
+// ── Required files (relative to src/extension/) ────────────────────────────
+const REQUIRED_FILES = [
+  "manifest.json",
+  "background.js",
+  "content-detection.js",
+  "content-facebook.js",
+  "content-mercari.js",
+  "content-ebay.js",
+  "content-poshmark.js",
+  "content-depop.js",
+  "content-etsy.js",
+  "popup.html",
+  "popup.js",
+  "popup.css",
+  "utils.js",
+  "icons/icon-16.png",
+  "icons/icon-48.png",
+  "icons/icon-128.png",
+  "README.txt",
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function fail(msg) {
+  console.error(`\n✗ ${msg}`);
   process.exit(1);
 }
 
-// ── Ensure public/ exists ───────────────────────────────────────────────────
-if (!existsSync(PUBLIC_DIR)) {
-  mkdirSync(PUBLIC_DIR, { recursive: true });
-  console.log(`Created directory: ${PUBLIC_DIR}`);
+// Recursively walk a directory and return all file paths relative to it
+function walkDir(dir, base = dir) {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...walkDir(full, base));
+    } else {
+      results.push(path.relative(base, full));
+    }
+  }
+  return results;
 }
 
-// ── Remove stale zip before re-creating (reproducibility) ──────────────────
-if (existsSync(ZIP_PATH)) {
+// ── Step 1: Verify extension source directory ───────────────────────────────
+if (!fs.existsSync(EXTENSION_SRC)) {
+  fail(`Extension source directory not found: ${EXTENSION_SRC}`);
+}
+
+// ── Step 2: Read version from manifest.json ─────────────────────────────────
+const manifestPath = path.join(EXTENSION_SRC, "manifest.json");
+let version;
+try {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  version = manifest.version;
+  if (!version) throw new Error("'version' field is missing or empty");
+} catch (err) {
+  fail(`Cannot read version from manifest.json — ${err.message}`);
+}
+
+console.log(`\n◆ Copie Past-e extension v${version} — building ZIP`);
+
+// ── Step 3: Validate all required files are present ─────────────────────────
+console.log("  Checking required files...");
+const missing = [];
+for (const file of REQUIRED_FILES) {
+  const full = path.join(EXTENSION_SRC, file);
+  if (!fs.existsSync(full)) {
+    missing.push(file);
+    console.error(`  ✗ MISSING: ${file}`);
+  } else {
+    console.log(`  ✓ ${file}`);
+  }
+}
+if (missing.length > 0) {
+  fail(
+    `${missing.length} required file(s) missing from src/extension/. Cannot build ZIP.`
+  );
+}
+
+// ── Step 4: Load JSZip via CJS require (resolves through pnpm symlinks) ────────
+console.log("\n  Loading JSZip...");
+
+// createRequire from the frontend package.json so pnpm resolves jszip there
+const frontendRequire = createRequire(
+  path.resolve(ROOT, "src", "frontend", "package.json")
+);
+
+let JSZip;
+try {
+  JSZip = frontendRequire("jszip");
+} catch {
+  // Fall back to root node_modules
   try {
-    execSync(`rm -f "${ZIP_PATH}"`);
+    const rootRequire = createRequire(path.resolve(ROOT, "package.json"));
+    JSZip = rootRequire("jszip");
   } catch {
-    // non-fatal — zip -r will overwrite anyway
+    fail(
+      "JSZip not found. Run `pnpm install` in src/frontend/ first (jszip is a dependency)."
+    );
   }
 }
 
-// ── Build the zip ───────────────────────────────────────────────────────────
-try {
-  // Run zip from inside the extension directory so paths inside the archive
-  // are relative (e.g. manifest.json, not src/extension/manifest.json).
-  execSync(`zip -r "${ZIP_PATH}" .`, {
-    cwd: EXTENSION_DIR,
-    stdio: "pipe",
-  });
-  console.log("Extension zipped to public/copie-past-e.zip");
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`ERROR: Failed to zip extension — ${message}`);
-  process.exit(1);
+console.log("  JSZip loaded.");
+
+// ── Step 5: Build ZIP in memory ─────────────────────────────────────────────
+console.log(`  Building ZIP archive...`);
+
+const zip = new JSZip();
+const allFiles = walkDir(EXTENSION_SRC);
+
+for (const relPath of allFiles) {
+  const fullPath = path.join(EXTENSION_SRC, relPath);
+  // Store under copie-paste-extension/ top-level folder (use forward slashes)
+  const zipEntry = `copie-paste-extension/${relPath.split(path.sep).join("/")}`;
+  const content = fs.readFileSync(fullPath);
+  zip.file(zipEntry, content);
 }
+
+// ── Step 6: Ensure output directory exists ──────────────────────────────────
+fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+
+const ZIP_FILENAME = `copie-paste-extension-v${version}.zip`;
+const ZIP_PATH = path.join(PUBLIC_DIR, ZIP_FILENAME);
+
+// Remove old ZIP if exists
+if (fs.existsSync(ZIP_PATH)) fs.rmSync(ZIP_PATH);
+
+// Also clean up the legacy copie-past-e.zip so old download links 404 cleanly
+const LEGACY_ZIP = path.join(PUBLIC_DIR, "copie-past-e.zip");
+if (fs.existsSync(LEGACY_ZIP)) {
+  fs.rmSync(LEGACY_ZIP);
+  console.log("  ✓ Removed legacy copie-past-e.zip");
+}
+
+// ── Step 7: Write ZIP to disk ────────────────────────────────────────────────
+console.log(`  Writing ${ZIP_FILENAME}...`);
+const zipBuffer = await zip.generateAsync({
+  type: "nodebuffer",
+  compression: "DEFLATE",
+  compressionOptions: { level: 6 },
+});
+fs.writeFileSync(ZIP_PATH, zipBuffer);
+
+// ── Step 8: Validate the output ──────────────────────────────────────────────
+if (!fs.existsSync(ZIP_PATH)) {
+  fail("ZIP file was not created.");
+}
+
+const stats = fs.statSync(ZIP_PATH);
+if (stats.size < 1024) {
+  fail(
+    `ZIP file is suspiciously small (${stats.size} bytes). Expected a real archive > 1 KB.`
+  );
+}
+
+// Verify first two bytes are PK (ZIP magic number 0x50 0x4B)
+const fd = fs.openSync(ZIP_PATH, "r");
+const magic = Buffer.alloc(2);
+fs.readSync(fd, magic, 0, 2, 0);
+fs.closeSync(fd);
+if (magic[0] !== 0x50 || magic[1] !== 0x4b) {
+  fs.rmSync(ZIP_PATH);
+  fail(
+    `Output file is not a valid ZIP archive (magic bytes: ${magic.toString("hex")}). The file has been deleted.`
+  );
+}
+
+// ── Done ─────────────────────────────────────────────────────────────────────
+const sizeKb = (stats.size / 1024).toFixed(1);
+console.log(
+  `\n✓ Created ${ZIP_FILENAME} (${stats.size} bytes / ${sizeKb} KB)\n  → ${ZIP_PATH}\n`
+);

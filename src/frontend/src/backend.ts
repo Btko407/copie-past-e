@@ -225,6 +225,18 @@ export interface PoshmarkFields {
     photos: Array<Uint8Array>;
     condition?: string;
 }
+export interface ExtensionConfigResult {
+    chromeWebStoreUrl: string;
+    capabilities: ExtensionCapabilities;
+    downloadMode: string;
+    localDownloadUrl: string;
+    downloadUrl: string;
+    releaseNotes: string;
+    latestVersion: string;
+    supportedPlatforms: Array<string>;
+    buildNumber: bigint;
+    isForceUpdate: boolean;
+}
 export type ResendResult = {
     __kind__: "ok";
     ok: {
@@ -792,6 +804,14 @@ export interface SiteSettings {
     uploadEnabled: boolean;
     maxUploadsPerHour: bigint;
 }
+export interface ExtensionCapabilities {
+    poshmark: boolean;
+    ebay: boolean;
+    etsy: boolean;
+    facebook: boolean;
+    depop: boolean;
+    mercari: boolean;
+}
 export interface AppVersion {
     id: bigint;
     versionLabel: string;
@@ -1280,6 +1300,13 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    adminSetExtensionConfig(downloadMode: string, localDownloadUrl: string, chromeWebStoreUrl: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetExtensionVersion(version: string, buildNumber: bigint, releaseNotes: string, downloadUrl: string, isForceUpdate: boolean): Promise<{
         __kind__: "ok";
         ok: string;
@@ -1289,6 +1316,13 @@ export interface backendInterface {
     }>;
     adminSetGeminiKey(key: string): Promise<void>;
     adminSetMaintenanceMode(enabled: boolean, message: string): Promise<void>;
+    adminSetPlatformCapabilities(facebook: boolean, mercari: boolean, ebay: boolean, poshmark: boolean, depop: boolean, etsy: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     adminSetSiteBaseUrl(url: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1537,6 +1571,7 @@ export interface backendInterface {
     getCanisterCyclesBalance(): Promise<bigint>;
     getCleanupSummaries(): Promise<Array<UserCleanupSummary>>;
     getConfig(key: string): Promise<string | null>;
+    getExtensionConfig(): Promise<ExtensionConfigResult>;
     getFbListings(): Promise<{
         __kind__: "ok";
         ok: Array<FbListing>;
@@ -2705,6 +2740,26 @@ export class Backend implements backendInterface {
             return from_candid_variant_n42(this._uploadFile, this._downloadFile, result);
         }
     }
+    async adminSetExtensionConfig(arg0: string, arg1: string, arg2: string): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminSetExtensionConfig(arg0, arg1, arg2);
+                return from_candid_variant_n22(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminSetExtensionConfig(arg0, arg1, arg2);
+            return from_candid_variant_n22(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async adminSetExtensionVersion(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: boolean): Promise<{
         __kind__: "ok";
         ok: string;
@@ -2751,6 +2806,26 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.adminSetMaintenanceMode(arg0, arg1);
             return result;
+        }
+    }
+    async adminSetPlatformCapabilities(arg0: boolean, arg1: boolean, arg2: boolean, arg3: boolean, arg4: boolean, arg5: boolean): Promise<{
+        __kind__: "ok";
+        ok: string;
+    } | {
+        __kind__: "err";
+        err: string;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminSetPlatformCapabilities(arg0, arg1, arg2, arg3, arg4, arg5);
+                return from_candid_variant_n22(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminSetPlatformCapabilities(arg0, arg1, arg2, arg3, arg4, arg5);
+            return from_candid_variant_n22(this._uploadFile, this._downloadFile, result);
         }
     }
     async adminSetSiteBaseUrl(arg0: string): Promise<{
@@ -3879,6 +3954,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getConfig(arg0);
             return from_candid_opt_n25(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getExtensionConfig(): Promise<ExtensionConfigResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getExtensionConfig();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getExtensionConfig();
+            return result;
         }
     }
     async getFbListings(): Promise<{

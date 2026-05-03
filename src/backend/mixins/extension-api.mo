@@ -21,20 +21,65 @@ mixin (
   // Keyed by version string — add() replaces existing entry for same version
   let extensionVersions = Map.empty<Text, Types.ExtensionVersion>();
 
-  // Seed v1.3 on first load
+  // ── Extension Release Config (single mutable record) ─────────────────────
+  // Stored as a single-entry map keyed by "config" so it survives upgrades
+  // without changing the ExtensionVersion Candid type.
+  let extensionConfigStore = Map.empty<Text, Types.ExtensionConfig>();
+
+  // Default capabilities — all 6 platforms enabled
+  let defaultCapabilities : Types.ExtensionCapabilities = {
+    facebook = true;
+    mercari  = true;
+    ebay     = true;
+    poshmark = true;
+    depop    = true;
+    etsy     = true;
+  };
+
+  // Seed v1.3.1 on first load
   if (extensionVersions.isEmpty()) {
     extensionVersions.add(
-      "1.3",
+      "1.3.1",
       {
-        version            = "1.3";
-        buildNumber        = 3;
-        releaseNotes       = "Complete autofill v1.3 — Facebook Marketplace (price, category, condition, description) + Mecari (brand, pricing, condition) — 100% reliable extraction with image validation";
-        downloadUrl        = "https://chrome.google.com/webstore/detail/copie-past-e/YOUR_EXTENSION_ID";
-        isForceUpdate      = true;
+        version            = "1.3.1";
+        buildNumber        = 4;
+        releaseNotes       = "Production release with full 6-platform autofill support";
+        downloadUrl        = "/copie-paste-extension-v1.3.1.zip";
+        isForceUpdate      = false;
         releasedAt         = Time.now();
-        supportedPlatforms = ["facebook", "mecari", "offerUp"];
+        supportedPlatforms = ["facebook", "mercari", "ebay", "poshmark", "depop", "etsy"];
       },
     );
+  };
+
+  if (extensionConfigStore.isEmpty()) {
+    extensionConfigStore.add(
+      "config",
+      {
+        downloadMode       = "local";
+        localDownloadUrl   = "/copie-paste-extension-v1.3.1.zip";
+        chromeWebStoreUrl  = "";
+        supportedPlatforms = ["facebook", "mercari", "ebay", "poshmark", "depop", "etsy"];
+        capabilities       = defaultCapabilities;
+      },
+    );
+  };
+
+  // ── Extension Config Helper ───────────────────────────────────────────────
+
+  func currentConfig() : Types.ExtensionConfig {
+    switch (extensionConfigStore.get("config")) {
+      case (?cfg) { cfg };
+      case null {
+        {
+          downloadMode       = "local";
+          localDownloadUrl   = "/copie-paste-extension-v1.3.1.zip";
+          chromeWebStoreUrl  = "";
+          supportedPlatforms = ["facebook", "mercari", "ebay", "poshmark", "depop", "etsy"];
+          capabilities       = defaultCapabilities;
+        }
+      };
+    }
   };
 
   // ── Helper: find the latest version entry ─────────────────────────────────
@@ -56,10 +101,16 @@ mixin (
   // ── Extension Version Queries ─────────────────────────────────────────────
 
   /// Get the latest extension version (for update banners).
+  /// downloadUrl reflects the configured downloadMode (local by default).
   public query func getLatestExtensionVersion() : async ?Types.ExtensionUpdateCheck {
+    let cfg = currentConfig();
     switch (latestVersion()) {
       case null { null };
       case (?latest) {
+        let effectiveUrl = switch (cfg.downloadMode) {
+          case "webstore" { cfg.chromeWebStoreUrl };
+          case _          { cfg.localDownloadUrl };
+        };
         ?{
           currentVersion = "";
           latestVersion  = latest.version;
@@ -67,7 +118,7 @@ mixin (
           isForceUpdate  = latest.isForceUpdate;
           buildNumber    = latest.buildNumber;
           releaseNotes   = latest.releaseNotes;
-          downloadUrl    = latest.downloadUrl;
+          downloadUrl    = effectiveUrl;
         }
       };
     }
@@ -75,19 +126,24 @@ mixin (
 
   /// Check update status by comparing the client's installed version with latest.
   public query func checkExtensionUpdateStatus(clientVersion : Text) : async Types.ExtensionUpdateCheck {
+    let cfg = currentConfig();
     switch (latestVersion()) {
       case null {
         {
           currentVersion = clientVersion;
-          latestVersion  = "1.3";
+          latestVersion  = "1.3.1";
           needsUpdate    = false;
           isForceUpdate  = false;
           buildNumber    = 0;
           releaseNotes   = "";
-          downloadUrl    = "";
+          downloadUrl    = cfg.localDownloadUrl;
         }
       };
       case (?latest) {
+        let effectiveUrl = switch (cfg.downloadMode) {
+          case "webstore" { cfg.chromeWebStoreUrl };
+          case _          { cfg.localDownloadUrl };
+        };
         {
           currentVersion = clientVersion;
           latestVersion  = latest.version;
@@ -95,7 +151,46 @@ mixin (
           isForceUpdate  = latest.isForceUpdate;
           buildNumber    = latest.buildNumber;
           releaseNotes   = latest.releaseNotes;
-          downloadUrl    = latest.downloadUrl;
+          downloadUrl    = effectiveUrl;
+        }
+      };
+    }
+  };
+
+  /// Public: get full extension config including download mode and capabilities.
+  public query func getExtensionConfig() : async Types.ExtensionConfigResult {
+    let cfg = currentConfig();
+    switch (latestVersion()) {
+      case null {
+        {
+          latestVersion      = "1.3.1";
+          buildNumber        = 4;
+          downloadUrl        = cfg.localDownloadUrl;
+          isForceUpdate      = false;
+          releaseNotes       = "";
+          downloadMode       = cfg.downloadMode;
+          localDownloadUrl   = cfg.localDownloadUrl;
+          chromeWebStoreUrl  = cfg.chromeWebStoreUrl;
+          supportedPlatforms = cfg.supportedPlatforms;
+          capabilities       = cfg.capabilities;
+        }
+      };
+      case (?latest) {
+        let effectiveUrl = switch (cfg.downloadMode) {
+          case "webstore" { cfg.chromeWebStoreUrl };
+          case _          { cfg.localDownloadUrl };
+        };
+        {
+          latestVersion      = latest.version;
+          buildNumber        = latest.buildNumber;
+          downloadUrl        = effectiveUrl;
+          isForceUpdate      = latest.isForceUpdate;
+          releaseNotes       = latest.releaseNotes;
+          downloadMode       = cfg.downloadMode;
+          localDownloadUrl   = cfg.localDownloadUrl;
+          chromeWebStoreUrl  = cfg.chromeWebStoreUrl;
+          supportedPlatforms = cfg.supportedPlatforms;
+          capabilities       = cfg.capabilities;
         }
       };
     }
@@ -112,6 +207,7 @@ mixin (
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       return #err("Unauthorized: admin only");
     };
+    let cfg = currentConfig();
     extensionVersions.add(
       version,
       {
@@ -121,10 +217,52 @@ mixin (
         downloadUrl;
         isForceUpdate;
         releasedAt         = Time.now();
-        supportedPlatforms = ["facebook", "mecari", "offerUp"];
+        supportedPlatforms = cfg.supportedPlatforms;
       },
     );
+    // Also update localDownloadUrl in config to match latest published version
+    extensionConfigStore.add(
+      "config",
+      { cfg with localDownloadUrl = downloadUrl },
+    );
     #ok("Extension version " # version # " published — force update: " # (if isForceUpdate "YES" else "NO"))
+  };
+
+  /// Admin: set download mode and URL fields.
+  public shared ({ caller }) func adminSetExtensionConfig(
+    downloadMode      : Text,
+    localDownloadUrl  : Text,
+    chromeWebStoreUrl : Text,
+  ) : async { #ok : Text; #err : Text } {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      return #err("Unauthorized: admin only");
+    };
+    let existing = currentConfig();
+    extensionConfigStore.add(
+      "config",
+      { existing with downloadMode; localDownloadUrl; chromeWebStoreUrl },
+    );
+    #ok("Extension config updated — mode: " # downloadMode)
+  };
+
+  /// Admin: set per-platform capability flags.
+  public shared ({ caller }) func adminSetPlatformCapabilities(
+    facebook : Bool,
+    mercari  : Bool,
+    ebay     : Bool,
+    poshmark : Bool,
+    depop    : Bool,
+    etsy     : Bool,
+  ) : async { #ok : Text; #err : Text } {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      return #err("Unauthorized: admin only");
+    };
+    let existing = currentConfig();
+    extensionConfigStore.add(
+      "config",
+      { existing with capabilities = { facebook; mercari; ebay; poshmark; depop; etsy } },
+    );
+    #ok("Platform capabilities updated")
   };
 
   /// Admin: list the full extension version history.

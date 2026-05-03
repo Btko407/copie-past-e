@@ -1,7 +1,16 @@
 import { createActor } from "@/backend";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, Plus, RefreshCw, Zap } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Globe,
+  HardDrive,
+  Plus,
+  RefreshCw,
+  Save,
+  Zap,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -31,18 +40,48 @@ interface ExtensionCapabilities {
   shippingTypeDetection: boolean;
 }
 
+type DownloadMode = "local" | "webstore" | "both";
+
+const PLATFORM_CAPABILITIES = [
+  { key: "facebook", label: "Facebook Marketplace", emoji: "📘" },
+  { key: "mercari", label: "Mercari", emoji: "🏯" },
+  { key: "ebay", label: "eBay", emoji: "🔨" },
+  { key: "poshmark", label: "Poshmark", emoji: "👗" },
+  { key: "depop", label: "Depop", emoji: "🎨" },
+  { key: "etsy", label: "Etsy", emoji: "🛍" },
+] as const;
+
 export function AdminExtensionVersionsPage() {
   const { actor, isFetching: actorFetching } = useActor(createActor);
   const enabled = !!actor && !actorFetching;
   const queryClient = useQueryClient();
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showCapabilitiesModal, setShowCapabilitiesModal] = useState(false);
-  const [newVersion, setNewVersion] = useState("1.3");
-  const [newBuildNumber, setNewBuildNumber] = useState(3);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [newVersion, setNewVersion] = useState("1.3.1");
+  const [newBuildNumber, setNewBuildNumber] = useState(4);
   const [newReleaseNotes, setNewReleaseNotes] = useState(
-    "Complete autofill v1.3 — Facebook & Mecari full support",
+    "Production release with full 6-platform autofill support",
   );
-  const [forceUpdate, setForceUpdate] = useState(true);
+  const [forceUpdate, setForceUpdate] = useState(false);
+
+  // Download config state
+  const [downloadMode, setDownloadMode] = useState<DownloadMode>("local");
+  const [localDownloadUrl, setLocalDownloadUrl] = useState(
+    "/copie-paste-extension-v1.3.1.zip",
+  );
+  const [chromeWebStoreUrl, setChromeWebStoreUrl] = useState("");
+
+  // Per-platform capability toggles
+  const [platformCaps, setPlatformCaps] = useState({
+    facebook: true,
+    mercari: true,
+    ebay: true,
+    poshmark: true,
+    depop: true,
+    etsy: true,
+  });
+
   const [capabilities, setCapabilities] = useState<ExtensionCapabilities>({
     autofillFacebook: true,
     autofillMecari: true,
@@ -57,6 +96,39 @@ export function AdminExtensionVersionsPage() {
     localPickupDetection: true,
     deliveryDaysDetection: true,
     shippingTypeDetection: true,
+  });
+
+  // Load existing extension config
+  const { data: extConfig } = useQuery({
+    queryKey: ["extensionConfig"],
+    queryFn: async () => {
+      if (!actor) throw new Error("Backend not ready");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return await (actor as any).getExtensionConfig();
+    },
+    enabled,
+  });
+
+  // Sync config panel state when data loads
+  useState(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg = extConfig as any;
+    if (cfg) {
+      if (cfg.downloadMode) setDownloadMode(cfg.downloadMode as DownloadMode);
+      if (cfg.localDownloadUrl) setLocalDownloadUrl(cfg.localDownloadUrl);
+      if (cfg.chromeWebStoreUrl !== undefined)
+        setChromeWebStoreUrl(cfg.chromeWebStoreUrl);
+      if (cfg.capabilities) {
+        setPlatformCaps({
+          facebook: cfg.capabilities.facebook ?? true,
+          mercari: cfg.capabilities.mercari ?? true,
+          ebay: cfg.capabilities.ebay ?? true,
+          poshmark: cfg.capabilities.poshmark ?? true,
+          depop: cfg.capabilities.depop ?? true,
+          etsy: cfg.capabilities.etsy ?? true,
+        });
+      }
+    }
   });
 
   const { data: versions = [], isLoading } = useQuery({
@@ -80,15 +152,47 @@ export function AdminExtensionVersionsPage() {
     enabled,
   });
 
+  const saveConfigMutation = useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Backend not ready");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (actor as any).adminSetExtensionConfig(
+        downloadMode,
+        localDownloadUrl,
+        chromeWebStoreUrl,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (actor as any).adminSetPlatformCapabilities(
+        platformCaps.facebook,
+        platformCaps.mercari,
+        platformCaps.ebay,
+        platformCaps.poshmark,
+        platformCaps.depop,
+        platformCaps.etsy,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["extensionConfig"] });
+      queryClient.invalidateQueries({ queryKey: ["latestExtensionVersion"] });
+      setShowConfigPanel(false);
+      toast.success("✅ Extension config saved");
+    },
+    onError: () => {
+      toast.error("Failed to save extension config");
+    },
+  });
+
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error("Backend not ready");
+      const effectiveUrl =
+        localDownloadUrl || `/copie-paste-extension-v${newVersion}.zip`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return await (actor as any).adminSetExtensionVersion(
         newVersion,
         newBuildNumber,
         newReleaseNotes,
-        "https://chrome.google.com/webstore/detail/copie-past-e/YOUR_ID",
+        effectiveUrl,
         forceUpdate,
       );
     },
@@ -106,26 +210,13 @@ export function AdminExtensionVersionsPage() {
   });
 
   const downloadVersion = (version: ExtensionVersion) => {
-    const data = JSON.stringify(
-      {
-        version: version.version,
-        buildNumber: version.buildNumber,
-        releaseNotes: version.releaseNotes,
-        downloadUrl: version.downloadUrl,
-        capabilities,
-        downloadedAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    );
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `copie-paste-extension-v${version.version}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Downloaded v${version.version}`);
+    const url = version.downloadUrl;
+    if (!url) {
+      toast.error(`No download URL for v${version.version}`);
+      return;
+    }
+    window.location.href = url;
+    toast.success(`Downloading v${version.version}`);
   };
 
   const copyDownloadUrl = (url: string) => {
@@ -166,7 +257,16 @@ export function AdminExtensionVersionsPage() {
                 )}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowConfigPanel(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded font-semibold text-white"
+                data-ocid="ext-config.open_modal_button"
+              >
+                <Globe className="h-4 w-4" />
+                Download Config
+              </button>
               <button
                 type="button"
                 onClick={() => setShowCapabilitiesModal(true)}
@@ -261,18 +361,31 @@ export function AdminExtensionVersionsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 flex-wrap">
-                        {version.supportedPlatforms.map((p) => (
-                          <span
-                            key={p}
-                            className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded"
-                          >
-                            {p === "facebook"
+                        {version.supportedPlatforms.map((p) => {
+                          const emoji =
+                            p === "facebook"
                               ? "📘"
-                              : p === "mecari"
+                              : p === "mercari"
                                 ? "🏯"
-                                : "📱"}
-                          </span>
-                        ))}
+                                : p === "ebay"
+                                  ? "🔨"
+                                  : p === "poshmark"
+                                    ? "👗"
+                                    : p === "depop"
+                                      ? "🎨"
+                                      : p === "etsy"
+                                        ? "🛍"
+                                        : "📱";
+                          return (
+                            <span
+                              key={p}
+                              className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded"
+                              title={p}
+                            >
+                              {emoji}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">
@@ -405,6 +518,153 @@ export function AdminExtensionVersionsPage() {
                 data-ocid="ext-publish-modal.submit_button"
               >
                 {publishMutation.isPending ? "Publishing..." : "🚀 Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Download Config Panel */}
+      {showConfigPanel && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          data-ocid="ext-config.dialog"
+        >
+          <div className="bg-gray-800 border border-emerald-500 rounded-lg p-6 max-w-lg w-full space-y-5 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-emerald-300 flex items-center gap-2">
+              <Globe className="h-5 w-5" /> Download Config
+            </h3>
+
+            {/* Download Mode */}
+            <div>
+              <p className="text-sm font-semibold text-gray-300 mb-2">
+                Download Mode
+              </p>
+              <div className="flex gap-3">
+                {(["local", "webstore", "both"] as DownloadMode[]).map(
+                  (mode) => (
+                    <label
+                      key={mode}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        name="downloadMode"
+                        value={mode}
+                        checked={downloadMode === mode}
+                        onChange={() => setDownloadMode(mode)}
+                        className="accent-emerald-500"
+                        data-ocid={`ext-config.mode_${mode}.radio`}
+                      />
+                      <span className="text-sm text-gray-300 capitalize">
+                        {mode}
+                      </span>
+                    </label>
+                  ),
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                <strong>local</strong>: local ZIP only ·
+                <strong> webstore</strong>: Chrome Web Store only ·
+                <strong> both</strong>: show both buttons
+              </p>
+            </div>
+
+            {/* Local URL */}
+            {downloadMode !== "webstore" && (
+              <div>
+                <label
+                  htmlFor="local-url"
+                  className="block text-sm font-semibold text-gray-300 mb-1"
+                >
+                  <HardDrive className="inline h-3 w-3 mr-1" /> Local Download
+                  URL
+                </label>
+                <input
+                  id="local-url"
+                  type="text"
+                  value={localDownloadUrl}
+                  onChange={(e) => setLocalDownloadUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
+                  placeholder="/copie-paste-extension-v1.3.1.zip"
+                  data-ocid="ext-config.local_url.input"
+                />
+              </div>
+            )}
+
+            {/* Web Store URL */}
+            {downloadMode !== "local" && (
+              <div>
+                <label
+                  htmlFor="webstore-url"
+                  className="block text-sm font-semibold text-gray-300 mb-1"
+                >
+                  <Globe className="inline h-3 w-3 mr-1" /> Chrome Web Store URL
+                </label>
+                <input
+                  id="webstore-url"
+                  type="text"
+                  value={chromeWebStoreUrl}
+                  onChange={(e) => setChromeWebStoreUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
+                  placeholder="https://chromewebstore.google.com/detail/..."
+                  data-ocid="ext-config.webstore_url.input"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to hide the Chrome Web Store button from users.
+                </p>
+              </div>
+            )}
+
+            {/* Per-platform capability toggles */}
+            <div>
+              <p className="text-sm font-semibold text-gray-300 mb-2">
+                Platform Capabilities
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {PLATFORM_CAPABILITIES.map(({ key, label, emoji }) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={platformCaps[key as keyof typeof platformCaps]}
+                      onChange={(e) =>
+                        setPlatformCaps({
+                          ...platformCaps,
+                          [key]: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4 rounded accent-emerald-500"
+                      data-ocid={`ext-config.platform_${key}.checkbox`}
+                    />
+                    <span className="text-sm text-gray-300">
+                      {emoji} {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={() => setShowConfigPanel(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white"
+                data-ocid="ext-config.cancel_button"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => saveConfigMutation.mutate()}
+                disabled={saveConfigMutation.isPending}
+                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 rounded text-white font-semibold flex items-center justify-center gap-2"
+                data-ocid="ext-config.confirm_button"
+              >
+                <Save className="h-4 w-4" />
+                {saveConfigMutation.isPending ? "Saving..." : "Save Config"}
               </button>
             </div>
           </div>
